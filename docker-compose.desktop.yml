@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Quero Automação Ltda
+# Override for Docker Desktop (macOS and Windows), where host networking does
+# not reach the machine: bridge network with the port published.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.desktop.yml up -d
+# Sobrescrita para o Docker Desktop (macOS e Windows), onde a rede do host não
+# alcança a máquina: rede bridge com a porta publicada.
+# Uso: docker compose -f docker-compose.yml -f docker-compose.desktop.yml up -d
+services:
+  iphub:
+    network_mode: bridge
+    ports:
+      - "8080:8080"

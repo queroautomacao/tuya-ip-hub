@@ -1,0 +1,21 @@
+{
+  "titulo": "Tuya IP Hub",
+  "subtitulo": "Ponte entre a plataforma Tuya e os equipamentos IP da sua rede local",
+  "estado": "Estado do daemon",
+  "estado_online": "Online",
+  "estado_offline": "Offline",
+  "estado_verificando": "Verificando...",
+  "versao": "Versão",
+  "esquema": "Esquema de dados",
+  "uptime": "Tempo no ar",
+  "ultima_verificacao": "Última verificação",
+  "indisponivel": "indisponível",
+  "marco_aviso": "Este é o painel do marco 0 e mostra apenas o estado do daemon. O assistente de primeiro uso (código de posse, senha e login) chega no marco 1.",
+  "idioma": "Idioma",
+  "idioma_pt": "Português",
+  "idioma_en": "English",
+  "licenca": "Software livre sob a licença AGPL-3.0-only. Licença comercial oferecida em paralelo pela Quero Automação Ltda.",
+  "repositorio": "Código-fonte no GitHub",
+  "marca": "Tuya é marca da Tuya Inc., citada de forma nominativa.",
+  "copyright": "Copyright (C) 2026 Quero Automação Ltda"
+}

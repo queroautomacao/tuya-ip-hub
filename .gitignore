@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Quero Automação Ltda
+# Internal material of Quero Automação: its own private git repository, cloned
+# into this folder and never part of the public history.
+# Material interno da Quero Automação: repositório git próprio, clonado nesta
+# pasta e nunca parte do histórico público.
+/interno/
+
+# Manufacturer documents never enter the repository (redistribution).
+# Documento de fabricante nunca entra no repositório (redistribuição).
+*.pdf
+
+# Local environment files: Docker Compose reads a .env in the project directory
+# for the ${IPHUB_IMAGEM} interpolation and Vite bakes every VITE_* value of
+# painel/.env into the bundle, so a secret in one of them would be published.
+# Arquivos de ambiente locais: o Docker Compose lê um .env no diretório do
+# projeto para a interpolação de ${IPHUB_IMAGEM} e o Vite embute todo valor VITE_*
+# de painel/.env no bundle, então um segredo em um deles seria publicado.
+.env
+.env.*
+
+# Runtime data of a local installation (config, sessions, imported drivers).
+# Dados de execução de uma instalação local (config, sessões, drivers importados).
+/data/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Panel build output: the Dockerfile builds it in its own stage.
+# Saída do build do painel: o Dockerfile constrói num estágio próprio.
+node_modules/
+painel/dist/
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.local

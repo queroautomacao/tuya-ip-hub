@@ -1,0 +1,64 @@
+# Device matrix (Matriz de aparelhos)
+
+[English](#english) | [Português](#português)
+
+The table itself is at the end of this file, shared by both languages, so that a device row is added once.
+
+A tabela em si está no fim deste arquivo, compartilhada pelas duas línguas, para que a linha de um aparelho seja acrescentada uma vez só.
+
+## English
+
+### Three honest states
+
+| State | Meaning |
+|---|---|
+| `verificado` | Verified on hardware: someone ran the hub against the real device, exercised the capabilities the driver declares, and signs the row with their GitHub username and the date. |
+| `simulado` | Tested against the simulated device: the driver's test suite passes against `simulado.py`, fed with recordings of real traffic when they exist. Nobody has signed a run on the real device yet. |
+| `declarado` | Declared: the manifest claims support based on protocol documentation, and no test against a recording or a real device exists yet. |
+
+A state moves up only through a pull request that says what was run. It never moves up because "it should work". Hardware validation is a row here, never a merge gate: the CI tests every driver against the simulated device.
+
+### Adding a row
+
+1. Open a pull request that edits the table at the end of this file, one row per device model and driver. Keep the rows sorted by brand, then model.
+2. Fill the columns:
+   - brand;
+   - model, with the firmware version when you know it;
+   - driver: the manifest `tipo`, for example `linkplay`;
+   - state: one of the three above;
+   - who, when: your GitHub username and the date as `YYYY-MM-DD` for `verificado`; the pull request number for `simulado`; blank for `declarado`;
+   - notes: what was not tested, quirks, pairing requirements, network requirements.
+3. Never attach manufacturer manuals or PDFs; link to the public page instead.
+4. No real network addresses in the notes; use `192.0.2.x` when an example is needed.
+5. A row in state `verificado` must come from the person who ran the test. Signing for someone else is not a verification.
+
+## Português
+
+### Três estados honestos
+
+| Estado | Significado |
+|---|---|
+| `verificado` | Verificado em hardware: alguém rodou o hub contra o aparelho real, exercitou as capacidades que o driver declara e assina a linha com o seu usuário do GitHub e a data. |
+| `simulado` | Testado contra o aparelho simulado: a suíte de testes do driver passa contra o `simulado.py`, alimentado por gravações de tráfego real quando existem. Ninguém assinou ainda uma rodada no aparelho real. |
+| `declarado` | Declarado: o manifesto reivindica suporte com base em documentação de protocolo, e ainda não existe teste contra gravação nem contra aparelho real. |
+
+Um estado só sobe por um pull request que diz o que foi rodado. Nunca sobe porque "deveria funcionar". Validação em hardware é uma linha aqui, nunca portão de integração: o CI testa todo driver contra o aparelho simulado.
+
+### Acrescentando uma linha
+
+1. Abra um pull request que edita a tabela no fim deste arquivo, uma linha por modelo de aparelho e driver. Mantenha as linhas ordenadas por marca, depois modelo.
+2. Preencha as colunas:
+   - marca;
+   - modelo, com a versão de firmware quando souber;
+   - driver: o `tipo` do manifesto, por exemplo `linkplay`;
+   - estado: um dos três acima;
+   - quem, quando: o seu usuário do GitHub e a data como `AAAA-MM-DD` para `verificado`; o número do pull request para `simulado`; em branco para `declarado`;
+   - observações: o que não foi testado, particularidades, exigências de pareamento, exigências de rede.
+3. Nunca anexe manuais nem PDFs de fabricante; coloque o link da página pública.
+4. Sem endereço de rede real nas observações; use `192.0.2.x` quando precisar de exemplo.
+5. Uma linha no estado `verificado` precisa vir de quem rodou o teste. Assinar por outra pessoa não é verificação.
+
+## Matrix (Matriz)
+
+| Brand (Marca) | Model (Modelo) | Driver | State (Estado) | Who, when (Quem, quando) | Notes (Observações) |
+|---|---|---|---|---|---|

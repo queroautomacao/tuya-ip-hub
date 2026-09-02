@@ -1,0 +1,120 @@
+Tuya IP Hub
+Copyright (C) 2026 Quero Automação Ltda
+
+======================================================================
+English
+======================================================================
+
+License
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, version 3 only
+(SPDX-License-Identifier: AGPL-3.0-only). The "or any later version"
+option of that license does not apply to this program.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+Affero General Public License for more details. The full text is in
+the LICENSE file at the root of the repository and at
+https://www.gnu.org/licenses/agpl-3.0.html
+
+Dual licensing
+
+Quero Automação Ltda also offers this software under a commercial
+license, for those who cannot or do not want to comply with the
+obligations of the AGPL. The two offers coexist; the version in this
+repository is the AGPL one. Contributions are accepted under the
+Contributor License Agreement in CLA.md, which is what keeps the
+commercial offer possible.
+
+Trademarks
+
+The "Tuya IP Hub" name and "Quero Automação" are not
+covered by the license above. A fork adopts its own name. Tuya is a
+trademark of Tuya Inc. The names of the equipment manufacturers cited
+in the code and in the documentation (Denon, Onkyo, Yamaha, Samsung,
+LG, Sony, Roku, Sonos, LinkPlay and others) are trademarks of their
+respective owners. All of them are used nominatively, to describe the
+equipment this software connects to; no affiliation or endorsement is
+implied.
+
+Third-party components
+
+The daemon depends on Python libraries declared in core/pyproject.toml.
+They are installed with pip inside the container image and are not
+vendored in this repository. Their licenses are MIT, BSD, ISC, Apache-2.0
+or the Python Software Foundation License; scripts/licencas.sh prints
+each package with its license and fails the CI on anything outside
+that list. No LGPL component is in use; if one is ever installed, it
+is listed here.
+
+The built panel at /app/painel embeds React, react-dom and scheduler
+(MIT License, Copyright (c) Meta Platforms, Inc. and affiliates).
+Their licenses are reproduced in the file NOTICE-painel.md, next to
+this one in the image, generated at build time from the packages
+themselves. Build-time tooling that is not shipped in the image is
+not covered by this notice.
+
+Python itself is distributed under the Python Software Foundation
+License. The container base images are used as published by their
+respective projects.
+
+======================================================================
+Português
+======================================================================
+
+Licença
+
+Este programa é software livre: você pode redistribuí-lo e/ou
+modificá-lo sob os termos da GNU Affero General Public License
+conforme publicada pela Free Software Foundation, versão 3 apenas
+(SPDX-License-Identifier: AGPL-3.0-only). A opção "ou qualquer versão
+posterior" dessa licença não se aplica a este programa.
+
+Este programa é distribuído na esperança de que seja útil, mas SEM
+QUALQUER GARANTIA; sem sequer a garantia implícita de COMERCIALIZAÇÃO
+ou ADEQUAÇÃO A UM PROPÓSITO ESPECÍFICO. Veja a GNU Affero General
+Public License para mais detalhes. O texto completo está no arquivo
+LICENSE na raiz do repositório e em
+https://www.gnu.org/licenses/agpl-3.0.html
+
+Licenciamento duplo
+
+A Quero Automação Ltda também oferece este software sob licença
+comercial, para quem não pode ou não quer cumprir as obrigações da
+AGPL. As duas ofertas coexistem; a versão deste repositório é a AGPL.
+Contribuições são aceitas sob o Acordo de Licença de Contribuidor em
+CLA.md, que é o que mantém a oferta comercial possível.
+
+Marcas
+
+O nome "Tuya IP Hub" e "Quero Automação" não são cobertos
+pela licença acima. Um fork adota nome próprio. Tuya é marca da Tuya
+Inc. Os nomes dos fabricantes de equipamentos citados no código e na
+documentação (Denon, Onkyo, Yamaha, Samsung, LG, Sony, Roku, Sonos,
+LinkPlay e outros) são marcas dos seus respectivos donos. Todos são
+usados de forma nominativa, para descrever os equipamentos a que este
+software se conecta; nenhuma afiliação ou endosso está implícito.
+
+Componentes de terceiros
+
+O daemon depende de bibliotecas Python declaradas em
+core/pyproject.toml. Elas são instaladas com pip dentro da imagem do
+container e não são vendorizadas neste repositório. Suas licenças são
+MIT, BSD, ISC, Apache-2.0 ou Python Software Foundation License; o
+scripts/licencas.sh imprime cada pacote com a sua licença e falha o CI
+em qualquer coisa fora dessa lista. Nenhum componente LGPL está em
+uso; se algum vier a ser instalado, é listado aqui.
+
+O painel construído em /app/painel embute React, react-dom e scheduler
+(MIT License, Copyright (c) Meta Platforms, Inc. and affiliates). As
+licenças deles estão reproduzidas no arquivo NOTICE-painel.md, ao lado
+deste na imagem, gerado em tempo de build a partir dos próprios
+pacotes. Ferramenta de build que não é distribuída na imagem não é
+coberta por este aviso.
+
+O próprio Python é distribuído sob a Python Software Foundation
+License. As imagens base do container são usadas como publicadas pelos
+seus respectivos projetos.

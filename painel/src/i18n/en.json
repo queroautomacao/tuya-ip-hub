@@ -1,0 +1,21 @@
+{
+  "titulo": "Tuya IP Hub",
+  "subtitulo": "Bridge between the Tuya platform and IP equipment on your local network",
+  "estado": "Daemon status",
+  "estado_online": "Online",
+  "estado_offline": "Offline",
+  "estado_verificando": "Checking...",
+  "versao": "Version",
+  "esquema": "Data schema",
+  "uptime": "Uptime",
+  "ultima_verificacao": "Last check",
+  "indisponivel": "unavailable",
+  "marco_aviso": "This is the milestone 0 panel and shows only the daemon status. The setup assistant (ownership code, password and login) arrives in milestone 1.",
+  "idioma": "Language",
+  "idioma_pt": "Português",
+  "idioma_en": "English",
+  "licenca": "Free software under the AGPL-3.0-only license. A commercial license is offered in parallel by Quero Automação Ltda.",
+  "repositorio": "Source code on GitHub",
+  "marca": "Tuya is a trademark of Tuya Inc., used nominatively.",
+  "copyright": "Copyright (C) 2026 Quero Automação Ltda"
+}

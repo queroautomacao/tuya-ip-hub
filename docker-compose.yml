@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Quero Automação Ltda
+services:
+  iphub:
+    # Why: IPHUB_IMAGEM lets the bench smoke run an image built elsewhere (CI)
+    # without touching this file.
+    # Por que: IPHUB_IMAGEM deixa a fumaça de bancada rodar uma imagem construída
+    # em outro lugar (CI) sem mexer neste arquivo.
+    image: ${IPHUB_IMAGEM:-ghcr.io/queroautomacao/tuya-ip-hub:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Why: the reference ARM appliance has no bridge network for build containers
+      # either; downloads during the build only work on the host network.
+      # Por que: o appliance ARM de referência também não tem rede bridge para os
+      # containers de build; download durante o build só funciona na rede do host.
+      network: host
+    # Why: no image has been published on GHCR yet, so compose builds locally.
+    # This line goes away with the first release, when the image is pulled.
+    # Por que: nenhuma imagem foi publicada no GHCR ainda, então o compose
+    # constrói localmente. Esta linha sai com a primeira release, quando a
+    # imagem passa a ser baixada.
+    pull_policy: build
+    # Why: the reference ARM appliance has no bridge network, so the container
+    # shares the host stack and no port is published (a published port would
+    # not work there). Docker Desktop uses docker-compose.desktop.yml on top.
+    # Por que: o appliance ARM de referência não tem rede bridge, então o
+    # container compartilha a pilha do host e nenhuma porta é publicada (porta
+    # publicada não funcionaria lá). Docker Desktop usa docker-compose.desktop.yml
+    # por cima.
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - iphub-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-m", "iphub.saude"]
+      interval: 10s
+      timeout: 5s
+      start_period: 45s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  iphub-data:

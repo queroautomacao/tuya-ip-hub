@@ -1,0 +1,171 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (C) 2026 Quero Automação Ltda */
+
+:root {
+  color-scheme: light dark;
+  --fundo: #f4f5f7;
+  --cartao: #ffffff;
+  --texto: #1c1f26;
+  --texto-suave: #5b6270;
+  --borda: #d9dde3;
+  --destaque: #2f6fed;
+  --online: #1e9e5a;
+  --offline: #d13b3b;
+  --verificando: #8a919c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fundo: #14161b;
+    --cartao: #1e2129;
+    --texto: #e8eaee;
+    --texto-suave: #a3a9b4;
+    --borda: #2f343e;
+    --destaque: #6b9cff;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--fundo);
+  color: var(--texto);
+  line-height: 1.5;
+}
+
+.pagina {
+  max-width: 720px;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.cabecalho {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.cabecalho h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.subtitulo {
+  margin: 0.25rem 0 0;
+  color: var(--texto-suave);
+}
+
+.idiomas {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.idiomas button {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--borda);
+  border-radius: 999px;
+  background: var(--cartao);
+  color: var(--texto);
+  cursor: pointer;
+}
+
+.idiomas button[aria-pressed="true"] {
+  border-color: var(--destaque);
+  color: var(--destaque);
+  font-weight: 600;
+}
+
+.cartao {
+  background: var(--cartao);
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+}
+
+.cartao h2 {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+
+.estado {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 1rem;
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.ponto {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 50%;
+  background: var(--verificando);
+}
+
+.cartao-online .ponto {
+  background: var(--online);
+}
+
+.cartao-offline .ponto {
+  background: var(--offline);
+}
+
+.cartao dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.35rem 1.25rem;
+  margin: 0;
+}
+
+.cartao dt {
+  color: var(--texto-suave);
+}
+
+.cartao dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.aviso {
+  margin: 1.25rem 0 0;
+  padding: 0.75rem 1rem;
+  border-left: 4px solid var(--destaque);
+  background: var(--cartao);
+  border-radius: 0 8px 8px 0;
+  color: var(--texto-suave);
+}
+
+.rodape {
+  margin-top: auto;
+  color: var(--texto-suave);
+  font-size: 0.9rem;
+}
+
+.rodape p {
+  margin: 0.35rem 0;
+}
+
+.rodape a {
+  color: var(--destaque);
+}
+
+.discreto {
+  font-size: 0.8rem;
+}

@@ -1,0 +1,87 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Quero Automação Ltda
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install -e "core[dev]"
+      - run: ruff check core
+      - run: ruff format --check core
+      - run: pytest -q
+        working-directory: core
+      - run: bash scripts/licencas.sh
+
+  painel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: painel/package-lock.json
+      - run: npm ci
+        working-directory: painel
+      - run: npm run build
+        working-directory: painel
+      - run: npm test
+        working-directory: painel
+
+  imagem:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # Why: the reference ARM appliance builds without BuildKit, so the legacy
+      # builder is the one that has to succeed here.
+      # Por que: o appliance ARM de referência constrói sem BuildKit, então o
+      # builder legado é o que precisa passar aqui.
+      - run: DOCKER_BUILDKIT=0 docker build -t tuya-ip-hub:ci .
+      - run: bash scripts/fumaca.sh tuya-ip-hub:ci
+
+  commits:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Commit subjects follow tipo(escopo) and carry no U+2014 or U+2013
+        shell: bash
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          padrao='^(feat|fix|refactor|docs|chore|test|ci|build)(\([a-z0-9_./-]+\))?: .+'
+          falhas=0
+          # Why: a failing git log inside a process substitution would pass the gate open.
+          # Por que: um git log falhando dentro de substituição de processo abriria o portão.
+          assuntos="$(git log --format=%s --no-merges "$BASE..$HEAD")"
+          [ -n "$assuntos" ] || { echo "FAIL no commit found between base and head"; exit 1; }
+          while IFS= read -r assunto; do
+            if ! printf '%s\n' "$assunto" | grep -Eq "$padrao"; then
+              echo "FAIL subject does not follow tipo(escopo): resumo: $assunto"
+              falhas=1
+            fi
+            if printf '%s\n' "$assunto" | LC_ALL=C grep -Eq $'\xe2\x80\x94|\xe2\x80\x93'; then
+              echo "FAIL subject contains an em dash or en dash: $assunto"
+              falhas=1
+            fi
+          done <<< "$assuntos"
+          if [ "$falhas" -eq 0 ]; then
+            echo "PASS every commit subject in the PR is conventional"
+          fi
+          exit "$falhas"

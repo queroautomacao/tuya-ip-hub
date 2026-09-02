@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Quero Automação Ltda
+name: "Device support request / Pedido de suporte a aparelho"
+description: "Ask for a driver for a device controlled over IP. / Peça um driver para um aparelho controlado por IP."
+title: "[aparelho] "
+# The label has to exist in the repository or GitHub ignores it silently.
+# O rótulo precisa existir no repositório ou o GitHub o ignora em silêncio.
+labels: ["aparelho"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do NOT attach manuals or PDFs: manufacturer documents are never redistributed here. Paste links to public pages instead.
+        NÃO anexe manuais nem PDFs: documento de fabricante nunca é redistribuído aqui. Cole links para páginas públicas.
+  - type: input
+    id: marca
+    attributes:
+      label: "Brand / Marca"
+    validations:
+      required: true
+  - type: input
+    id: modelo
+    attributes:
+      label: "Model / Modelo"
+    validations:
+      required: true
+  - type: dropdown
+    id: categoria
+    attributes:
+      label: "Category / Categoria"
+      options:
+        - "audio"
+        - "multiroom"
+        - "tv"
+        - "receiver"
+        - "soundbar"
+        - "projetor (projector)"
+        - "matriz (HDMI matrix)"
+        - "rele (relay)"
+        - "outro (other)"
+    validations:
+      required: true
+  - type: dropdown
+    id: protocolo
+    attributes:
+      label: "Control protocol / Protocolo de controle"
+      options:
+        - "Plain text over TCP, one line per command / Texto simples sobre TCP, uma linha por comando"
+        - "HTTP, simple requests / HTTP, requisições simples"
+        - "UDP"
+        - "WebSocket"
+        - "Other or unknown / Outro ou desconhecido"
+    validations:
+      required: true
+  - type: textarea
+    id: fatos
+    attributes:
+      label: "Protocol facts / Fatos do protocolo"
+      description: "Port, command examples, how state is read back, authentication (none, popup on the device, code, key), how the device announces itself on the network (SSDP, mDNS). Text only. / Porta, exemplos de comando, como o estado é lido, autenticação (nenhuma, popup no aparelho, código, chave), como o aparelho se anuncia na rede (SSDP, mDNS). Só texto."
+    validations:
+      required: true
+  - type: textarea
+    id: links
+    attributes:
+      label: "Links to public documentation / Links para documentação pública"
+      description: "Links only, no attachment. / Só links, sem anexo."
+  - type: dropdown
+    id: hardware
+    attributes:
+      label: "Can you test on the real device? / Pode testar no aparelho real?"
+      options:
+        - "Yes, I have the device / Sim, tenho o aparelho"
+        - "No / Não"
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmacoes
+    attributes:
+      label: "Checks / Verificações"
+      options:
+        - label: "I did not attach any manufacturer document. / Não anexei nenhum documento de fabricante."
+          required: true
+        - label: "I searched the existing issues and the device matrix (docs/MATRIZ.md). / Procurei nas issues existentes e na matriz de aparelhos (docs/MATRIZ.md)."
+          required: true

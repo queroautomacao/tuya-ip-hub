@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Quero Automação Ltda
+name: "Bug report / Relato de defeito"
+description: "Something in the hub does not behave as documented. / Algo no hub não se comporta como documentado."
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Fill in what you can; a reproducible case is worth more than a long description.
+        Preencha o que puder; um caso reproduzível vale mais que uma descrição longa.
+  - type: input
+    id: versao
+    attributes:
+      label: "Hub version / Versão do hub"
+      description: "What GET /health returns in the field versao, or what the panel status card shows under Version. / O que o GET /health devolve no campo versao, ou o que o cartão de estado do painel mostra em Versão."
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: instalacao
+    attributes:
+      label: "Installation / Instalação"
+      options:
+        - "Docker on Linux, host network (Raspberry Pi or similar) / Docker no Linux, rede do host"
+        - "Docker Desktop (macOS or Windows) / Docker Desktop (macOS ou Windows)"
+        - "Development, daemon and panel outside Docker / Desenvolvimento, daemon e painel fora do Docker"
+        - "Other, described below / Outro, descrito abaixo"
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: "Steps to reproduce / Passos para reproduzir"
+      placeholder: "1. ... 2. ... 3. ..."
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: "Expected behavior / Comportamento esperado"
+    validations:
+      required: true
+  - type: textarea
+    id: observado
+    attributes:
+      label: "What happened / O que aconteceu"
+      description: "Include the error code returned by the API (field code), if any. / Inclua o código de erro devolvido pela API (campo code), se houver."
+    validations:
+      required: true
+  - type: textarea
+    id: registros
+    attributes:
+      label: "Logs / Registros"
+      description: "Output of docker compose logs iphub. Remove tokens, the ownership code and anything private. / Saída de docker compose logs iphub. Remova tokens, o código de posse e qualquer coisa privada."
+      render: text
+  - type: checkboxes
+    id: confirmacoes
+    attributes:
+      label: "Checks / Verificações"
+      options:
+        - label: "I searched the existing issues. / Procurei nas issues existentes."
+          required: true
+        - label: "The logs above contain no secret. / Os registros acima não contêm segredo."
+          required: true
