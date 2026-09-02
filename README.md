@@ -39,7 +39,7 @@ When complete, the hub is three parts, and only three:
 
 ### Project status
 
-Milestone 0: skeleton. What exists today is the daemon answering `GET /health`, the panel shell, the Docker image and the CI. No device is controlled yet. The roadmap is the list below, one milestone at a time, each one closed with a green CI.
+Milestone 1: the hub has an owner. What exists today is the daemon answering `GET /health` and the setup API, the panel with the first access assistant, sign in and sign out, the Docker image and the CI. No device is controlled yet: equipment, drivers and scenes arrive in the milestones below, one at a time, each one closed with a green CI.
 
 | # | Milestone | Exit gate |
 |---|---|---|
@@ -74,7 +74,13 @@ docker compose up -d --wait
 
 Then open `http://<ip-of-the-server>:8080` (for example `http://192.0.2.10:8080`). The first `up` builds the image locally, which takes a few minutes on an ARM board; a published image on GHCR arrives with milestone 6. On an appliance without a bridge network or BuildKit, read the ARM section below before the first `up`.
 
-The panel is opened by IP address or as `localhost`. A hostname (a `.local` name or the name of a reverse proxy, for example) is answered with `421` and the code `host_nao_permitido`; the allowlist of names arrives with the configuration of milestone 1.
+On the first access the panel asks for the ownership code and for a new password. The code is generated on the first boot, printed in the container log (`docker compose logs iphub`) and kept in `codigo-de-posse.txt` inside the data volume, so only whoever reaches the machine sets the password. The password has a minimum of 8 characters. From then on the panel asks for the password alone, and the ownership code is no longer printed.
+
+The panel is opened by IP address or as `localhost`. Any other hostname (a `.local` name or the name of a reverse proxy, for example) is answered with `421` and the code `host_nao_permitido`. To have such a name accepted, add it to the `hosts_permitidos` list in `config.json` inside the data volume. Three things about that file: it is written by the daemon, so it only exists once the first access has been completed, and a hand written one that the daemon does not recognise makes it refuse to boot; keep every key that is already there, `schema_version` included, and change only that list; and the configuration is read at boot, so there is no reload and the container has to be restarted for the new name to be accepted:
+
+```
+docker compose restart iphub
+```
 
 On Docker Desktop (macOS or Windows) host networking is not exposed, so add the desktop override and open `http://localhost:8080`:
 
@@ -92,6 +98,17 @@ Configuration comes from environment variables, all optional. The table below de
 | `IPHUB_BIND` | `0.0.0.0` | address the daemon binds to |
 | `IPHUB_DATA` | `/data` | configuration and secrets (a named volume in compose) |
 | `IPHUB_PAINEL` | `/app/painel` | built panel files |
+
+The data directory (`IPHUB_DATA`, a named volume in compose) holds the configuration and the secrets. Every file below is created with mode `0600`:
+
+| File | Content |
+|---|---|
+| `config.json` | configuration, schema version and the password hash |
+| `codigo-de-posse.txt` | ownership code, generated on the first boot |
+| `api-token.txt` | machine credential used by the DP-bus, never handed to the panel |
+| `sessoes.json` | panel sessions, with the tokens kept hashed |
+
+Erasing the volume erases the password with it: the hub goes back to the first access, with a new ownership code in the log.
 
 The compose file passes no environment of its own, so `IPHUB_PORTA=9090 docker compose up` alone changes nothing. With compose, a value is changed in an override file that gives the service `iphub` an `environment:` block (compose merges `docker-compose.override.yml` on its own):
 
@@ -198,7 +215,7 @@ Quando completo, o hub são três peças, e só três:
 
 ### Estado do projeto
 
-Marco 0: esqueleto. O que existe hoje é o daemon respondendo `GET /health`, a casca do painel, a imagem Docker e o CI. Nenhum aparelho é controlado ainda. O roteiro é a lista abaixo, um marco por vez, cada um fechado com CI verde.
+Marco 1: o hub tem dono. O que existe hoje é o daemon respondendo `GET /health` e a API de configuração, o painel com o assistente de primeiro acesso, entrar e sair, a imagem Docker e o CI. Nenhum aparelho é controlado ainda: equipamentos, drivers e cenas chegam nos marcos abaixo, um por vez, cada um fechado com CI verde.
 
 | # | Marco | Portão de saída |
 |---|---|---|
@@ -233,7 +250,13 @@ docker compose up -d --wait
 
 Depois abra `http://<ip-do-servidor>:8080` (por exemplo `http://192.0.2.10:8080`). O primeiro `up` constrói a imagem localmente, o que leva alguns minutos numa placa ARM; a imagem publicada no GHCR chega com o marco 6. Num appliance sem rede bridge nem BuildKit, leia a seção sobre placas ARM abaixo antes do primeiro `up`.
 
-O painel é aberto por endereço IP ou como `localhost`. Um nome de host (um nome `.local` ou o nome de um proxy reverso, por exemplo) recebe `421` e o código `host_nao_permitido`; a lista de nomes permitidos chega com a configuração do marco 1.
+No primeiro acesso o painel pede o código de posse e uma senha nova. O código é gerado no primeiro boot, impresso no log do container (`docker compose logs iphub`) e guardado em `codigo-de-posse.txt`, dentro do volume de dados, então só quem alcança a máquina define a senha. A senha tem mínimo de 8 caracteres. Dali em diante o painel pede só a senha, e o código de posse não é mais impresso.
+
+O painel é aberto por endereço IP ou como `localhost`. Qualquer outro nome de host (um nome `.local` ou o nome de um proxy reverso, por exemplo) recebe `421` e o código `host_nao_permitido`. Para esse nome ser aceito, acrescente-o na lista `hosts_permitidos` do `config.json`, dentro do volume de dados. Três coisas sobre esse arquivo: ele é escrito pelo daemon, então só existe depois do primeiro acesso concluído, e um arquivo escrito à mão que o daemon não reconhece faz ele recusar o boot; mantenha todas as chaves que já estão lá, `schema_version` inclusive, e mude só essa lista; e a configuração é lida no boot, então não existe recarga e o container precisa ser reiniciado para o nome novo ser aceito:
+
+```
+docker compose restart iphub
+```
 
 No Docker Desktop (macOS ou Windows) a rede do host não é exposta, então acrescente o override de desktop e abra `http://localhost:8080`:
 
@@ -251,6 +274,17 @@ A configuração vem de variáveis de ambiente, todas opcionais. A tabela abaixo
 | `IPHUB_BIND` | `0.0.0.0` | endereço em que o daemon escuta |
 | `IPHUB_DATA` | `/data` | configuração e segredos (volume nomeado no compose) |
 | `IPHUB_PAINEL` | `/app/painel` | arquivos do painel construído |
+
+O diretório de dados (`IPHUB_DATA`, um volume nomeado no compose) guarda a configuração e os segredos. Todo arquivo abaixo nasce com modo `0600`:
+
+| Arquivo | Conteúdo |
+|---|---|
+| `config.json` | configuração, versão do esquema e o hash da senha |
+| `codigo-de-posse.txt` | código de posse, gerado no primeiro boot |
+| `api-token.txt` | credencial de máquina usada pelo DP-bus, nunca entregue ao painel |
+| `sessoes.json` | sessões do painel, com os tokens guardados por hash |
+
+Apagar o volume apaga a senha junto: o hub volta ao primeiro acesso, com um código de posse novo no log.
 
 O arquivo do compose não passa ambiente nenhum, então `IPHUB_PORTA=9090 docker compose up` sozinho não muda nada. Com o compose, um valor é mudado num arquivo de override que dá ao serviço `iphub` um bloco `environment:` (o compose junta o `docker-compose.override.yml` sozinho):
 

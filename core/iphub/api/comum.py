@@ -1,0 +1,191 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Quero Automação Ltda
+"""Pieces shared by the API modules: typed app keys, body reading and the session guard.
+
+Peças compartilhadas pelos módulos da API: chaves tipadas do app, leitura de corpo e a
+guarda de sessão.
+"""
+
+import functools
+import json
+from dataclasses import asdict, fields, replace
+from pathlib import Path
+
+from aiohttp import web
+
+from iphub.ambiente import Ambiente
+from iphub.arquivos import ler_json
+from iphub.config import ARQUIVO as ARQUIVO_CONFIG
+from iphub.config import Config
+from iphub.config import carregar as carregar_config
+from iphub.config import salvar as salvar_config
+from iphub.limite import Limite
+from iphub.portao import Handler, resposta_erro
+from iphub.segredos import Segredos
+from iphub.sessoes import Sessoes
+
+CORPO_MAXIMO = 8 * 1024
+CHAVE_TOKEN = "iphub_token"
+
+
+class Mutavel[T]:
+    """One slot a route may replace, because aiohttp freezes the app state on startup.
+
+    Um espaço que uma rota pode trocar, porque o aiohttp congela o estado do app ao subir.
+    """
+
+    __slots__ = ("valor",)
+
+    def __init__(self, valor: T) -> None:
+        self.valor = valor
+
+
+AMBIENTE = web.AppKey("ambiente", Ambiente)
+CONFIG = web.AppKey("config", Mutavel[Config])
+SEGREDOS = web.AppKey("segredos", Mutavel[Segredos])
+SESSOES = web.AppKey("sessoes", Sessoes)
+LIMITE = web.AppKey("limite", Limite)
+
+
+def config_de(app: web.Application) -> Config:
+    return app[CONFIG].valor
+
+
+def segredos_de(app: web.Application) -> Segredos:
+    return app[SEGREDOS].valor
+
+
+def _config_do_disco(dir_data: Path, atual: Config) -> Config:
+    """The file answers for the keys it carries, the live value for the keys it omits.
+
+    O arquivo responde pelas chaves que carrega, o valor vivo pelas que ele omite.
+    """
+    try:
+        bruto = ler_json(dir_data / ARQUIVO_CONFIG)
+        em_disco = carregar_config(dir_data)
+    except (OSError, ValueError):
+        # Why: a file damaged after boot must not turn a password change into an error.
+        # Por que: um arquivo danificado depois do boot não pode virar erro na troca de senha.
+        return atual
+    if bruto is None:
+        return atual
+    presentes = {atributo.name for atributo in fields(Config)} & set(bruto)
+    return replace(atual, **{nome: getattr(em_disco, nome) for nome in presentes})
+
+
+def trocar_config(app: web.Application, cfg: Config) -> None:
+    """Persists and publishes the configuration, so no route writes the file by hand.
+
+    Grava e publica a configuração, para nenhuma rota escrever o arquivo na mão.
+    """
+    # Why: the value in memory is the boot time snapshot, so writing it whole would erase a
+    # hosts_permitidos the integrator edited by hand hours after the daemon came up.
+    # Por que: o valor em memória é o retrato do boot, então gravá-lo inteiro apagaria um
+    # hosts_permitidos que o integrador editou na mão horas depois de o daemon subir.
+    dir_data = app[AMBIENTE].dir_data
+    atual = app[CONFIG].valor
+    mudou = {nome: valor for nome, valor in asdict(cfg).items() if valor != getattr(atual, nome)}
+    mesclada = replace(_config_do_disco(dir_data, atual), **mudou)
+    salvar_config(mesclada, dir_data)
+    app[CONFIG].valor = mesclada
+
+
+def resposta_ok(**campos: object) -> web.Response:
+    return web.json_response({"ok": True, "code": None, **campos})
+
+
+async def ler_corpo(request: web.Request) -> dict | None:
+    """The body as a JSON object, or None for anything else, a body too large included.
+
+    O corpo como objeto JSON, ou None para qualquer outra coisa, inclusive corpo grande demais.
+    """
+    # Why: whoever calls these routes is not authenticated yet, so the daemon reads a login
+    # sized body and not one byte more.
+    # Por que: quem chama estas rotas ainda não está autenticado, então o daemon lê um corpo
+    # do tamanho de um login e nem um byte a mais.
+    if (request.content_length or 0) > CORPO_MAXIMO:
+        return None
+    bruto = await _corpo_inteiro(request)
+    if bruto is None:
+        return None
+    try:
+        dados = json.loads(bruto)
+    except ValueError:
+        return None
+    return dados if isinstance(dados, dict) else None
+
+
+async def _corpo_inteiro(request: web.Request) -> bytes | None:
+    """Every byte of the body, or None when it goes past the ceiling.
+
+    Todo byte do corpo, ou None quando ele passa do teto.
+    """
+    # Why: one read returns only what the buffer already holds, so a body that arrived in two
+    # TCP segments came out truncated and an honest slow client could not log in.
+    # Por que: uma leitura só devolve o que o buffer já tem, então um corpo que chegou em dois
+    # segmentos TCP saía truncado e um cliente honesto e lento não conseguia entrar.
+    bruto = bytearray()
+    while len(bruto) <= CORPO_MAXIMO:
+        pedaco = await request.content.read(CORPO_MAXIMO + 1 - len(bruto))
+        if not pedaco:
+            return bytes(bruto)
+        bruto += pedaco
+    return None
+
+
+def campo(dados: dict, chave: str) -> str | None:
+    valor = dados.get(chave)
+    return valor if isinstance(valor, str) else None
+
+
+def token_do_cabecalho(bruto: str | None) -> str | None:
+    """Bearer only, section 8; anything else is a header this daemon does not speak.
+
+    Só Bearer, seção 8; qualquer outra coisa é um cabeçalho que este daemon não fala.
+    """
+    if not bruto:
+        return None
+    esquema, _, valor = bruto.partition(" ")
+    if esquema.lower() != "bearer":
+        return None
+    return valor.strip() or None
+
+
+def token_utilizavel(token: str) -> bool:
+    """False for a token the header parser had to smuggle through surrogates.
+
+    Falso para um token que o analisador de cabeçalho teve de contrabandear em surrogates.
+    """
+    # Why: header bytes that are not UTF-8 arrive as lone surrogates, and hashing one raises,
+    # which answered 500 with a traceback where the honest answer is that no session matches.
+    # Por que: bytes de cabeçalho fora do UTF-8 chegam como surrogates soltos, e passar um por
+    # hash estoura, o que respondia 500 com traceback onde a resposta honesta é que nenhuma
+    # sessão casa.
+    try:
+        token.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
+def token_da_sessao(request: web.Request) -> str:
+    return request[CHAVE_TOKEN]
+
+
+def com_sessao(handler: Handler) -> Handler:
+    """Decorator: the route runs only for a token the session store still accepts.
+
+    Decorador: a rota só roda para um token que o repositório de sessões ainda aceita.
+    """
+
+    @functools.wraps(handler)
+    async def guardado(request: web.Request) -> web.StreamResponse:
+        token = token_do_cabecalho(request.headers.get("Authorization"))
+        if token is None:
+            return resposta_erro(401, "nao_autenticado")
+        if not token_utilizavel(token) or not request.app[SESSOES].validar(token):
+            return resposta_erro(401, "sessao_invalida")
+        request[CHAVE_TOKEN] = token
+        return await handler(request)
+
+    return guardado

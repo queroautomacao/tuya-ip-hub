@@ -29,6 +29,13 @@ def _confere(resposta):
         ("POST", "/health", None, 405),
         ("GET", "/health", "evil.example.com", 421),
         ("GET", "/nao-existe", "evil.example.com", 421),
+        ("GET", "/api/estado", None, 200),
+        ("POST", "/api/posse", None, 400),
+        ("POST", "/api/entrar", None, 400),
+        ("POST", "/api/sair", None, 401),
+        ("GET", "/api/sessao", None, 401),
+        ("POST", "/api/senha", None, 401),
+        ("GET", "/api/estado", "evil.example.com", 421),
     ],
 )
 async def test_toda_resposta_carrega_os_cabecalhos(cliente, metodo, caminho, host, status):
@@ -102,6 +109,8 @@ async def test_excecao_http_ja_em_json_atravessa_com_cabecalhos(cliente_com_falh
         ("DELETE", "/"),
         ("GET", "/a%0Ab"),
         ("GET", "/a%00b"),
+        ("GET", "/api/estado"),
+        ("POST", "/api/posse"),
     ],
 )
 async def test_expect_desconhecido_e_417_json_com_cabecalhos(cliente, metodo, caminho):

@@ -61,3 +61,12 @@ export function definirIdioma(novo: Idioma): void {
 export function t(chave: Chave): string {
   return DICIONARIOS[atual][chave];
 }
+
+// Why: the API answers a stable code and never a phrase, so the panel is the only
+// place that turns a code into words, and an unknown code still has to say something.
+// Por que: a API responde um código estável e nunca uma frase, então o painel é o
+// único lugar que vira o código em palavras, e um código novo ainda precisa dizer algo.
+export function traduzirErro(codigo: string): string {
+  const dicionario = DICIONARIOS[atual] as Record<string, string | undefined>;
+  return dicionario[`erro_${codigo}`] ?? dicionario.erro_desconhecido ?? codigo;
+}

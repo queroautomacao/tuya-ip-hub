@@ -15,8 +15,8 @@ async def test_rota_desconhecida_e_404_json(cliente):
     assert await resposta.json() == {"ok": False, "code": "nao_encontrado"}
 
 
-async def test_api_ainda_nao_existe_e_404_json(cliente):
-    for caminho in ("/api", "/api/setup", "/dpbus", "/index.html"):
+async def test_caminho_vizinho_de_rota_real_e_404_json(cliente):
+    for caminho in ("/api", "/api/setup", "/api/estado/x", "/dpbus", "/index.html"):
         resposta = await cliente.get(caminho)
         assert resposta.status == 404, caminho
         assert await resposta.json() == {"ok": False, "code": "nao_encontrado"}

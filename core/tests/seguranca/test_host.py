@@ -6,10 +6,13 @@ Seção 9: Host fora da lista recebe 421 (fecha DNS rebinding de fora da LAN).
 """
 
 import asyncio
+from dataclasses import replace
 
 import pytest
 
+from iphub.api.comum import config_de, trocar_config
 from iphub.app import criar_app
+from iphub.config import Config, salvar
 
 RECUSADO = {"ok": False, "code": "host_nao_permitido"}
 
@@ -29,11 +32,31 @@ async def test_ip_literal_e_localhost_passam(cliente, host):
     assert resposta.status == 200
 
 
-async def test_nome_da_lista_passa(aiohttp_client, amb):
-    cliente = await aiohttp_client(criar_app(amb, hosts_permitidos=frozenset({"hub.local"})))
+async def test_nome_da_lista_passa(fabrica_cliente):
+    cliente = await fabrica_cliente(config=Config(hosts_permitidos=("hub.local",)))
     assert (await cliente.get("/health", headers={"Host": "hub.local"})).status == 200
     assert (await cliente.get("/health", headers={"Host": "hub.local:8080"})).status == 200
     assert (await cliente.get("/health", headers={"Host": "evil.example.com"})).status == 421
+
+
+async def test_a_lista_vem_do_config_em_disco(fabrica_cliente, amb):
+    # Why: the allowlist the integrator edits is the one in config.json; a list frozen in
+    # code at build time would leave that edit with no effect.
+    # Por que: a lista que o integrador edita é a do config.json; uma lista congelada em
+    # código no build deixaria essa edição sem efeito.
+    amb.dir_data.mkdir(parents=True, exist_ok=True)
+    salvar(Config(hosts_permitidos=("hub.local",)), amb.dir_data)
+    cliente = await fabrica_cliente()
+    assert (await cliente.get("/health", headers={"Host": "hub.local"})).status == 200
+    assert (await cliente.get("/health", headers={"Host": "evil.example.com"})).status == 421
+
+
+async def test_lista_mudada_em_execucao_vale_na_hora(aiohttp_client, amb):
+    app = criar_app(amb)
+    cliente = await aiohttp_client(app)
+    assert (await cliente.get("/health", headers={"Host": "hub.local"})).status == 421
+    trocar_config(app, replace(config_de(app), hosts_permitidos=("hub.local",)))
+    assert (await cliente.get("/health", headers={"Host": "hub.local"})).status == 200
 
 
 async def test_host_ausente_e_421(cliente):

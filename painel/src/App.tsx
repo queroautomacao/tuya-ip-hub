@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Quero Automação Ltda
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import Assistente from "./Assistente";
+import Login from "./Login";
+import TrocarSenha from "./TrocarSenha";
+import { lerEstado, lerSessao, sair, type Estado } from "./api";
 import { IDIOMAS, definirIdioma, idiomaAtual, t, type Idioma } from "./i18n";
 import { INTERVALO_MS, formatarUptime, lerSaude, type Saude } from "./saude";
+import { ler as lerToken } from "./sessao";
 
 const REPOSITORIO = "https://github.com/queroautomacao/tuya-ip-hub";
 
 type Fase = "verificando" | "online" | "offline";
+type Tela = "carregando" | "indisponivel" | "assistente" | "login" | "painel";
 
 interface Leitura {
   fase: Fase;
@@ -67,13 +73,88 @@ function CartaoEstado({ leitura, idioma }: { leitura: Leitura; idioma: Idioma })
   );
 }
 
+function Painel({
+  estado,
+  idioma,
+  aoSair,
+}: {
+  estado: Estado;
+  idioma: Idioma;
+  aoSair: () => void;
+}) {
+  const leitura = usarSaude();
+  return (
+    <>
+      <CartaoEstado leitura={leitura} idioma={idioma} />
+      <section className="cartao">
+        <h2>{t("instalacao")}</h2>
+        <p className="instalacao">{estado.nome_instalacao || t("sem_nome")}</p>
+        <button type="button" className="botao secundario" onClick={aoSair}>
+          {t("sair")}
+        </button>
+      </section>
+      <TrocarSenha />
+      <p className="aviso" role="note">
+        {t("marco_aviso")}
+      </p>
+    </>
+  );
+}
+
 export default function App() {
   const [idioma, setIdioma] = useState<Idioma>(idiomaAtual);
-  const leitura = usarSaude();
+  const [tela, setTela] = useState<Tela>("carregando");
+  const [estado, setEstado] = useState<Estado | null>(null);
+
+  const carregar = useCallback(async (): Promise<void> => {
+    setTela("carregando");
+    let atual: Estado;
+    try {
+      atual = await lerEstado();
+    } catch {
+      setTela("indisponivel");
+      return;
+    }
+    setEstado(atual);
+    if (!atual.configurado) {
+      setTela("assistente");
+      return;
+    }
+    if (!lerToken()) {
+      setTela("login");
+      return;
+    }
+    try {
+      await lerSessao();
+      setTela("painel");
+    } catch {
+      // Why: a session that ended is the ordinary way back to the login screen,
+      // not a failure the integrator has to read about.
+      // Por que: sessão terminada é o caminho comum de volta ao login, não uma
+      // falha sobre a qual o integrador precise ler.
+      setTela("login");
+    }
+  }, []);
+
+  useEffect(() => {
+    void carregar();
+  }, [carregar]);
 
   function trocarIdioma(novo: Idioma): void {
     definirIdioma(novo);
     setIdioma(novo);
+  }
+
+  async function encerrar(): Promise<void> {
+    try {
+      await sair();
+    } catch {
+      // Why: the browser has already dropped the token, so the screen goes back
+      // to the login either way.
+      // Por que: o navegador já largou o token, então a tela volta para o login
+      // de qualquer jeito.
+    }
+    setTela("login");
   }
 
   return (
@@ -97,10 +178,21 @@ export default function App() {
         </nav>
       </header>
       <main>
-        <CartaoEstado leitura={leitura} idioma={idioma} />
-        <p className="aviso" role="note">
-          {t("marco_aviso")}
-        </p>
+        {tela === "carregando" && <p className="carregando">{t("carregando")}</p>}
+        {tela === "indisponivel" && (
+          <section className="cartao">
+            <h2>{t("estado")}</h2>
+            <p role="alert">{t("daemon_indisponivel")}</p>
+            <button type="button" className="botao" onClick={() => void carregar()}>
+              {t("repetir")}
+            </button>
+          </section>
+        )}
+        {tela === "assistente" && <Assistente aoEntrar={() => void carregar()} />}
+        {tela === "login" && <Login aoEntrar={() => void carregar()} />}
+        {tela === "painel" && estado && (
+          <Painel estado={estado} idioma={idioma} aoSair={() => void encerrar()} />
+        )}
       </main>
       <footer className="rodape">
         <p>{t("licenca")}</p>
