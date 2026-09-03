@@ -41,7 +41,12 @@ RUN groupadd --system --gid 10001 iphub \
 # Por que: a camada de dependências fica antes da camada de código para uma
 # mudança de código não baixar wheels de novo numa placa ARM com link lento.
 COPY core/pyproject.toml /src/pyproject.toml
-RUN pip install --no-cache-dir $(python -c "import tomllib;print(' '.join(tomllib.load(open('/src/pyproject.toml','rb'))['project']['dependencies']))")
+# Why: the README sends a stranger to build this on a Raspberry Pi over a home link, and
+# the reference appliance downloads slowly; one timed out wheel must not fail the build.
+# Por que: o README manda um estranho construir isto num Raspberry Pi por um link
+# doméstico, e o appliance de referência baixa devagar; um wheel que estoura o tempo não
+# pode derrubar o build.
+RUN pip install --no-cache-dir --retries 5 --timeout 60 $(python -c "import tomllib;print(' '.join(tomllib.load(open('/src/pyproject.toml','rb'))['project']['dependencies']))")
 
 WORKDIR /app
 COPY core/iphub /app/iphub
