@@ -141,8 +141,8 @@ export async function lerEstado(): Promise<Estado> {
   };
 }
 
-export async function tomarPosse(codigo: string, senha: string): Promise<Credencial> {
-  return aceitarCredencial(await pedir("/api/posse", "POST", { codigo, senha }));
+export async function tomarPosse(senha: string): Promise<Credencial> {
+  return aceitarCredencial(await pedir("/api/posse", "POST", { senha }));
 }
 
 export async function entrar(senha: string): Promise<Credencial> {

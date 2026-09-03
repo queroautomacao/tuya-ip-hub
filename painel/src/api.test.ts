@@ -157,20 +157,21 @@ test("a fetch that throws becomes sem_resposta (um fetch que estoura vira sem_re
   });
 });
 
-test("tomarPosse sends the code and stores the session (envia o código e guarda a sessão)", async () => {
+test("tomarPosse sends only the password (envia so a senha e guarda a sessao)", async () => {
   const { fetch, chamadas } = duble(JSON.stringify(CREDENCIAL));
   await comFetch(fetch, async () => {
-    assert.deepEqual(await tomarPosse("ABCD-EFGH-JKLM-NPQR", "senha-de-teste"), {
+    assert.deepEqual(await tomarPosse("senha-de-teste"), {
       token: "token-novo",
       expira_em_s: 86400,
     });
   });
   assert.equal(chamadas[0].url, "/api/posse");
   assert.equal(chamadas[0].init.method, "POST");
-  assert.deepEqual(JSON.parse(String(chamadas[0].init.body)), {
-    codigo: "ABCD-EFGH-JKLM-NPQR",
-    senha: "senha-de-teste",
-  });
+  // Why: the ownership code left section 9, so a body still carrying one would be the panel
+  // asking for a secret the daemon no longer knows.
+  // Por que: o codigo de posse saiu da secao 9, entao um corpo ainda levando um seria o painel
+  // pedindo um segredo que o daemon nao conhece mais.
+  assert.deepEqual(JSON.parse(String(chamadas[0].init.body)), { senha: "senha-de-teste" });
   assert.equal(ler(), "token-novo");
 });
 

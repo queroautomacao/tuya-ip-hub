@@ -26,9 +26,9 @@ Milestone 0 is a skeleton; there is no supported release yet. Fixes land on `mai
 In scope, roughly in order of severity:
 
 - Escape from the container to the host, or to other containers on the same host.
-- The REST API and the DP-bus WebSocket: authentication bypass, ownership code or password bypass, session or `api_token` leak, missing or bypassable login rate limit, CSRF, DNS rebinding through the Host header, missing security headers.
+- The REST API and the DP-bus WebSocket: authentication bypass, password bypass, session or `api_token` leak, missing or bypassable login rate limit, CSRF, DNS rebinding through the Host header, missing security headers.
 - The declarative driver engine: a JSON driver must not be able to do more than send bytes to its own device. Code execution, reading of secrets or configuration, requests to arbitrary hosts, or a regex that freezes the daemon are all in scope.
-- Credential leak: device credentials, `api_token`, session hashes or the ownership code reaching the panel, the logs, another user or the network.
+- Credential leak: device credentials, `api_token` or session hashes reaching the panel, the logs, another user or the network.
 - Anything that turns the hub into a proxy into the LAN: a route that accepts a hostname or URL where an IP literal is expected, server-side request forgery, open relays.
 - Secret files in `/data` created with permissions wider than `0600`.
 - The Docker image: running as root, `docker.sock` mounted, a compromised build dependency.
@@ -36,6 +36,7 @@ In scope, roughly in order of severity:
 ### Out of scope
 
 - The panel is designed for the local network and is served over plain HTTP in the beta. Reports that only point out the absence of TLS, or attacks that require reading LAN traffic, are out of scope for now.
+- Claiming a hub that has **no password yet**. The first access is public by design: whoever sets the password first becomes the owner, and the README says so next to the install instructions. Claiming a hub that **already has a password**, on the other hand, is very much in scope, and so is anything that puts an owned hub back into the unowned state.
 - Exposing port 8080 to the internet against the README's advice.
 - Problems that require physical access to the box, or root on the host.
 - Vulnerabilities in the controlled devices (TVs, receivers, speakers): report them to the manufacturer.
@@ -45,7 +46,7 @@ In scope, roughly in order of severity:
 
 ### What the design promises
 
-Section 9 of [CLAUDE.md](CLAUDE.md) lists the security decisions, and each one becomes an attacking test in `core/tests/seguranca` as its milestone lands. In short: an ownership code written at first boot (only whoever has it can set the password); passwords hashed with PBKDF2-HMAC-SHA256; session tokens stored only as hashes, with expiry and revocation; a machine `api_token` never handed to the panel and rotated on password change; login rate limit per real IP plus a global ceiling; the Host header restricted to IP literals, `localhost` and an allowlist (421 otherwise); Origin checked on `/api/*` and `/dpbus` (403); security headers on every response; secret files born `0600`; container as a non-root user without `docker.sock`; every `ip` field validated as an IP literal. One exception to the headers is accepted and recorded: the `400` that the aiohttp HTTP parser emits for a malformed request, before any route runs, carries neither those headers nor the neutral `Server` value; section 9 of [CLAUDE.md](CLAUDE.md) documents it on purpose. A report showing that any of these does not hold is welcome.
+Section 9 of [CLAUDE.md](CLAUDE.md) lists the security decisions, and each one becomes an attacking test in `core/tests/seguranca` as its milestone lands. In short: the first access is public, so whoever sets the password first becomes the owner (see below); passwords hashed with PBKDF2-HMAC-SHA256; session tokens stored only as hashes, with expiry and revocation; a machine `api_token` never handed to the panel and rotated on password change; login rate limit per real IP plus a global ceiling; the Host header restricted to IP literals, `localhost` and an allowlist (421 otherwise); Origin checked on `/api/*` and `/dpbus` (403); security headers on every response; secret files born `0600`; container as a non-root user without `docker.sock`; every `ip` field validated as an IP literal. One exception to the headers is accepted and recorded: the `400` that the aiohttp HTTP parser emits for a malformed request, before any route runs, carries neither those headers nor the neutral `Server` value; section 9 of [CLAUDE.md](CLAUDE.md) documents it on purpose. A report showing that any of these does not hold is welcome.
 
 ## Português
 
@@ -71,9 +72,9 @@ O marco 0 é um esqueleto; ainda não há release com suporte. Correções entra
 Dentro do escopo, mais ou menos em ordem de severidade:
 
 - Escape do container para o host, ou para outros containers no mesmo host.
-- A API REST e o WebSocket do DP-bus: burla de autenticação, burla do código de posse ou da senha, vazamento de sessão ou de `api_token`, limite de tentativas de login ausente ou contornável, CSRF, DNS rebinding pelo cabeçalho Host, cabeçalhos de segurança ausentes.
+- A API REST e o WebSocket do DP-bus: burla de autenticação, burla da senha, vazamento de sessão ou de `api_token`, limite de tentativas de login ausente ou contornável, CSRF, DNS rebinding pelo cabeçalho Host, cabeçalhos de segurança ausentes.
 - O motor de driver declarativo: um driver JSON não pode fazer mais do que enviar bytes ao próprio aparelho. Execução de código, leitura de segredos ou configuração, requisições a hosts arbitrários ou uma regex que congela o daemon estão todos no escopo.
-- Vazamento de credencial: credenciais de aparelho, `api_token`, hashes de sessão ou o código de posse chegando ao painel, aos logs, a outro usuário ou à rede.
+- Vazamento de credencial: credenciais de aparelho, `api_token` ou hashes de sessão chegando ao painel, aos logs, a outro usuário ou à rede.
 - Qualquer coisa que transforme o hub em proxy para dentro da LAN: rota que aceita nome de host ou URL onde se espera IP literal, server-side request forgery, relays abertos.
 - Arquivos de segredo em `/data` criados com permissão mais larga que `0600`.
 - A imagem Docker: rodando como root, `docker.sock` montado, dependência de build comprometida.
@@ -81,6 +82,7 @@ Dentro do escopo, mais ou menos em ordem de severidade:
 ### Fora do escopo
 
 - O painel é feito para a rede local e é servido por HTTP puro no beta. Relatos que só apontam a ausência de TLS, ou ataques que exigem ler o tráfego da LAN, estão fora do escopo por enquanto.
+- Tomar posse de um hub que **ainda não tem senha**. O primeiro acesso é público por desenho: quem define a senha primeiro vira o dono, e o README diz isso ao lado das instruções de instalação. Tomar posse de um hub que **já tem senha**, por outro lado, está muito dentro do escopo, e o mesmo vale para qualquer coisa que devolva um hub com dono ao estado sem dono.
 - Expor a porta 8080 na internet contra o aviso do README.
 - Problemas que exigem acesso físico à máquina, ou root no host.
 - Vulnerabilidades nos aparelhos controlados (TVs, receivers, caixas): reporte ao fabricante.
@@ -90,4 +92,4 @@ Dentro do escopo, mais ou menos em ordem de severidade:
 
 ### O que o projeto promete
 
-A seção 9 do [CLAUDE.md](CLAUDE.md) lista as decisões de segurança, e cada uma vira um teste que ataca em `core/tests/seguranca` conforme o seu marco chega. Em resumo: um código de posse gravado no primeiro boot (só quem o tem define a senha); senhas com PBKDF2-HMAC-SHA256; tokens de sessão guardados só por hash, com validade e revogação; um `api_token` de máquina nunca entregue ao painel e rotacionado na troca de senha; limite de tentativas de login por IP real mais um teto global; cabeçalho Host restrito a IP literal, `localhost` e uma lista permitida (421 nos demais); Origin conferido em `/api/*` e `/dpbus` (403); cabeçalhos de segurança em toda resposta; arquivos de segredo nascem `0600`; container como usuário não-root sem `docker.sock`; todo campo `ip` validado como IP literal. Uma exceção aos cabeçalhos é aceita e registrada: o `400` que o parser HTTP do aiohttp emite para requisição malformada, antes de qualquer rota, não leva esses cabeçalhos nem o valor neutro de `Server`; a seção 9 do [CLAUDE.md](CLAUDE.md) o registra de propósito. Um relato mostrando que qualquer um desses itens não se sustenta é bem-vindo.
+A seção 9 do [CLAUDE.md](CLAUDE.md) lista as decisões de segurança, e cada uma vira um teste que ataca em `core/tests/seguranca` conforme o seu marco chega. Em resumo: o primeiro acesso é público, então quem definir a senha primeiro vira o dono (veja abaixo); senhas com PBKDF2-HMAC-SHA256; tokens de sessão guardados só por hash, com validade e revogação; um `api_token` de máquina nunca entregue ao painel e rotacionado na troca de senha; limite de tentativas de login por IP real mais um teto global; cabeçalho Host restrito a IP literal, `localhost` e uma lista permitida (421 nos demais); Origin conferido em `/api/*` e `/dpbus` (403); cabeçalhos de segurança em toda resposta; arquivos de segredo nascem `0600`; container como usuário não-root sem `docker.sock`; todo campo `ip` validado como IP literal. Uma exceção aos cabeçalhos é aceita e registrada: o `400` que o parser HTTP do aiohttp emite para requisição malformada, antes de qualquer rota, não leva esses cabeçalhos nem o valor neutro de `Server`; a seção 9 do [CLAUDE.md](CLAUDE.md) o registra de propósito. Um relato mostrando que qualquer um desses itens não se sustenta é bem-vindo.

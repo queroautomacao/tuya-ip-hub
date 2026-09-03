@@ -6,7 +6,6 @@ import { SENHA_MINIMA, codigoDoErro, senhaCurta, tomarPosse } from "./api";
 import { t, traduzirErro } from "./i18n";
 
 export default function Assistente({ aoEntrar }: { aoEntrar: () => void }) {
-  const [codigo, setCodigo] = useState("");
   const [senha, setSenha] = useState("");
   const [confirmacao, setConfirmacao] = useState("");
   const [erro, setErro] = useState<string | null>(null);
@@ -29,7 +28,7 @@ export default function Assistente({ aoEntrar }: { aoEntrar: () => void }) {
     setErro(null);
     setEnviando(true);
     try {
-      await tomarPosse(codigo, senha);
+      await tomarPosse(senha);
       aoEntrar();
     } catch (falha) {
       setErro(codigoDoErro(falha));
@@ -41,20 +40,7 @@ export default function Assistente({ aoEntrar }: { aoEntrar: () => void }) {
     <section className="cartao">
       <h2>{t("assistente_titulo")}</h2>
       <p>{t("assistente_intro")}</p>
-      <p className="texto-suave">{t("assistente_onde")}</p>
       <form className="formulario" onSubmit={(evento) => void enviar(evento)}>
-        <label htmlFor="posse-codigo">{t("assistente_codigo")}</label>
-        <input
-          id="posse-codigo"
-          name="codigo"
-          type="text"
-          required
-          autoComplete="off"
-          spellCheck={false}
-          placeholder={t("assistente_codigo_exemplo")}
-          value={codigo}
-          onChange={(evento) => setCodigo(evento.target.value)}
-        />
         <label htmlFor="posse-senha">{t("assistente_senha")}</label>
         <input
           id="posse-senha"

@@ -53,7 +53,7 @@ body:
     id: registros
     attributes:
       label: "Logs / Registros"
-      description: "Output of docker compose logs iphub. Remove tokens, the ownership code and anything private. / Saída de docker compose logs iphub. Remova tokens, o código de posse e qualquer coisa privada."
+      description: "Output of docker compose logs iphub. Remove tokens and anything private. / Saída de docker compose logs iphub. Remova tokens e qualquer coisa privada."
       render: text
   - type: checkboxes
     id: confirmacoes

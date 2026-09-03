@@ -53,14 +53,12 @@ async def _errar(cliente, vezes: int, cabecalhos: Cabecalhos | None = None) -> N
         assert resposta.status == 401, await resposta.text()
 
 
-async def _codigo_errado(cliente, senha: str, cabecalhos: Cabecalhos | None = None):
-    """One real check of a secret that costs no PBKDF2: the ownership code of a fresh hub.
+async def _errar_uma(cliente, cabecalhos: Cabecalhos | None = None):
+    """One real check of a secret, which is what the global ceiling exists to count.
 
-    Uma conferência real de segredo que não custa PBKDF2: o código de posse de um hub novo.
+    Uma conferência real de segredo, que é o que o teto global existe para contar.
     """
-    return await cliente.post(
-        "/api/posse", json={"codigo": "errado", "senha": senha}, headers=cabecalhos or {}
-    )
+    return await cliente.post("/api/entrar", json={"senha": ERRADA}, headers=cabecalhos or {})
 
 
 async def test_cinco_senhas_erradas_bloqueiam_o_ip(cliente_limitado, posse, senha):
@@ -115,51 +113,61 @@ async def test_x_forwarded_for_de_par_nao_declarado_e_ignorado(cliente, posse, s
     assert await resposta.json() == DEMAIS
 
 
-async def test_a_posse_tambem_e_limitada(cliente_limitado, codigo, senha):
-    for _ in range(FALHAS_ATE_BLOQUEIO):
-        resposta = await cliente_limitado.post(
-            "/api/posse", json={"codigo": "errado", "senha": senha}
-        )
-        assert resposta.status == 403
-    # Why: without this the ownership code, which is short enough to be read out loud, could
-    # be swept at network speed.
-    # Por que: sem isto o código de posse, curto o bastante para ser ditado, poderia ser
-    # varrido na velocidade da rede.
-    resposta = await cliente_limitado.post("/api/posse", json={"codigo": codigo, "senha": senha})
+async def test_a_posse_paga_na_janela_global_mesmo_sem_conferir_segredo(
+    cliente_limitado, posse, senha
+):
+    """Section 9: the claim spends a PBKDF2 hashing the new password, so it costs a slot.
+
+    Seção 9: a posse gasta um PBKDF2 derivando a senha nova, então ela custa uma vaga.
+    """
+    # Why: the claim checks no credential now, so there is nothing to block an address for;
+    # what remains is the ceiling that exists because the derivation costs CPU on an ARM board.
+    # Por que: a posse não confere credencial nenhuma agora, então não há o que bloquear por
+    # endereço; o que resta é o teto que existe porque a derivação custa CPU numa placa ARM.
+    await posse(cliente_limitado)
+    for numero in range(TETO_GLOBAL - 1):
+        assert (await _errar_uma(cliente_limitado, _de(f"192.0.2.{numero}"))).status == 401
+    resposta = await _errar_uma(cliente_limitado, _de("192.0.2.200"))
     assert resposta.status == 429
     assert await resposta.json() == DEMAIS
 
 
-async def test_teto_global_vale_mesmo_trocando_de_ip(cliente_limitado, senha, relogio):
+async def test_teto_global_vale_mesmo_trocando_de_ip(cliente_limitado, posse, relogio):
     # Why: each attempt that reaches a secret costs one PBKDF2 of two hundred thousand
     # iterations on an ARM board, so an attacker rotating addresses could keep the daemon busy
     # without the global window; the attempts that fill it here are all real checks of a secret.
     # Por que: cada tentativa que chega a um segredo custa um PBKDF2 de duzentas mil iterações
     # numa placa ARM, então um atacante trocando de endereço prenderia o daemon sem a janela
     # global; as tentativas que a enchem aqui são todas conferências reais de segredo.
-    for numero in range(TETO_GLOBAL):
-        resposta = await _codigo_errado(cliente_limitado, senha, _de(f"192.0.2.{numero}"))
-        assert resposta.status == 403, numero
-    resposta = await _codigo_errado(cliente_limitado, senha, _de("192.0.2.200"))
+    # Why: the claim itself hashes the new password, so it takes the first slot of the window.
+    # Por que: a própria posse deriva a senha nova, então ela toma a primeira vaga da janela.
+    await posse(cliente_limitado)
+    for numero in range(TETO_GLOBAL - 1):
+        resposta = await _errar_uma(cliente_limitado, _de(f"192.0.2.{numero}"))
+        assert resposta.status == 401, numero
+    resposta = await _errar_uma(cliente_limitado, _de("192.0.2.200"))
     assert resposta.status == 429
     assert await resposta.json() == DEMAIS
     relogio.avancar(JANELA_GLOBAL_S)
-    seguinte = await _codigo_errado(cliente_limitado, senha, _de("192.0.2.200"))
-    assert seguinte.status == 403
+    seguinte = await _errar_uma(cliente_limitado, _de("192.0.2.200"))
+    assert seguinte.status == 401
 
 
-async def test_o_ip_bloqueado_nao_gasta_a_janela_global(cliente_limitado, senha):
+async def test_o_ip_bloqueado_nao_gasta_a_janela_global(cliente_limitado, posse):
     # Why: an attacker that keeps knocking after the block would starve the owner of the sixty
     # a minute, and the owner would be refused for attempts that never checked a secret.
     # Por que: um atacante que segue batendo depois do bloqueio esvaziaria as sessenta por
     # minuto do dono, que seria recusado por tentativas que nunca conferiram segredo nenhum.
+    # Why: the claim itself hashes the new password, so it takes the first slot of the window.
+    # Por que: a própria posse deriva a senha nova, então ela toma a primeira vaga da janela.
+    await posse(cliente_limitado)
     for _ in range(FALHAS_ATE_BLOQUEIO):
-        assert (await _codigo_errado(cliente_limitado, senha, _de(ATACANTE))).status == 403
+        assert (await _errar_uma(cliente_limitado, _de(ATACANTE))).status == 401
     for _ in range(10):
-        assert (await _codigo_errado(cliente_limitado, senha, _de(ATACANTE))).status == 429
-    for numero in range(TETO_GLOBAL - FALHAS_ATE_BLOQUEIO):
-        resposta = await _codigo_errado(cliente_limitado, senha, _de(f"192.0.2.{numero}"))
-        assert resposta.status == 403, numero
+        assert (await _errar_uma(cliente_limitado, _de(ATACANTE))).status == 429
+    for numero in range(TETO_GLOBAL - FALHAS_ATE_BLOQUEIO - 1):
+        resposta = await _errar_uma(cliente_limitado, _de(f"192.0.2.{numero}"))
+        assert resposta.status == 401, numero
 
 
 async def test_cinco_falhas_atras_do_proxy_bloqueiam_o_cliente_real(cliente_limitado, posse, senha):

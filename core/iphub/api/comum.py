@@ -50,6 +50,12 @@ LIMITE = web.AppKey("limite", Limite)
 CATALOGO = web.AppKey("catalogo", dict)
 GESTOR = web.AppKey("gestor", Gestor)
 VARREDURA = web.AppKey("varredura", Mutavel[asyncio.Task])
+# Why: with no ownership code, the ja_configurado check is the only guard of the claim
+# route, and a check that is not atomic with the write hands two owners to two racers.
+# Por que: sem código de posse, a checagem de ja_configurado é a única guarda da rota de
+# posse, e uma checagem que não é atômica com a escrita entrega dois donos a dois
+# concorrentes.
+TRAVA_POSSE = web.AppKey("trava_posse", asyncio.Lock)
 
 
 def config_de(app: web.Application) -> Config:

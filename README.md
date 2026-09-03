@@ -44,7 +44,7 @@ Milestone 1: the hub has an owner. What exists today is the daemon answering `GE
 | # | Milestone | Exit gate |
 |---|---|---|
 | 0 | Skeleton: structure, pytest, CI on PR, Dockerfile, compose, README that runs | `docker compose up` brings up `/health` |
-| 1 | `config`, `auth`, `portao` (host gate), `api/setup`, minimal panel (ownership code, password, login, logout) | every security test green |
+| 1 | `config`, `auth`, `portao` (host gate), `api/setup`, minimal panel (password, login, logout) | every security test green |
 | 2 | Driver contract, catalog, generated discovery, simulated device, equipment panel | example driver against the simulator, discovery under test |
 | 3 | Declarative engine (JSON), embedded catalog, editor in the panel | three example JSON drivers (TCP, HTTP, UDP) green against the simulator |
 | 4 | LinkPlay as the multiroom driver, complete DP-bus, scenes | smoke test with a real speaker recorded in the device matrix |
@@ -74,7 +74,7 @@ docker compose up -d --wait
 
 Then open `http://<ip-of-the-server>:8080` (for example `http://192.0.2.10:8080`). The first `up` builds the image locally, which takes a few minutes on an ARM board; a published image on GHCR arrives with milestone 6. On an appliance without a bridge network or BuildKit, read the ARM section below before the first `up`.
 
-On the first access the panel asks for the ownership code and for a new password. The code is generated on the first boot, printed in the container log (`docker compose logs iphub`) and kept in `codigo-de-posse.txt` inside the data volume, so only whoever reaches the machine sets the password. The password has a minimum of 8 characters. From then on the panel asks for the password alone, and the ownership code is no longer printed.
+On the first access the panel asks for a new password, with a minimum of 8 characters, and whoever sets it becomes the owner. Do it right after the first boot, because until that password exists the hub has no owner and anyone who reaches the panel on the local network can claim it. This is the same class of warning as the one above about plain HTTP: the panel is designed for a network you control.
 
 The panel is opened by IP address or as `localhost`. Any other hostname (a `.local` name or the name of a reverse proxy, for example) is answered with `421` and the code `host_nao_permitido`. To have such a name accepted, add it to the `hosts_permitidos` list in `config.json` inside the data volume. Three things about that file: it is written by the daemon, so it only exists once the first access has been completed, and a hand written one that the daemon does not recognise makes it refuse to boot; keep every key that is already there, `schema_version` included, and change only that list; and the configuration is read at boot, so there is no reload and the container has to be restarted for the new name to be accepted:
 
@@ -104,11 +104,10 @@ The data directory (`IPHUB_DATA`, a named volume in compose) holds the configura
 | File | Content |
 |---|---|
 | `config.json` | configuration, schema version and the password hash |
-| `codigo-de-posse.txt` | ownership code, generated on the first boot |
 | `api-token.txt` | machine credential used by the DP-bus, never handed to the panel |
 | `sessoes.json` | panel sessions, with the tokens kept hashed |
 
-Erasing the volume erases the password with it: the hub goes back to the first access, with a new ownership code in the log.
+Erasing the volume erases the password with it: the hub goes back to the first access, unowned again, so set the password immediately.
 
 The compose file passes no environment of its own, so `IPHUB_PORTA=9090 docker compose up` alone changes nothing. With compose, a value is changed in an override file that gives the service `iphub` an `environment:` block (compose merges `docker-compose.override.yml` on its own):
 
@@ -220,7 +219,7 @@ Marco 1: o hub tem dono. O que existe hoje é o daemon respondendo `GET /health`
 | # | Marco | Portão de saída |
 |---|---|---|
 | 0 | Esqueleto: estrutura, pytest, CI em PR, Dockerfile, compose, README que roda | `docker compose up` sobe um `/health` |
-| 1 | `config`, `auth`, `portao` (portão de host), `api/setup`, painel mínimo (código de posse, senha, login, sair) | todos os testes de segurança verdes |
+| 1 | `config`, `auth`, `portao` (portão de host), `api/setup`, painel mínimo (senha, login, sair) | todos os testes de segurança verdes |
 | 2 | Contrato de driver, catálogo, descoberta gerada, aparelho simulado, painel de equipamentos | driver de exemplo contra o simulado, descoberta com teste |
 | 3 | Motor declarativo (JSON), catálogo embarcado, editor no painel | três JSON de exemplo (TCP, HTTP, UDP) verdes contra o simulado |
 | 4 | LinkPlay como driver multiroom, DP-bus completo, cenas | fumaça com caixa real registrada na matriz de aparelhos |
@@ -250,7 +249,7 @@ docker compose up -d --wait
 
 Depois abra `http://<ip-do-servidor>:8080` (por exemplo `http://192.0.2.10:8080`). O primeiro `up` constrói a imagem localmente, o que leva alguns minutos numa placa ARM; a imagem publicada no GHCR chega com o marco 6. Num appliance sem rede bridge nem BuildKit, leia a seção sobre placas ARM abaixo antes do primeiro `up`.
 
-No primeiro acesso o painel pede o código de posse e uma senha nova. O código é gerado no primeiro boot, impresso no log do container (`docker compose logs iphub`) e guardado em `codigo-de-posse.txt`, dentro do volume de dados, então só quem alcança a máquina define a senha. A senha tem mínimo de 8 caracteres. Dali em diante o painel pede só a senha, e o código de posse não é mais impresso.
+No primeiro acesso o painel pede uma senha nova, com mínimo de 8 caracteres, e quem a define vira o dono. Faça isso logo depois do primeiro boot, porque enquanto essa senha não existir o hub não tem dono e qualquer um que alcance o painel na rede local pode assumi-lo. É o mesmo tipo de aviso do parágrafo acima sobre HTTP puro: o painel foi desenhado para uma rede que você controla.
 
 O painel é aberto por endereço IP ou como `localhost`. Qualquer outro nome de host (um nome `.local` ou o nome de um proxy reverso, por exemplo) recebe `421` e o código `host_nao_permitido`. Para esse nome ser aceito, acrescente-o na lista `hosts_permitidos` do `config.json`, dentro do volume de dados. Três coisas sobre esse arquivo: ele é escrito pelo daemon, então só existe depois do primeiro acesso concluído, e um arquivo escrito à mão que o daemon não reconhece faz ele recusar o boot; mantenha todas as chaves que já estão lá, `schema_version` inclusive, e mude só essa lista; e a configuração é lida no boot, então não existe recarga e o container precisa ser reiniciado para o nome novo ser aceito:
 
@@ -280,11 +279,10 @@ O diretório de dados (`IPHUB_DATA`, um volume nomeado no compose) guarda a conf
 | Arquivo | Conteúdo |
 |---|---|
 | `config.json` | configuração, versão do esquema e o hash da senha |
-| `codigo-de-posse.txt` | código de posse, gerado no primeiro boot |
 | `api-token.txt` | credencial de máquina usada pelo DP-bus, nunca entregue ao painel |
 | `sessoes.json` | sessões do painel, com os tokens guardados por hash |
 
-Apagar o volume apaga a senha junto: o hub volta ao primeiro acesso, com um código de posse novo no log.
+Apagar o volume apaga a senha junto: o hub volta ao primeiro acesso, sem dono de novo, então defina a senha imediatamente.
 
 O arquivo do compose não passa ambiente nenhum, então `IPHUB_PORTA=9090 docker compose up` sozinho não muda nada. Com o compose, um valor é mudado num arquivo de override que dá ao serviço `iphub` um bloco `environment:` (o compose junta o `docker-compose.override.yml` sozinho):
 

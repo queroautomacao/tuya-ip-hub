@@ -15,6 +15,7 @@ from iphub.api.comum import (
     LIMITE,
     SEGREDOS,
     SESSOES,
+    TRAVA_POSSE,
     campo,
     com_sessao,
     config_de,
@@ -27,7 +28,7 @@ from iphub.api.comum import (
 from iphub.auth import SenhaCurta, gerar_hash
 from iphub.auth import conferir as conferir_senha
 from iphub.portao import ip_do_pedido, resposta_erro
-from iphub.segredos import conferir_codigo, rotacionar_api_token, rotacionar_codigo_de_posse
+from iphub.segredos import rotacionar_api_token
 from iphub.versao import SCHEMA_VERSION, VERSAO
 
 
@@ -64,21 +65,17 @@ async def _senha_confere(app: web.Application, informada: str) -> bool:
 
 
 def _renovar_posse(app: web.Application) -> None:
-    """Taking ownership ends the previous owner: sessions, machine credential and the code.
+    """Taking ownership ends the previous owner: every session and the machine credential.
 
-    Tomar posse encerra o dono anterior: sessões, credencial de máquina e o código.
+    Tomar posse encerra o dono anterior: toda sessão e a credencial de máquina.
     """
     # Why: a data directory whose config.json was erased by hand is an unconfigured hub that
-    # still holds live sessions, the old api_token and a code an old log line still shows.
+    # still holds live sessions and the old api_token of whoever owned it before.
     # Por que: um diretório de dados com o config.json apagado na mão é um hub sem dono que
-    # ainda guarda sessões vivas, o api_token antigo e um código que uma linha velha de log
-    # ainda mostra.
-    dir_data = app[AMBIENTE].dir_data
+    # ainda guarda sessões vivas e o api_token antigo de quem foi dono antes.
     app[SESSOES].revogar_todas()
     app[SEGREDOS].valor = replace(
-        segredos_de(app),
-        codigo_de_posse=rotacionar_codigo_de_posse(dir_data),
-        api_token=rotacionar_api_token(dir_data),
+        segredos_de(app), api_token=rotacionar_api_token(app[AMBIENTE].dir_data)
     )
 
 
@@ -96,30 +93,29 @@ async def posse(request: web.Request) -> web.Response:
     app = request.app
     limite = app[LIMITE]
     dados = await ler_corpo(request)
-    codigo = campo(dados, "codigo") if dados is not None else None
     informada = campo(dados, "senha") if dados is not None else None
-    if codigo is None or informada is None:
+    if informada is None:
         return resposta_erro(400, "corpo_invalido")
-    # Why: answered before the code is even looked at, so a configured hub is not an oracle
-    # telling an attacker that the code it guessed was the right one.
-    # Por que: respondido antes de sequer olhar o código, para um hub configurado não ser um
-    # oráculo que diz ao atacante que o código chutado era o certo.
-    if config_de(app).configurado:
-        return resposta_erro(409, "ja_configurado")
-    ip = _ip(request)
-    if not limite.permitido(ip):
-        return resposta_erro(429, "muitas_tentativas")
-    limite.registrar_tentativa()
-    if not conferir_codigo(codigo, segredos_de(app).codigo_de_posse):
-        limite.registrar_falha(ip)
-        return resposta_erro(403, "codigo_invalido")
-    try:
-        await _guardar_senha(app, informada)
-    except SenhaCurta:
-        return resposta_erro(400, "senha_curta")
-    limite.registrar_sucesso(ip)
-    _renovar_posse(app)
-    return _sessao_nova(request)
+    # Why: section 9, the claim is public now, so the check that a password does not exist yet
+    # and the write of the first one are one step; two racers must not become two owners.
+    # Por que: seção 9, a posse agora é pública, então a checagem de que ainda não há senha e a
+    # escrita da primeira são um passo só; dois concorrentes não podem virar dois donos.
+    async with app[TRAVA_POSSE]:
+        if config_de(app).configurado:
+            return resposta_erro(409, "ja_configurado")
+        # Why: no credential is checked here, so there is nothing to block an address for; the
+        # global ceiling stays because the route still spends a PBKDF2 on the new password.
+        # Por que: nenhuma credencial é conferida aqui, então não há o que bloquear por
+        # endereço; o teto global fica porque a rota ainda gasta um PBKDF2 na senha nova.
+        if not limite.permitido(_ip(request)):
+            return resposta_erro(429, "muitas_tentativas")
+        limite.registrar_tentativa()
+        try:
+            await _guardar_senha(app, informada)
+        except SenhaCurta:
+            return resposta_erro(400, "senha_curta")
+        _renovar_posse(app)
+        return _sessao_nova(request)
 
 
 async def entrar(request: web.Request) -> web.Response:

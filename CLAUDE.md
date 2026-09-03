@@ -219,9 +219,14 @@ O container é exposto na LAN do cliente e fala com aparelhos de terceiros.
 Tudo abaixo entra com teste na pasta `tests/seguranca` **antes** de qualquer
 driver existir:
 
-- **Código de posse**: no primeiro boot o daemon grava `/data/codigo-de-posse.txt`
-  (0600) e o mostra no log. Só quem tem o código define a senha. Fecha "quem
-  chegar primeiro na rede vira dono do hub".
+- **Primeiro acesso sem código** (decisão de 3/set/2026, substitui o código de
+  posse): enquanto não existir senha, `POST /api/posse` é público e define a senha
+  do dono. A consequência é aceita e precisa estar escrita onde o usuário lê: num
+  hub ligado e ainda não configurado, quem alcançar o painel primeiro vira dono,
+  então a instalação é configurada logo no primeiro boot. O README e o SECURITY.md
+  dizem isso com todas as letras, ao lado do aviso de que não há TLS. A rota é
+  serializada: duas posses simultâneas não produzem dois donos, a segunda recebe
+  `ja_configurado`.
 - **Senha** mínimo 8, PBKDF2-HMAC-SHA256 200 mil iterações, salt por instalação.
 - **Sessão** do painel: token aleatório, guardado por **hash** em
   `/data/sessoes.json` (0600), validade 24 h renovada a cada uso, teto 30
@@ -306,8 +311,8 @@ driver existir:
   pegaria.
 - Matriz pública de aparelhos com três estados honestos: verificado em
   hardware (alguém rodou e assinou), testado em simulado, declarado.
-- Fumaça de bancada (`scripts/fumaca.sh`): sobe do zero, código de posse,
-  senha, painel, descobre, cadastra, comanda, cena. Roda antes de toda release.
+- Fumaça de bancada (`scripts/fumaca.sh`): sobe do zero, senha, painel, descobre,
+  cadastra, comanda, cena. Roda antes de toda release.
 
 ---
 

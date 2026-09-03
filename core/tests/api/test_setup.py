@@ -77,8 +77,8 @@ async def test_estado_e_publico_e_diz_que_nao_ha_dono(cliente):
     }
 
 
-async def test_posse_define_a_senha_e_abre_a_sessao(cliente, codigo, senha):
-    resposta = await cliente.post("/api/posse", json={"codigo": codigo, "senha": senha})
+async def test_posse_define_a_senha_e_abre_a_sessao(cliente, senha):
+    resposta = await cliente.post("/api/posse", json={"senha": senha})
     assert resposta.status == 200
     corpo = await resposta.json()
     assert corpo["ok"] is True
@@ -144,15 +144,13 @@ async def test_corpo_que_nao_e_o_objeto_esperado_e_400(cliente, caminho, corpo):
     assert await resposta.json() == {"ok": False, "code": "corpo_invalido"}
 
 
-async def test_corpo_grande_demais_e_400(cliente, codigo):
+async def test_corpo_grande_demais_e_400(cliente):
     # Why: the caller is not authenticated yet, so a body it can make arbitrarily large is
     # memory an attacker spends for free.
     # Por que: quem chama ainda não está autenticado, então um corpo que ele faz do tamanho
     # que quiser é memória que um atacante gasta de graça.
     enchimento = "a" * CORPO_MAXIMO
-    resposta = await cliente.post(
-        "/api/posse", json={"codigo": codigo, "senha": "x" * 9, "enchimento": enchimento}
-    )
+    resposta = await cliente.post("/api/posse", json={"senha": "x" * 9, "enchimento": enchimento})
     assert resposta.status == 400
     assert await resposta.json() == {"ok": False, "code": "corpo_invalido"}
     assert (await (await cliente.get("/api/estado")).json())["configurado"] is False
@@ -196,12 +194,12 @@ async def test_metodo_errado_nas_rotas_novas_e_405(cliente, metodo, caminho, per
     assert permitido in resposta.headers["Allow"]
 
 
-async def test_corpo_que_chega_em_dois_segmentos_ainda_e_lido(cliente, codigo, senha):
+async def test_corpo_que_chega_em_dois_segmentos_ainda_e_lido(cliente, senha):
     # Why: a single read returns only what the buffer already holds, so an honest client whose
     # body crossed two TCP segments was answered corpo_invalido and could not log in.
     # Por que: uma leitura só devolve o que o buffer já tem, então um cliente honesto cujo
     # corpo cruzou dois segmentos TCP recebia corpo_invalido e não conseguia entrar.
-    corpo = json.dumps({"codigo": codigo, "senha": senha}).encode("utf-8")
+    corpo = json.dumps({"senha": senha}).encode("utf-8")
     cabecalho = (
         b"POST /api/posse HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Type: application/json\r\n"
         b"Connection: close\r\nContent-Length: %d\r\n\r\n" % len(corpo)
@@ -232,9 +230,7 @@ async def test_trocar_a_senha_preserva_o_que_foi_editado_no_arquivo(
     assert (await cliente.get("/api/estado", headers={"Host": "hub.local"})).status == 200
 
 
-async def test_corpo_invalido_e_estado_errado_nao_gastam_a_janela_global(
-    fabrica_cliente, codigo, senha
-):
+async def test_corpo_invalido_e_estado_errado_nao_gastam_a_janela_global(fabrica_cliente, senha):
     espiao = LimiteEspiao()
     cliente = await fabrica_cliente(limite=espiao)
     assert (await cliente.post("/api/entrar", data="nao e json")).status == 400
@@ -246,8 +242,8 @@ async def test_corpo_invalido_e_estado_errado_nao_gastam_a_janela_global(
     # requisição que não confere segredo não pode gastá-la; senão qualquer um na LAN tranca o
     # dono para fora.
     assert espiao.tentativas == 0
-    assert (await cliente.post("/api/posse", json={"codigo": codigo, "senha": senha})).status == 200
-    assert (await cliente.post("/api/posse", json={"codigo": codigo, "senha": senha})).status == 409
+    assert (await cliente.post("/api/posse", json={"senha": senha})).status == 200
+    assert (await cliente.post("/api/posse", json={"senha": senha})).status == 409
     assert espiao.tentativas == 1
 
 
@@ -265,7 +261,7 @@ async def test_trocar_a_senha_paga_na_janela_global(fabrica_cliente, posse, senh
     assert espiao.tentativas == 2
 
 
-async def test_o_pbkdf2_nao_roda_no_laco_de_eventos(cliente, codigo, senha, monkeypatch):
+async def test_o_pbkdf2_nao_roda_no_laco_de_eventos(cliente, senha, monkeypatch):
     fios = []
 
     def espiar(funcao):
@@ -277,7 +273,7 @@ async def test_o_pbkdf2_nao_roda_no_laco_de_eventos(cliente, codigo, senha, monk
 
     monkeypatch.setattr(setup, "gerar_hash", espiar(setup.gerar_hash))
     monkeypatch.setattr(setup, "conferir_senha", espiar(setup.conferir_senha))
-    assert (await cliente.post("/api/posse", json={"codigo": codigo, "senha": senha})).status == 200
+    assert (await cliente.post("/api/posse", json={"senha": senha})).status == 200
     assert (await cliente.post("/api/entrar", json={"senha": senha})).status == 200
     # Why: two hundred thousand iterations freeze every other request of the panel while they
     # run on the reference ARM board, so the derivation belongs on a thread of its own.

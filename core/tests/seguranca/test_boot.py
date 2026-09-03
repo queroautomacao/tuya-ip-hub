@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Quero Automação Ltda
-"""Section 9: the first boot shows the ownership code, and a hub with an owner never does.
+"""Section 9: the boot says the claim is open while there is no password, and nothing after.
 
-Seção 9: o primeiro boot mostra o código de posse, e um hub com dono nunca mostra.
+Seção 9: o boot diz que a posse está aberta enquanto não há senha, e nada depois disso.
 """
 
 import logging
@@ -15,7 +15,7 @@ from iphub.arquivos import escrever_texto
 from iphub.auth import gerar_hash
 from iphub.config import ARQUIVO as ARQUIVO_CONFIG
 from iphub.config import Config, salvar
-from iphub.segredos import ARQUIVO_CODIGO, ARQUIVO_TOKEN, TOKEN_EXEMPLO
+from iphub.segredos import ARQUIVO_TOKEN, TOKEN_EXEMPLO
 
 SENHA_DO_DONO = "senha-de-teste"
 
@@ -49,26 +49,38 @@ def _com_dono(amb) -> None:
     salvar(Config(senha_salt=salt, senha_hash=hash_senha, senha_iteracoes=iteracoes), amb.dir_data)
 
 
-def test_primeiro_boot_gera_o_codigo_e_mostra_onde_ele_esta(amb, caplog):
+def test_hub_sem_dono_avisa_que_a_posse_esta_aberta_e_onde(amb, caplog):
+    """Section 9: the claim is public, so the boot says the panel is up for grabs and where.
+
+    Seção 9: a posse é pública, então o boot diz que o painel está aberto e onde.
+    """
     caplog.set_level(logging.INFO, logger="iphub")
     preparar(amb)
-    codigo = (amb.dir_data / ARQUIVO_CODIGO).read_text(encoding="utf-8").strip()
-    assert codigo
-    assert codigo in caplog.text
-    assert ARQUIVO_CODIGO in caplog.text
+    assert "not configured yet" in caplog.text
+    assert f"{amb.bind}:{amb.porta}" in caplog.text
 
 
-def test_hub_com_dono_nunca_mostra_o_codigo_no_log(amb, caplog):
+def test_hub_sem_dono_nao_deixa_arquivo_de_codigo_no_disco(amb):
+    # Why: the ownership code left section 9; a file still appearing would mean dead code is
+    # writing a secret nobody reads.
+    # Por que: o código de posse saiu da seção 9; um arquivo ainda aparecendo significaria
+    # código morto escrevendo um segredo que ninguém lê.
     preparar(amb)
-    codigo = (amb.dir_data / ARQUIVO_CODIGO).read_text(encoding="utf-8").strip()
+    assert not (amb.dir_data / "codigo-de-posse.txt").exists()
+    assert sorted(p.name for p in amb.dir_data.iterdir()) == [ARQUIVO_TOKEN]
+
+
+def test_hub_com_dono_nao_avisa_nada_sobre_posse(amb, caplog):
+    preparar(amb)
     _com_dono(amb)
     caplog.clear()
     caplog.set_level(logging.INFO, logger="iphub")
     preparar(amb)
-    # Why: the code is spent once the password exists, and a log is a file nobody protects.
-    # Por que: o código está gasto quando a senha existe, e um log é um arquivo que ninguém
-    # protege.
-    assert codigo not in caplog.text
+    # Why: the invitation only makes sense while the hub has no password; repeating it to an
+    # owned hub would tell a reader of the log that it is still open, which is false.
+    # Por que: o convite só faz sentido enquanto o hub não tem senha; repeti-lo num hub com
+    # dono diria a quem lê o log que ele ainda está aberto, o que é falso.
+    assert "not configured yet" not in caplog.text
 
 
 def test_token_de_exemplo_recusa_o_boot(no_ambiente, sem_servir, caplog):

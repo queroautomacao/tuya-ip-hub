@@ -11,13 +11,13 @@ from pathlib import Path
 from iphub.api.comum import segredos_de
 from iphub.arquivos import modo_de
 from iphub.config import ARQUIVO as ARQUIVO_CONFIG
-from iphub.segredos import ARQUIVO_CODIGO, ARQUIVO_TOKEN
+from iphub.segredos import ARQUIVO_TOKEN
 from iphub.segredos import abrir as abrir_segredos
 from iphub.sessoes import ARQUIVO as ARQUIVO_SESSOES
 from iphub.sessoes import impressao
 
 OUTRA_SENHA = "outra-senha-boa"
-COM_SEGREDO = (ARQUIVO_CONFIG, ARQUIVO_CODIGO, ARQUIVO_TOKEN, ARQUIVO_SESSOES)
+COM_SEGREDO = (ARQUIVO_CONFIG, ARQUIVO_TOKEN, ARQUIVO_SESSOES)
 
 
 def _ler(caminho: Path) -> str:
@@ -47,14 +47,14 @@ async def test_todo_arquivo_com_segredo_nasce_0600(cliente, posse, senha, bearer
         assert modo_de(caminho) == 0o600, nome
 
 
-async def test_nenhuma_rota_devolve_o_api_token_nem_o_codigo(cliente, codigo, senha, bearer, amb):
+async def test_nenhuma_rota_devolve_o_api_token(cliente, senha, bearer, amb):
     arquivo_token = amb.dir_data / ARQUIVO_TOKEN
-    guardados = {codigo, _ler(arquivo_token)}
+    guardados = {_ler(arquivo_token)}
     pedidos = (
         ("GET", "/api/estado", {}),
-        ("POST", "/api/posse", {"json": {"codigo": "errado", "senha": senha}}),
+        ("POST", "/api/posse", {"json": {"senha": "curta"}}),
         ("POST", "/api/entrar", {"json": {"senha": senha}}),
-        ("POST", "/api/posse", {"json": {"codigo": codigo, "senha": senha}}),
+        ("POST", "/api/posse", {"json": {"senha": senha}}),
         ("POST", "/api/entrar", {"json": {"senha": "nao-e-a-senha"}}),
         ("GET", "/api/sessao", {"headers": bearer("token-que-ninguem-emitiu")}),
         ("GET", "/api/estado", {"headers": {"Host": "evil.example.com"}}),
@@ -115,25 +115,24 @@ async def test_o_diretorio_de_dados_nao_se_abre_para_outro_usuario(fabrica_clien
         cliente = await fabrica_cliente()
     finally:
         os.umask(anterior)
-    codigo = _ler(amb.dir_data / ARQUIVO_CODIGO)
-    resposta = await cliente.post("/api/posse", json={"codigo": codigo, "senha": senha})
+    resposta = await cliente.post("/api/posse", json={"senha": senha})
     assert resposta.status == 200, await resposta.text()
     assert modo_de(amb.dir_data) == 0o700
 
 
-def test_link_no_lugar_do_codigo_nao_entrega_arquivo_de_fora(amb):
-    # Why: a link planted at codigo-de-posse.txt would make the daemon read any file it can
-    # open and print it in the container log as the ownership code.
-    # Por que: um link plantado em codigo-de-posse.txt faria o daemon ler qualquer arquivo que
-    # ele consiga abrir e imprimi-lo no log do container como código de posse.
+def test_link_no_lugar_do_token_nao_entrega_arquivo_de_fora(amb):
+    # Why: a link planted at api-token.txt would make the daemon read any file it can open and
+    # take the content as the machine credential the DP-bus accepts.
+    # Por que: um link plantado em api-token.txt faria o daemon ler qualquer arquivo que ele
+    # consiga abrir e tomar o conteúdo como a credencial de máquina que o DP-bus aceita.
     amb.dir_data.mkdir(parents=True, exist_ok=True)
     fora = amb.dir_data.parent / "segredo-do-hospedeiro.txt"
     fora.write_text("SEGREDO-DO-HOSPEDEIRO\n", encoding="utf-8")
-    (amb.dir_data / ARQUIVO_CODIGO).symlink_to(fora)
+    (amb.dir_data / ARQUIVO_TOKEN).symlink_to(fora)
     segredo = abrir_segredos(amb.dir_data)
-    assert "SEGREDO-DO-HOSPEDEIRO" not in segredo.codigo_de_posse
-    assert not (amb.dir_data / ARQUIVO_CODIGO).is_symlink()
-    assert modo_de(amb.dir_data / ARQUIVO_CODIGO) == 0o600
+    assert "SEGREDO-DO-HOSPEDEIRO" not in segredo.api_token
+    assert not (amb.dir_data / ARQUIVO_TOKEN).is_symlink()
+    assert modo_de(amb.dir_data / ARQUIVO_TOKEN) == 0o600
     # Why: refusing to read through the link must not turn into writing through it either.
     # Por que: recusar a leitura através do link não pode virar escrita através dele.
     assert fora.read_text(encoding="utf-8") == "SEGREDO-DO-HOSPEDEIRO\n"

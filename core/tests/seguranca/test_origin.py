@@ -35,14 +35,12 @@ async def test_origin_de_outro_site_e_403(cliente, metodo, caminho):
         assert resposta.headers.get(nome) == valor, nome
 
 
-async def test_a_acao_nao_acontece_por_tras_do_403(cliente, codigo, senha):
-    # Why: the page of the attacker knows the ownership code only if the owner pasted it
-    # somewhere, and even then the browser must not be able to spend it here.
-    # Por que: a página do atacante só sabe o código de posse se o dono colou em algum lugar,
-    # e mesmo assim o navegador não pode conseguir gastá-lo aqui.
-    resposta = await cliente.post(
-        "/api/posse", json={"codigo": codigo, "senha": senha}, headers={"Origin": ALHEIA}
-    )
+async def test_a_acao_nao_acontece_por_tras_do_403(cliente, senha):
+    # Why: the claim is public, so a page of another site loaded by whoever is on the network
+    # would own the hub with one request if the Origin rule did not stop it first.
+    # Por que: a posse é pública, então uma página de outro site aberta por quem está na rede
+    # viraria dona do hub com uma requisição se a regra de Origin não barrasse antes.
+    resposta = await cliente.post("/api/posse", json={"senha": senha}, headers={"Origin": ALHEIA})
     assert resposta.status == 403
     assert (await (await cliente.get("/api/estado")).json())["configurado"] is False
 
@@ -69,12 +67,10 @@ async def test_sem_origin_passa(cliente):
     assert (await cliente.get("/api/estado")).status == 200
 
 
-async def test_origin_do_proprio_host_passa(cliente, codigo, senha):
+async def test_origin_do_proprio_host_passa(cliente, senha):
     origem = _propria(cliente)
     assert (await cliente.get("/api/estado", headers={"Origin": origem})).status == 200
-    resposta = await cliente.post(
-        "/api/posse", json={"codigo": codigo, "senha": senha}, headers={"Origin": origem}
-    )
+    resposta = await cliente.post("/api/posse", json={"senha": senha}, headers={"Origin": origem})
     assert resposta.status == 200
 
 

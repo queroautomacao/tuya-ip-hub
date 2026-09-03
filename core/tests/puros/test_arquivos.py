@@ -202,9 +202,9 @@ def test_garantir_diretorio_cria_os_pais_e_repete_sem_erro(tmp_path: Path, umask
 
 def test_link_no_lugar_do_arquivo_nao_e_seguido(tmp_path: Path):
     # Why: a link planted in the data directory would turn the daemon into a reader of any
-    # file the container can open, and the ownership code goes straight to the log.
+    # file the container can open, and the content is taken as a secret of the installation.
     # Por que: um link plantado no diretório de dados transformaria o daemon num leitor de
-    # qualquer arquivo que o container abra, e o código de posse vai direto para o log.
+    # qualquer arquivo que o container abra, e o conteúdo é tomado como segredo da instalação.
     alvo = tmp_path / "fora.txt"
     alvo.write_text("segredo do hospedeiro\n", encoding="utf-8")
     link = tmp_path / "segredo.txt"

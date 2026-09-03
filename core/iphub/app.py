@@ -5,6 +5,7 @@
 Liga o portão, a API e o painel numa única aplicação aiohttp.
 """
 
+import asyncio
 import time
 
 from aiohttp import web
@@ -19,6 +20,7 @@ from iphub.api.comum import (
     LIMITE,
     SEGREDOS,
     SESSOES,
+    TRAVA_POSSE,
     VARREDURA,
     Mutavel,
     trocar_config,
@@ -116,6 +118,7 @@ def criar_app(
     app[CATALOGO] = carregar_catalogo() if catalogo is None else dict(catalogo)
     app[GESTOR] = Gestor(app[CATALOGO], cfg.valor.equipamentos)
     app[VARREDURA] = Mutavel(None)
+    app[TRAVA_POSSE] = asyncio.Lock()
     app.on_startup.append(_subir_gestor)
     app.on_cleanup.append(_baixar_gestor)
     tratar_expect = criar_tratar_expect(obter_hosts)

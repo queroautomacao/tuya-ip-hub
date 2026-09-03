@@ -131,9 +131,9 @@ def ler_texto(caminho: Path) -> str | None:
         return None
     except OSError as erro:
         # Why: a link planted in the data directory would turn the daemon into a reader of any
-        # file the container can open, and the ownership code goes to the log.
+        # file the container can open, and the content would be taken as the api_token.
         # Por que: um link plantado no diretório de dados transformaria o daemon num leitor de
-        # qualquer arquivo que o container abra, e o código de posse vai para o log.
+        # qualquer arquivo que o container abra, e o conteúdo seria tomado como o api_token.
         if erro.errno in _ERROS_DE_LINK:
             return None
         raise

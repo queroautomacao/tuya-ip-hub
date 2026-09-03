@@ -11,7 +11,6 @@ import pytest
 
 from iphub.ambiente import Ambiente
 from iphub.app import criar_app
-from iphub.segredos import abrir as abrir_segredos
 
 INDEX_HTML = '<!doctype html><title>Tuya IP Hub</title><div id="root"></div>\n'
 APP_JS = 'console.log("painel");\n'
@@ -56,15 +55,6 @@ def senha() -> str:
 
 
 @pytest.fixture
-def codigo(amb: Ambiente) -> str:
-    """The ownership code of this hub, generated before the app opens the same files.
-
-    O código de posse deste hub, gerado antes de o app abrir os mesmos arquivos.
-    """
-    return abrir_segredos(amb.dir_data).codigo_de_posse
-
-
-@pytest.fixture
 def bearer():
     def montar(token: str) -> dict[str, str]:
         return {"Authorization": f"Bearer {token}"}
@@ -73,16 +63,14 @@ def bearer():
 
 
 @pytest.fixture
-def posse(codigo: str, senha: str):
+def posse(senha: str):
     """Takes ownership over a client already built and returns the session token.
 
     Toma posse sobre um cliente já construído e devolve o token de sessão.
     """
 
     async def tomar(cliente, com_senha: str = "") -> str:
-        resposta = await cliente.post(
-            "/api/posse", json={"codigo": codigo, "senha": com_senha or senha}
-        )
+        resposta = await cliente.post("/api/posse", json={"senha": com_senha or senha})
         assert resposta.status == 200, await resposta.text()
         return (await resposta.json())["token"]
 
