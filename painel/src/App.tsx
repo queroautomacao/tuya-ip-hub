@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Assistente from "./Assistente";
+import Equipamentos from "./Equipamentos.tsx";
 import Login from "./Login";
 import TrocarSenha from "./TrocarSenha";
 import { lerEstado, lerSessao, sair, type Estado } from "./api";
@@ -86,6 +87,7 @@ function Painel({
   return (
     <>
       <CartaoEstado leitura={leitura} idioma={idioma} />
+      <Equipamentos idioma={idioma} />
       <section className="cartao">
         <h2>{t("instalacao")}</h2>
         <p className="instalacao">{estado.nome_instalacao || t("sem_nome")}</p>

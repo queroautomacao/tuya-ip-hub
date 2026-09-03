@@ -10,9 +10,21 @@ from dataclasses import FrozenInstanceError, fields, replace
 from pathlib import Path
 
 import pytest
+from aiohttp import web
 
 from iphub import arquivos, auth, config
+from iphub.ambiente import Ambiente
+from iphub.api.comum import AMBIENTE, CONFIG, Mutavel, trocar_config
 from iphub.versao import SCHEMA_VERSION
+
+CADASTRO = config.Cadastro(
+    identidade="uuid-da-caixa",
+    tipo="projetor_pjlink",
+    nome="Sala",
+    ip="192.0.2.10",
+    campos={"porta": "4352"},
+    segredos={"senha": "segredo-do-aparelho"},
+)
 
 CHEIA = config.Config(
     nome_instalacao="Casa de teste",
@@ -214,3 +226,172 @@ def test_iteracoes_zero_e_o_hub_que_ainda_nao_tem_senha(dir_data: Path):
 
 def test_a_faixa_de_iteracoes_cerca_o_padrao_da_secao_9():
     assert config.ITERACOES_MINIMAS <= auth.ITERACOES <= config.ITERACOES_MAXIMAS
+
+
+def test_sem_a_chave_equipamentos_o_hub_esta_vazio(dir_data: Path):
+    """Section 6: zero equipment is a normal hub, never a broken file.
+
+    Seção 6: zero equipamento é um hub normal, nunca um arquivo quebrado.
+    """
+    _gravar_cru(dir_data, {"schema_version": SCHEMA_VERSION})
+    assert config.carregar(dir_data).equipamentos == ()
+
+
+def test_equipamentos_ida_e_volta(dir_data: Path):
+    outro = config.Cadastro(identidade="uuid-2", tipo="matriz_exemplo")
+    cfg = replace(CHEIA, equipamentos=(CADASTRO, outro))
+    config.salvar(cfg, dir_data)
+    lido = config.carregar(dir_data)
+    assert lido == cfg
+    assert lido.equipamentos[0].campos == {"porta": "4352"}
+    assert lido.equipamentos[1] == outro
+
+
+def test_credencial_de_aparelho_vive_no_config_e_ele_nasce_0600(dir_data: Path):
+    """Section 9: device credentials live in config.json, and that file is a secret.
+
+    Seção 9: credencial de aparelho vive no config.json, e esse arquivo é um segredo.
+    """
+    config.salvar(replace(CHEIA, equipamentos=(CADASTRO,)), dir_data)
+    caminho = dir_data / config.ARQUIVO
+    assert arquivos.modo_de(caminho) == 0o600
+    assert "segredo-do-aparelho" in caminho.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "item",
+    [
+        {"tipo": "projetor_pjlink"},
+        {"identidade": "uuid-1"},
+        {"identidade": "", "tipo": "projetor_pjlink"},
+        {"identidade": "uuid-1", "tipo": ""},
+        {"identidade": "   ", "tipo": "projetor_pjlink"},
+        {"identidade": "uuid-1", "tipo": "   "},
+    ],
+)
+def test_equipamento_sem_identidade_ou_sem_tipo_recusa_carregar(dir_data: Path, item):
+    # Why: the identity is the key of the equipment and the tipo is the key of the driver; a
+    # row missing either one would load as an equipment nothing can ever reach.
+    # Por que: a identidade é a chave do equipamento e o tipo é a chave do driver; uma linha
+    # sem uma das duas carregaria como equipamento que nada consegue alcançar.
+    _gravar_cru(dir_data, {"schema_version": SCHEMA_VERSION, "equipamentos": [item]})
+    with pytest.raises(config.ConfigIncompativel, match="equipamentos"):
+        config.carregar(dir_data)
+
+
+@pytest.mark.parametrize(
+    ("equipamentos", "trecho"),
+    [
+        ({"uuid-1": {}}, "equipamentos"),
+        ("uuid-1", "equipamentos"),
+        ([[]], "equipamentos"),
+        (["uuid-1"], "equipamentos"),
+        ([None], "equipamentos"),
+        ([{"identidade": 7, "tipo": "t"}], "identidade"),
+        ([{"identidade": "u", "tipo": ["t"]}], "tipo"),
+        ([{"identidade": "u", "tipo": "t", "nome": 1}], "nome"),
+        ([{"identidade": "u", "tipo": "t", "ip": None}], "ip"),
+        ([{"identidade": "u", "tipo": "t", "campos": "porta=1"}], "campos"),
+        ([{"identidade": "u", "tipo": "t", "campos": {"porta": 4352}}], "campos"),
+        ([{"identidade": "u", "tipo": "t", "campos": {"1": "a"}, "segredos": []}], "segredos"),
+        ([{"identidade": "u", "tipo": "t", "segredos": {"senha": None}}], "segredos"),
+    ],
+)
+def test_equipamento_de_tipo_errado_recusa_carregar(dir_data: Path, equipamentos, trecho):
+    _gravar_cru(dir_data, {"schema_version": SCHEMA_VERSION, "equipamentos": equipamentos})
+    with pytest.raises(config.ConfigIncompativel, match=trecho):
+        config.carregar(dir_data)
+
+
+def test_identidade_repetida_recusa_carregar(dir_data: Path):
+    """Two rows sharing one identity would silently become one device.
+
+    Duas linhas dividindo uma identidade virariam silenciosamente um só aparelho.
+    """
+    linha = {"identidade": "uuid-1", "tipo": "projetor_pjlink"}
+    _gravar_cru(dir_data, {"schema_version": SCHEMA_VERSION, "equipamentos": [linha, dict(linha)]})
+    with pytest.raises(config.ConfigIncompativel, match="uuid-1"):
+        config.carregar(dir_data)
+
+
+def test_chave_desconhecida_dentro_do_equipamento_e_ignorada(dir_data: Path):
+    linha = {"identidade": "uuid-1", "tipo": "t", "sobra": {"a": 1}}
+    _gravar_cru(dir_data, {"schema_version": SCHEMA_VERSION, "equipamentos": [linha]})
+    assert config.carregar(dir_data).equipamentos == (config.Cadastro("uuid-1", "t"),)
+
+
+def test_cadastro_e_imutavel():
+    with pytest.raises(FrozenInstanceError):
+        CADASTRO.ip = "192.0.2.11"  # type: ignore[misc]
+
+
+def test_trocar_config_guarda_cadastros_e_nao_dicts(dir_data: Path, tmp_path: Path):
+    """The equipment survives the API helper as a Cadastro, never as a raw dict.
+
+    O equipamento sobrevive ao auxiliar da API como Cadastro, nunca como dict cru.
+    """
+    app = web.Application()
+    app[AMBIENTE] = Ambiente(bind="127.0.0.1", porta=8080, dir_data=dir_data, dir_painel=tmp_path)
+    app[CONFIG] = Mutavel(config.Config())
+    trocar_config(app, config.Config(equipamentos=(CADASTRO,)))
+    vivo = app[CONFIG].valor.equipamentos
+    assert vivo == (CADASTRO,)
+    assert isinstance(vivo[0], config.Cadastro)
+    assert config.carregar(dir_data).equipamentos == (CADASTRO,)
+
+
+@pytest.mark.parametrize(
+    "endereco",
+    [
+        "projetor.local",
+        "localhost",
+        "http://192.0.2.10",
+        "192.0.2.10:4352",
+        "192.0.2.10 ",
+        "1922.0.2.10",
+        "fe80::1%eth0",
+        "[2001:db8::1]",
+        "a" * 60,
+    ],
+)
+def test_ip_que_nao_e_literal_recusa_carregar(dir_data: Path, endereco):
+    """Section 9: the file is the other door into the field the write routes already guard.
+
+    Seção 9: o arquivo é a outra porta para o campo que as rotas de escrita já guardam.
+    """
+    # Why: a hand edited hostname loads and the action route then dials it, which is the hub
+    # working as a proxy into the LAN of the client, the exact thing section 9 closes.
+    # Por que: um nome de host editado na mão carrega e a rota de ação o disca, que é o hub
+    # funcionando como proxy para a LAN do cliente, exatamente o que a seção 9 fecha.
+    linha = {"identidade": "uuid-1", "tipo": "projetor_pjlink", "ip": endereco}
+    _gravar_cru(dir_data, {"schema_version": SCHEMA_VERSION, "equipamentos": [linha]})
+    with pytest.raises(config.ConfigIncompativel, match="ip"):
+        config.carregar(dir_data)
+
+
+@pytest.mark.parametrize("endereco", ["192.0.2.10", "2001:db8::1", "127.0.0.1", "::1", ""])
+def test_ip_literal_e_ip_vazio_carregam(dir_data: Path, endereco):
+    """An empty ip is a registration whose address is not known yet, which is normal.
+
+    Um ip vazio é um cadastro cujo endereço ainda não se conhece, que é normal.
+    """
+    linha = {"identidade": "uuid-1", "tipo": "projetor_pjlink", "ip": endereco}
+    _gravar_cru(dir_data, {"schema_version": SCHEMA_VERSION, "equipamentos": [linha]})
+    assert config.carregar(dir_data).equipamentos[0].ip == endereco
+
+
+@pytest.mark.parametrize(
+    ("texto", "esperado"),
+    [
+        ("192.0.2.10", "192.0.2.10"),
+        ("2001:0DB8::0001", "2001:db8::1"),
+        ("projetor.local", None),
+        ("fe80::1%eth0", None),
+        ("", None),
+        (None, None),
+        (7, None),
+        ("192.0.2.10\n", None),
+    ],
+)
+def test_ip_literal_conhece_endereco_e_recusa_o_resto(texto, esperado):
+    assert config.ip_literal(texto) == esperado

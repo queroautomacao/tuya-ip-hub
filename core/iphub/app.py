@@ -11,11 +11,25 @@ from aiohttp import web
 
 from iphub.ambiente import Ambiente
 from iphub.api import registrar_rotas
-from iphub.api.comum import AMBIENTE, CONFIG, LIMITE, SEGREDOS, SESSOES, Mutavel, trocar_config
+from iphub.api.comum import (
+    AMBIENTE,
+    CATALOGO,
+    CONFIG,
+    GESTOR,
+    LIMITE,
+    SEGREDOS,
+    SESSOES,
+    VARREDURA,
+    Mutavel,
+    trocar_config,
+)
 from iphub.api.health import INICIO
 from iphub.arquivos import garantir_diretorio
 from iphub.config import Config
 from iphub.config import carregar as carregar_config
+from iphub.drivers.base import Driver
+from iphub.drivers.catalogo import carregar as carregar_catalogo
+from iphub.drivers.gestor import Gestor
 from iphub.limite import Limite
 from iphub.painel import registrar_painel
 from iphub.portao import (
@@ -31,7 +45,32 @@ from iphub.segredos import Segredos
 from iphub.segredos import abrir as abrir_segredos
 from iphub.sessoes import Sessoes
 
-__all__ = ["AMBIENTE", "CONFIG", "LIMITE", "SEGREDOS", "SESSOES", "criar_app", "trocar_config"]
+__all__ = [
+    "AMBIENTE",
+    "CATALOGO",
+    "CONFIG",
+    "GESTOR",
+    "LIMITE",
+    "SEGREDOS",
+    "SESSOES",
+    "criar_app",
+    "trocar_config",
+]
+
+
+async def _subir_gestor(app: web.Application) -> None:
+    await app[GESTOR].iniciar()
+
+
+async def _baixar_gestor(app: web.Application) -> None:
+    # Why: a sweep in flight holds a socket and keeps answering the segment, so it is dropped
+    # before the drivers are, and the loop closes with nothing of ours still running.
+    # Por que: uma varredura em curso segura um socket e segue respondendo ao segmento, então
+    # ela cai antes dos drivers, e o laço fecha sem nada nosso rodando.
+    tarefa = app[VARREDURA].valor
+    if tarefa is not None:
+        tarefa.cancel()
+    await app[GESTOR].parar()
 
 
 def criar_app(
@@ -41,6 +80,7 @@ def criar_app(
     sessoes: Sessoes | None = None,
     limite: Limite | None = None,
     segredos: Segredos | None = None,
+    catalogo: dict[str, type[Driver]] | None = None,
 ) -> web.Application:
     # Why: the Host check runs before every handler, so a rebinding probe gets 421 and nothing
     # else. The Expect handler repeats it because aiohttp runs Expect before the middlewares.
@@ -73,6 +113,11 @@ def criar_app(
     app[SEGREDOS] = segs
     app[SESSOES] = Sessoes(amb.dir_data) if sessoes is None else sessoes
     app[LIMITE] = Limite() if limite is None else limite
+    app[CATALOGO] = carregar_catalogo() if catalogo is None else dict(catalogo)
+    app[GESTOR] = Gestor(app[CATALOGO], cfg.valor.equipamentos)
+    app[VARREDURA] = Mutavel(None)
+    app.on_startup.append(_subir_gestor)
+    app.on_cleanup.append(_baixar_gestor)
     tratar_expect = criar_tratar_expect(obter_hosts)
     registrar_rotas(app, tratar_expect)
     registrar_painel(app, amb.dir_painel, tratar_expect)

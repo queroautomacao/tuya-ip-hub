@@ -51,12 +51,15 @@ def main() -> int:
     try:
         amb = Ambiente.do_ambiente()
         app = preparar(amb)
-    except (OSError, ValueError) as erro:
+    except Exception as erro:
         # Why: a traceback in a container log teaches the integrator nothing; the reason for
-        # the refusal and a status of 1 do.
+        # the refusal and a status of 1 do. The boot walks the driver catalog, so the failure
+        # can now be anything a module raises while it is imported, not only a file or a value.
         # Por que: um traceback no log do container não ensina nada ao integrador; o motivo da
-        # recusa e um status 1 ensinam.
-        log.error("refusing to boot: %s", erro)
+        # recusa e um status 1 ensinam. O boot percorre o catálogo de drivers, então a falha
+        # pode ser qualquer coisa que um módulo levante ao ser importado, não só arquivo ou
+        # valor.
+        log.error("refusing to boot: %s: %s", type(erro).__name__, erro)
         return 1
     log.info(
         "Tuya IP Hub %s listening on http://%s:%d (panel: %s)",

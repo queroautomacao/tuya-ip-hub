@@ -6,9 +6,10 @@ Peças compartilhadas pelos módulos da API: chaves tipadas do app, leitura de c
 guarda de sessão.
 """
 
+import asyncio
 import functools
 import json
-from dataclasses import asdict, fields, replace
+from dataclasses import fields, replace
 from pathlib import Path
 
 from aiohttp import web
@@ -19,6 +20,7 @@ from iphub.config import ARQUIVO as ARQUIVO_CONFIG
 from iphub.config import Config
 from iphub.config import carregar as carregar_config
 from iphub.config import salvar as salvar_config
+from iphub.drivers.gestor import Gestor
 from iphub.limite import Limite
 from iphub.portao import Handler, resposta_erro
 from iphub.segredos import Segredos
@@ -45,6 +47,9 @@ CONFIG = web.AppKey("config", Mutavel[Config])
 SEGREDOS = web.AppKey("segredos", Mutavel[Segredos])
 SESSOES = web.AppKey("sessoes", Sessoes)
 LIMITE = web.AppKey("limite", Limite)
+CATALOGO = web.AppKey("catalogo", dict)
+GESTOR = web.AppKey("gestor", Gestor)
+VARREDURA = web.AppKey("varredura", Mutavel[asyncio.Task])
 
 
 def config_de(app: web.Application) -> Config:
@@ -84,7 +89,15 @@ def trocar_config(app: web.Application, cfg: Config) -> None:
     # hosts_permitidos que o integrador editou na mão horas depois de o daemon subir.
     dir_data = app[AMBIENTE].dir_data
     atual = app[CONFIG].valor
-    mudou = {nome: valor for nome, valor in asdict(cfg).items() if valor != getattr(atual, nome)}
+    # Why: the comparison walks the fields instead of asdict, because asdict would turn the
+    # Cadastro of every equipment into a plain dict and put those dicts back into the Config.
+    # Por que: a comparação percorre os campos em vez do asdict, porque o asdict tornaria o
+    # Cadastro de cada equipamento um dict cru e devolveria esses dicts para dentro do Config.
+    mudou = {
+        campo.name: getattr(cfg, campo.name)
+        for campo in fields(Config)
+        if getattr(cfg, campo.name) != getattr(atual, campo.name)
+    }
     mesclada = replace(_config_do_disco(dir_data, atual), **mudou)
     salvar_config(mesclada, dir_data)
     app[CONFIG].valor = mesclada

@@ -1,0 +1,162 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (C) 2026 Quero Automação Ltda */
+
+/* The equipment screen: the cards, the control strip and the sweep list.
+   A tela de equipamentos: os cartões, a faixa de controles e a lista da varredura. */
+
+.equipamentos,
+.achados {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.equipamento,
+.achados li {
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+}
+
+.equipamento h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.equipamento-cabeca,
+.achados li {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.equipamento-cabeca {
+  margin-bottom: 0.6rem;
+}
+
+.equipamento-cabeca p,
+.achados p {
+  margin: 0.15rem 0 0;
+}
+
+.estado-curto {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--texto-suave);
+}
+
+.equipamento dl {
+  font-size: 0.9rem;
+}
+
+.controles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+
+.controle {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.valor {
+  font: inherit;
+  width: 8rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  background: var(--fundo);
+  color: var(--texto);
+}
+
+.pareamento,
+.confirmacao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+
+.pareamento p,
+.confirmacao p {
+  margin: 0;
+}
+
+.equipamento > .botao {
+  margin-top: 0.8rem;
+}
+
+.controle .botao,
+.pareamento .botao,
+.confirmacao .botao,
+.acoes .botao,
+.achados .botao {
+  margin-top: 0;
+}
+
+.achados .botao[disabled] {
+  cursor: not-allowed;
+}
+
+.achado-titulo {
+  font-weight: 600;
+}
+
+.formulario select {
+  font: inherit;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  background: var(--fundo);
+  color: var(--texto);
+}
+
+/* Why: text a device answered is not ours, so a 200 character header with no space in it
+   wraps inside its box instead of stretching the card past the screen.
+   Por que: texto que um aparelho respondeu não é nosso, então um cabeçalho de 200
+   caracteres sem espaço quebra dentro da caixa em vez de esticar o cartão. */
+.cartao dd,
+.equipamento h3,
+.achados p,
+.discreto {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.equipamento-cabeca > div,
+.achados li > div {
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+
+.caixa {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--texto-suave);
+}
+
+.formulario h4 {
+  margin: 0.8rem 0 0;
+  font-size: 0.95rem;
+}

@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Quero Automação Ltda
 
+import {
+  RESULTADOS_AUTENTICACAO,
+  lerAchado,
+  lerEquipamento,
+  lerItemCatalogo,
+  lerLista,
+  type Achado,
+  type Equipamento,
+  type ItemCatalogo,
+  type ResultadoAutenticacao,
+} from "./equipamentos.ts";
+import type { CorpoCadastro } from "./formulario.ts";
 import { guardar, ler, limpar } from "./sessao.ts";
 
 export const SENHA_MINIMA = 8;
@@ -24,6 +36,12 @@ export const CODIGO_ERRO_HTTP = "erro_http";
 export const CODIGOS_SESSAO_MORTA: readonly string[] = ["sessao_invalida", "nao_autenticado"];
 
 const PRAZO_MS = 5_000;
+
+// Why: a discovery sweep waits for answers from the whole network for seconds on end,
+// so the login deadline would cut it short before the last device answered.
+// Por que: uma varredura de descoberta espera respostas da rede inteira por segundos,
+// então o prazo de login a cortaria antes de o último aparelho responder.
+const PRAZO_VARREDURA_MS = 20_000;
 
 export class ErroApi extends Error {
   readonly code: string;
@@ -59,7 +77,12 @@ function ehObjeto(valor: unknown): valor is Objeto {
   return typeof valor === "object" && valor !== null && !Array.isArray(valor);
 }
 
-async function pedir(caminho: string, metodo: string, corpo?: unknown): Promise<Objeto> {
+async function pedir(
+  caminho: string,
+  metodo: string,
+  corpo?: unknown,
+  prazoMs: number = PRAZO_MS,
+): Promise<Objeto> {
   const cabecalhos: Record<string, string> = { Accept: "application/json" };
   const token = ler();
   if (token) cabecalhos.Authorization = `Bearer ${token}`;
@@ -72,7 +95,7 @@ async function pedir(caminho: string, metodo: string, corpo?: unknown): Promise<
       headers: cabecalhos,
       body: corpo === undefined ? undefined : JSON.stringify(corpo),
       cache: "no-store",
-      signal: AbortSignal.timeout(PRAZO_MS),
+      signal: AbortSignal.timeout(prazoMs),
     });
   } catch {
     throw new ErroApi(CODIGO_SEM_RESPOSTA);
@@ -147,6 +170,71 @@ export async function sair(): Promise<void> {
   } finally {
     limpar();
   }
+}
+
+// Why: an identity is a uuid, a MAC or a serial, and encoding it keeps a slash or a
+// question mark inside one from addressing another route.
+// Por que: uma identidade é uuid, MAC ou serial, e codificá-la impede que uma barra ou
+// interrogação dentro dela enderece outra rota.
+function rotaDoEquipamento(identidade: string): string {
+  return `/api/equipamentos/${encodeURIComponent(identidade)}`;
+}
+
+export async function lerCatalogo(): Promise<ItemCatalogo[]> {
+  const dados = await pedir("/api/catalogo", "GET");
+  const catalogo = lerLista(dados.catalogo, lerItemCatalogo);
+  if (catalogo === null) throw new ErroApi(CODIGO_CORPO_INVALIDO);
+  return catalogo;
+}
+
+export async function lerEquipamentos(): Promise<Equipamento[]> {
+  const dados = await pedir("/api/equipamentos", "GET");
+  const equipamentos = lerLista(dados.equipamentos, lerEquipamento);
+  if (equipamentos === null) throw new ErroApi(CODIGO_CORPO_INVALIDO);
+  return equipamentos;
+}
+
+export async function cadastrarEquipamento(corpo: CorpoCadastro): Promise<void> {
+  await pedir("/api/equipamentos", "POST", corpo);
+}
+
+// Why: the route takes the identity from the path and the body may only repeat it, so a
+// correction changes the address, the name or a field and never the key of the
+// registration; an absent secret keeps the credential the daemon already stores.
+// Por que: a rota tira a identidade do caminho e o corpo só pode repeti-la, então uma
+// correção muda endereço, nome ou campo e nunca a chave do cadastro; um segredo ausente
+// mantém a credencial que o daemon já guarda.
+export async function atualizarEquipamento(
+  identidade: string,
+  corpo: CorpoCadastro,
+): Promise<void> {
+  await pedir(rotaDoEquipamento(identidade), "POST", corpo);
+}
+
+export async function removerEquipamento(identidade: string): Promise<void> {
+  await pedir(rotaDoEquipamento(identidade), "DELETE");
+}
+
+export async function executarAcao(
+  identidade: string,
+  acao: string,
+  valor: unknown,
+): Promise<void> {
+  await pedir(`${rotaDoEquipamento(identidade)}/acao`, "POST", { acao, valor });
+}
+
+export async function autenticarEquipamento(identidade: string): Promise<ResultadoAutenticacao> {
+  const dados = await pedir(`${rotaDoEquipamento(identidade)}/autenticar`, "POST");
+  const resultado = RESULTADOS_AUTENTICACAO.find((esperado) => esperado === dados.resultado);
+  if (resultado === undefined) throw new ErroApi(CODIGO_CORPO_INVALIDO);
+  return resultado;
+}
+
+export async function varrer(): Promise<Achado[]> {
+  const dados = await pedir("/api/descoberta", "POST", undefined, PRAZO_VARREDURA_MS);
+  const achados = lerLista(dados.achados, lerAchado);
+  if (achados === null) throw new ErroApi(CODIGO_CORPO_INVALIDO);
+  return achados;
 }
 
 export function codigoDoErro(erro: unknown): string {

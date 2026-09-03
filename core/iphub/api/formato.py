@@ -1,0 +1,126 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Quero Automação Ltda
+"""The panel's view of the contract of section 6, in JSON, and never a device credential.
+
+Section 6: everything the panel shows about a driver comes from the manifest, so this
+module only translates the contract types into the shape the routes answer with. The
+enums travel by value, in lower case, because the panel reads them as plain text.
+
+A visão do painel do contrato da seção 6, em JSON, e nunca uma credencial de aparelho.
+
+Seção 6: tudo que o painel mostra de um driver vem do manifesto, então este módulo só
+traduz os tipos do contrato para a forma com que as rotas respondem. Os enums viajam por
+valor, em minúsculas, porque o painel os lê como texto puro.
+"""
+
+from iphub.config import Cadastro
+from iphub.drivers.descoberta import Achado
+from iphub.drivers.manifesto import Campo, Descoberta, Estado, Manifesto, TipoCampo
+
+
+def campo_json(campo: Campo) -> dict:
+    return {
+        "nome": campo.nome,
+        "tipo": campo.tipo.value,
+        "obrigatorio": campo.obrigatorio,
+        "padrao": campo.padrao,
+    }
+
+
+def descoberta_json(descoberta: Descoberta) -> dict:
+    return {
+        "ssdp_st": list(descoberta.ssdp_st),
+        "ssdp_fabricantes": list(descoberta.ssdp_fabricantes),
+        "mdns_servicos": list(descoberta.mdns_servicos),
+    }
+
+
+def manifesto_json(manifesto: Manifesto) -> dict:
+    """Both languages travel; the panel picks one, and no key of the manifest is dropped.
+
+    Os dois idiomas viajam; o painel escolhe um, e nenhuma chave do manifesto é descartada.
+    """
+    return {
+        "tipo": manifesto.tipo,
+        "categoria": manifesto.categoria,
+        "motor": manifesto.motor,
+        "auth": manifesto.auth.value,
+        "capacidades": list(manifesto.capacidades),
+        "rotulo": dict(manifesto.rotulo),
+        "textos": {idioma: dict(textos) for idioma, textos in manifesto.textos.items()},
+        "config_campos": [campo_json(campo) for campo in manifesto.config_campos],
+        "descoberta": descoberta_json(manifesto.descoberta),
+    }
+
+
+def estado_json(estado: Estado) -> dict:
+    return {
+        "online": estado.online,
+        "ligado": estado.ligado,
+        "volume": estado.volume,
+        "mudo": estado.mudo,
+        "fonte": estado.fonte,
+        "fontes": list(estado.fontes),
+        "tocando": estado.tocando,
+        "detalhe": estado.detalhe,
+    }
+
+
+def equipamento_json(cadastro: Cadastro, manifesto: Manifesto | None, estado: Estado) -> dict:
+    """One registration as the panel reads it: the names of the secrets, never their value.
+
+    Um cadastro como o painel o lê: os nomes dos segredos, nunca o valor deles.
+    """
+    return {
+        "identidade": cadastro.identidade,
+        "tipo": cadastro.tipo,
+        "nome": cadastro.nome,
+        "ip": cadastro.ip,
+        "campos": _campos_publicos(cadastro, manifesto),
+        "segredos_definidos": _segredos_definidos(cadastro, manifesto),
+        "estado": estado_json(estado),
+    }
+
+
+def achado_json(achado: Achado, *, ja_cadastrado: bool) -> dict:
+    """What the sweep saw; tipo and identidade are empty strings, never null.
+
+    O que a varredura viu; tipo e identidade são textos vazios, nunca nulos.
+    """
+    # Why: the panel prints both as text, so a null there would print the word null in the
+    # list of what the segment answered.
+    # Por que: o painel imprime os dois como texto, então um null ali imprimiria a palavra
+    # null na lista do que o segmento respondeu.
+    return {
+        "tipo": achado.tipo,
+        "identidade": achado.identidade,
+        "ip": achado.ip,
+        "porta": achado.porta,
+        "descricao": achado.descricao,
+        "ja_cadastrado": ja_cadastrado,
+    }
+
+
+def _campos_publicos(cadastro: Cadastro, manifesto: Manifesto | None) -> dict[str, str]:
+    # Why: the routes keep a SEGREDO in the segredos of the registration, so this filter only
+    # matters for a config.json edited by hand; a credential must not leave the daemon
+    # because someone typed it in the wrong key.
+    # Por que: as rotas guardam um SEGREDO nos segredos do cadastro, então este filtro só
+    # importa para um config.json editado à mão; uma credencial não pode sair do daemon
+    # porque alguém a digitou na chave errada.
+    if manifesto is None:
+        return {}
+    segredos = {campo.nome for campo in manifesto.config_campos if campo.tipo is TipoCampo.SEGREDO}
+    return {nome: valor for nome, valor in cadastro.campos.items() if nome not in segredos}
+
+
+def _segredos_definidos(cadastro: Cadastro, manifesto: Manifesto | None) -> list[str]:
+    # Why: with no manifest nothing says which key of the registration is a credential, and a
+    # filter that cannot tell has to answer nothing: the tipo that left the image is exactly
+    # the case where a password sits in campos, and guessing there would hand it to the panel.
+    # Por que: sem manifesto nada diz qual chave do cadastro é credencial, e um filtro que não
+    # sabe tem de responder nada: o tipo que saiu da imagem é justamente o caso em que a senha
+    # está em campos, e adivinhar ali a entregaria ao painel.
+    if manifesto is None:
+        return []
+    return sorted(nome for nome, valor in cadastro.segredos.items() if valor)

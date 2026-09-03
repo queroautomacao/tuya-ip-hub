@@ -169,6 +169,16 @@ def rota_post(
     app.router.add_post(caminho, handler, expect_handler=tratar_expect)
 
 
+def rota_delete(
+    app: web.Application, caminho: str, handler: Handler, tratar_expect: TrataExpect
+) -> None:
+    """Registers a DELETE route with the project's Expect handler.
+
+    Registra uma rota DELETE com o tratador de Expect do projeto.
+    """
+    app.router.add_delete(caminho, handler, expect_handler=tratar_expect)
+
+
 def registrar_curinga(app: web.Application, tratar_expect: TrataExpect) -> None:
     """Last resource, so no request is ever answered by the router's built in route.
 
