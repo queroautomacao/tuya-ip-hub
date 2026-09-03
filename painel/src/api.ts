@@ -2,6 +2,14 @@
 // Copyright (C) 2026 Quero Automação Ltda
 
 import {
+  lerDriverDeclarativo,
+  lerModelo,
+  lerProblema,
+  type DriverDeclarativo,
+  type Problema,
+  type Transporte,
+} from "./declarativos.ts";
+import {
   RESULTADOS_AUTENTICACAO,
   lerAchado,
   lerEquipamento,
@@ -46,12 +54,18 @@ const PRAZO_VARREDURA_MS = 20_000;
 export class ErroApi extends Error {
   readonly code: string;
   readonly status: number;
+  // Why: a refusal of a driver file carries one code per field (section 7), and the panel
+  // shows all of them at once; every other route answers a single code and an empty tuple.
+  // Por que: a recusa de um arquivo de driver carrega um código por campo (seção 7), e o
+  // painel mostra todos de uma vez; toda outra rota responde um código só e uma tupla vazia.
+  readonly problemas: readonly Problema[];
 
-  constructor(code: string, status = 0) {
+  constructor(code: string, status = 0, problemas: readonly Problema[] = []) {
     super(code);
     this.name = "ErroApi";
     this.code = code;
     this.status = status;
+    this.problemas = problemas;
   }
 }
 
@@ -109,9 +123,11 @@ async function pedir(
   // seguinte responder 401, e o painel seguiria mostrando uma sessão que não existe.
   if (resposta.status === 401 && code !== null && CODIGOS_SESSAO_MORTA.includes(code)) limpar();
   if (ehObjeto(dados) && dados.ok === true) return dados;
+  const problemas = ehObjeto(dados) ? lerLista(dados.problemas, lerProblema) : null;
   throw new ErroApi(
     code ?? (resposta.ok ? CODIGO_CORPO_INVALIDO : CODIGO_ERRO_HTTP),
     resposta.status,
+    problemas ?? [],
   );
 }
 
@@ -237,8 +253,48 @@ export async function varrer(): Promise<Achado[]> {
   return achados;
 }
 
+export async function lerDriversDeclarativos(): Promise<DriverDeclarativo[]> {
+  const dados = await pedir("/api/drivers", "GET");
+  const drivers = lerLista(dados.drivers, lerDriverDeclarativo);
+  if (drivers === null) throw new ErroApi(CODIGO_CORPO_INVALIDO);
+  return drivers;
+}
+
+// Why: the daemon validates the file and the panel never saves what it has not accepted, so
+// these two send the same body to two routes and the caller decides which one it needs.
+// Por que: o daemon valida o arquivo e o painel nunca salva o que ele não aceitou, então
+// estas duas mandam o mesmo corpo para duas rotas e quem chama decide de qual precisa.
+export async function validarDriver(arquivo: Record<string, unknown>): Promise<void> {
+  await pedir("/api/drivers/validar", "POST", { json: arquivo });
+}
+
+export async function salvarDriver(arquivo: Record<string, unknown>): Promise<void> {
+  await pedir("/api/drivers", "POST", { json: arquivo });
+}
+
+// Why: the tipo is a plain identifier that the panel refuses before it is typed into a
+// path, and encoding it keeps a hand written one from addressing another route anyway.
+// Por que: o tipo é um identificador simples que o painel recusa antes de virar caminho, e
+// codificá-lo impede que um escrito à mão enderece outra rota de todo jeito.
+export async function removerDriver(tipo: string): Promise<void> {
+  await pedir(`/api/drivers/${encodeURIComponent(tipo)}`, "DELETE");
+}
+
+export async function lerModeloDriver(
+  transporte: Transporte,
+): Promise<Record<string, unknown>> {
+  const dados = await pedir(`/api/drivers/modelo/${transporte}`, "GET");
+  const modelo = lerModelo(dados.modelo);
+  if (modelo === null) throw new ErroApi(CODIGO_CORPO_INVALIDO);
+  return modelo;
+}
+
 export function codigoDoErro(erro: unknown): string {
   return erro instanceof ErroApi ? erro.code : CODIGO_ERRO_HTTP;
+}
+
+export function problemasDoErro(erro: unknown): readonly Problema[] {
+  return erro instanceof ErroApi ? erro.problemas : [];
 }
 
 // Why: the daemon measures the password in code points, the way python len does, and

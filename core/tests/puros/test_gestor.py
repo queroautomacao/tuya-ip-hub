@@ -5,6 +5,8 @@
 Seção 6 sob ataque: o portão recusa antes do driver e um driver ruim fica sozinho.
 """
 
+import asyncio
+
 import pytest
 
 from iphub.config import Cadastro
@@ -378,3 +380,126 @@ async def test_todo_detalhe_que_o_gestor_publica_e_um_codigo_do_vocabulario(mont
     assert len(detalhes) == 4
     for identidade, detalhe in detalhes.items():
         assert detalhe in DETALHES, f"{identidade} published {detalhe!r}"
+
+
+async def test_trocar_catalogo_refaz_so_o_tipo_nomeado(monta):
+    """Section 7: a driver that was saved is built again, and every other keeps its session.
+
+    Seção 7: um driver que foi salvo é montado de novo, e todo outro mantém a sessão dele.
+    """
+    velho = _fabrica(_manifesto("matriz"))
+    vizinho = _fabrica(_manifesto("projetor"))
+    gestor = await monta(
+        {"matriz": velho, "projetor": vizinho},
+        [_cadastro("uuid-1", "matriz"), _cadastro("uuid-2", "projetor")],
+    )
+    novo = _fabrica(_manifesto("matriz"))
+    await gestor.trocar_catalogo({"matriz": novo, "projetor": vizinho}, refazer=("matriz",))
+    assert velho.instancias[0].parado is True
+    assert len(novo.instancias) == 1 and novo.instancias[0].iniciado is True
+    # Why: rebuilding a driver nobody asked about would drop the connection of every device on
+    # the installation to publish a file none of them uses.
+    # Por que: refazer um driver que ninguém pediu derrubaria a conexão de todo aparelho da
+    # instalação para publicar um arquivo que nenhum deles usa.
+    assert len(vizinho.instancias) == 1 and vizinho.instancias[0].parado is False
+    assert await gestor.executar("uuid-1", "ligar") is None
+    assert novo.instancias[0].executados == [("ligar", None)]
+    assert velho.instancias[0].executados == []
+
+
+async def test_um_tipo_desconhecido_vive_quando_o_driver_chega(monta):
+    """A registration outlives the driver it names, so the JSON saved later revives it.
+
+    Um cadastro sobrevive ao driver que ele nomeia, então o JSON salvo depois o revive.
+    """
+    gestor = await monta({}, [_cadastro("uuid-1", "matriz")])
+    assert gestor.estados()["uuid-1"].detalhe == TIPO_DESCONHECIDO
+    chegou = _fabrica(_manifesto("matriz"))
+    await gestor.trocar_catalogo({"matriz": chegou}, refazer=("matriz",))
+    assert len(chegou.instancias) == 1
+    assert gestor.estados()["uuid-1"].detalhe == ""
+    assert await gestor.executar("uuid-1", "ligar") is None
+
+
+def _fabrica_de_sessao(fio: dict) -> type[Driver]:
+    """A driver that keeps on the wire the session it opened, until the test lets it go.
+
+    Um driver que mantém no fio a sessão que abriu, até o teste soltá-lo.
+    """
+
+    class Falso(Driver):
+        MANIFESTO = _manifesto("matriz")
+        instancias: list["Falso"] = []
+
+        def __init__(self, cadastro: Cadastro) -> None:
+            super().__init__(cadastro)
+            self.no_poll = asyncio.Event()
+            self.liberar = asyncio.Event()
+            type(self).instancias.append(self)
+
+        async def iniciar(self) -> None:
+            if fio["em_poll"]:
+                fio["colisao"] = True
+            fio["sessoes"] += 1
+
+        async def parar(self) -> None:
+            fio["sessoes"] -= 1
+
+        async def atualizar(self) -> None:
+            fio["polls"] += 1
+            fio["em_poll"] = True
+            self.no_poll.set()
+            try:
+                await self.liberar.wait()
+            finally:
+                fio["em_poll"] = False
+
+    Falso.instancias = []
+    return Falso
+
+
+def _fio() -> dict:
+    return {"em_poll": False, "colisao": False, "polls": 0, "sessoes": 0}
+
+
+async def test_trocar_o_driver_nao_abre_sessao_por_cima_do_poll_em_voo(monta):
+    """Section 14: a matrix and a projector accept ONE connection at a time, so the driver
+    being replaced has to be off the wire before the new one opens anything. Stopping the old
+    driver is not enough while its poll is still in flight.
+
+    Seção 14: uma matriz e um projetor aceitam UMA conexão por vez, então o driver que está
+    sendo trocado precisa estar fora do fio antes de o novo abrir qualquer coisa. Parar o
+    driver velho não basta enquanto o poll dele ainda está em voo.
+    """
+    fio = _fio()
+    velho = _fabrica_de_sessao(fio)
+    novo = _fabrica_de_sessao(fio)
+    gestor = await monta({"matriz": velho}, [_cadastro(tipo="matriz")])
+    parado = velho.instancias[0]
+    gestor.visitar_agora("uuid-1")
+    async with asyncio.timeout(5):
+        await parado.no_poll.wait()
+    await gestor.trocar_catalogo({"matriz": novo}, refazer=("matriz",))
+    assert len(novo.instancias) == 1
+    assert fio["colisao"] is False
+    assert fio["em_poll"] is False
+
+
+async def test_uma_visita_fora_da_vez_nao_dobra_o_poll_de_um_equipamento(monta):
+    """Two polls of one equipment at the same time are two sessions on the wire, which is the
+    same defect by another door: the scheduled visit and the one asked for out of turn.
+
+    Dois polls de um equipamento ao mesmo tempo são duas sessões no fio, que é o mesmo defeito
+    por outra porta: a visita agendada e a pedida fora da vez.
+    """
+    fio = _fio()
+    classe = _fabrica_de_sessao(fio)
+    gestor = await monta({"matriz": classe}, [_cadastro(tipo="matriz")])
+    driver = classe.instancias[0]
+    gestor.visitar_agora("uuid-1")
+    async with asyncio.timeout(5):
+        await driver.no_poll.wait()
+    gestor.visitar_agora("uuid-1")
+    await asyncio.sleep(0.01)
+    assert fio["polls"] == 1
+    driver.liberar.set()

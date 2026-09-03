@@ -15,11 +15,11 @@ import os
 import pytest
 from aiohttp import web
 
-from iphub import app as modulo_app
 from iphub.__main__ import main
 from iphub.api import equipamentos as rotas
 from iphub.config import ARQUIVO as ARQUIVO_CONFIG
 from iphub.config import Cadastro, Config
+from iphub.drivers import catalogo as modulo_catalogo
 from iphub.drivers.base import DETALHES, Driver
 from iphub.drivers.manifesto import Auth, Campo, Descoberta, Manifesto, TipoCampo
 from iphub.drivers.simulado import RespondedorSsdp
@@ -565,10 +565,14 @@ def test_um_catalogo_que_estoura_no_boot_recusa_sem_traceback(amb, monkeypatch, 
     monkeypatch.setenv("IPHUB_BIND", amb.bind)
     monkeypatch.setenv("IPHUB_PORTA", str(amb.porta))
 
-    def estourar() -> dict:
+    def estourar(pacote: object) -> dict:
         raise RuntimeError("driver module blew up on import")
 
-    monkeypatch.setattr(modulo_app, "carregar_catalogo", estourar)
+    # Why: the boot builds the catalog, and walking the native package is where a module of a
+    # driver is imported, so this is the very call that raises when one of them is broken.
+    # Por que: o boot monta o catálogo, e varrer o pacote nativo é onde um módulo de driver é
+    # importado, então esta é justamente a chamada que estoura quando um deles está quebrado.
+    monkeypatch.setattr(modulo_catalogo, "carregar_pacote", estourar)
     monkeypatch.setattr(web, "run_app", lambda *args, **campos: pytest.fail("it served anyway"))
     caplog.set_level(logging.ERROR, logger="iphub")
     assert main() == 1

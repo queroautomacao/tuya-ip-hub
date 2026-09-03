@@ -39,18 +39,22 @@ When complete, the hub is three parts, and only three:
 
 ### Project status
 
-Milestone 1: the hub has an owner. What exists today is the daemon answering `GET /health` and the setup API, the panel with the first access assistant, sign in and sign out, the Docker image and the CI. No device is controlled yet: equipment, drivers and scenes arrive in the milestones below, one at a time, each one closed with a green CI.
+Milestones 0 to 3 are delivered, so the hub controls equipment today. The daemon carries the driver contract, the driver catalog, an SSDP sweep that finds devices on the local network and the REST API behind all of it; the panel is where the integrator takes ownership on the first access, signs in, finds a device, registers it, commands it and writes drivers. Four drivers ship inside the image: a PJLink projector written in Python, and an HDMI matrix (TCP), a relay board (HTTP) and an audio amplifier (UDP) written as JSON.
 
-| # | Milestone | Exit gate |
-|---|---|---|
-| 0 | Skeleton: structure, pytest, CI on PR, Dockerfile, compose, README that runs | `docker compose up` brings up `/health` |
-| 1 | `config`, `auth`, `portao` (host gate), `api/setup`, minimal panel (password, login, logout) | every security test green |
-| 2 | Driver contract, catalog, generated discovery, simulated device, equipment panel | example driver against the simulator, discovery under test |
-| 3 | Declarative engine (JSON), embedded catalog, editor in the panel | three example JSON drivers (TCP, HTTP, UDP) green against the simulator |
-| 4 | LinkPlay as the multiroom driver, complete DP-bus, scenes | smoke test with a real speaker recorded in the device matrix |
-| 5 | Native drivers, one at a time, each with its simulator: Denon, Onkyo, Yamaha, Samsung, LG webOS, Roku, Sony, Sonos, HEOS, Android TV | each one tested; explicit pairing where the device requires it |
-| 6 | Release: tag, image on GHCR (arm64 and amd64), new-version notice in the panel, generated `API.md` | a stranger installs from the README without help |
-| 7 | Public beta | open device matrix, issue and PR templates, CLA bot |
+A driver for a new device is written as a JSON file, with no programming. The file says how to reach the device (a line of text on a TCP port, a simple HTTP request, or UDP), which commands it takes and how to read its state back. The panel opens a starting template per transport, validates the file field by field and loads it without restarting the hub; a file dropped by hand into the `drivers` directory of the data volume is loaded on the next boot and wins over an embedded driver of the same type. A file that does not validate is refused and logged by name: it never costs the boot, and every other driver goes on loading. The format is described in section 7 of [CLAUDE.md](CLAUDE.md).
+
+What is still missing is the Tuya side. The DP-bus, the scenes and the multiroom driver arrive in the milestones below, one at a time, each one closed with a green CI, so for now the hub is driven by its own panel and REST API and not yet from the Tuya app.
+
+| # | Status | Milestone | Exit gate |
+|---|---|---|---|
+| 0 | delivered | Skeleton: structure, pytest, CI on PR, Dockerfile, compose, README that runs | `docker compose up` brings up `/health` |
+| 1 | delivered | `config`, `auth`, `portao` (host gate), `api/setup`, minimal panel (password, login, logout) | every security test green |
+| 2 | delivered | Driver contract, catalog, generated discovery, simulated device, equipment panel | example driver against the simulator, discovery under test |
+| 3 | delivered | Declarative engine (JSON), embedded catalog, editor in the panel | three example JSON drivers (TCP, HTTP, UDP) green against the simulator |
+| 4 | planned | LinkPlay as the multiroom driver, complete DP-bus, scenes | smoke test with a real speaker recorded in the device matrix |
+| 5 | planned | Native drivers, one at a time, each with its simulator: Denon, Onkyo, Yamaha, Samsung, LG webOS, Roku, Sony, Sonos, HEOS, Android TV | each one tested; explicit pairing where the device requires it |
+| 6 | planned | Release: tag, image on GHCR (arm64 and amd64), new-version notice in the panel, generated `API.md` | a stranger installs from the README without help |
+| 7 | planned | Public beta | open device matrix, issue and PR templates, CLA bot |
 
 The device matrix lives in [docs/MATRIZ.md](docs/MATRIZ.md).
 
@@ -106,6 +110,8 @@ The data directory (`IPHUB_DATA`, a named volume in compose) holds the configura
 | `config.json` | configuration, schema version and the password hash |
 | `api-token.txt` | machine credential used by the DP-bus, never handed to the panel |
 | `sessoes.json` | panel sessions, with the tokens kept hashed |
+
+Beside those files the daemon keeps a `drivers` directory, mode `0700`: it is where a driver saved from the panel is written, and where a driver written by hand is dropped. A file there is loaded at the next boot, and one saved from the panel is loaded straight away.
 
 Erasing the volume erases the password with it: the hub goes back to the first access, unowned again, so set the password immediately.
 
@@ -214,18 +220,22 @@ Quando completo, o hub são três peças, e só três:
 
 ### Estado do projeto
 
-Marco 1: o hub tem dono. O que existe hoje é o daemon respondendo `GET /health` e a API de configuração, o painel com o assistente de primeiro acesso, entrar e sair, a imagem Docker e o CI. Nenhum aparelho é controlado ainda: equipamentos, drivers e cenas chegam nos marcos abaixo, um por vez, cada um fechado com CI verde.
+Os marcos 0 a 3 estão entregues, então o hub já controla equipamento. O daemon carrega o contrato de driver, o catálogo de drivers, uma varredura SSDP que acha aparelhos na rede local e a API REST por trás de tudo isso; o painel é onde o integrador assume a posse no primeiro acesso, entra, acha um aparelho, cadastra, comanda e escreve drivers. Quatro drivers embarcam na imagem: um projetor PJLink escrito em Python, e uma matriz HDMI (TCP), uma placa de relés (HTTP) e um amplificador de áudio (UDP) escritos em JSON.
 
-| # | Marco | Portão de saída |
-|---|---|---|
-| 0 | Esqueleto: estrutura, pytest, CI em PR, Dockerfile, compose, README que roda | `docker compose up` sobe um `/health` |
-| 1 | `config`, `auth`, `portao` (portão de host), `api/setup`, painel mínimo (senha, login, sair) | todos os testes de segurança verdes |
-| 2 | Contrato de driver, catálogo, descoberta gerada, aparelho simulado, painel de equipamentos | driver de exemplo contra o simulado, descoberta com teste |
-| 3 | Motor declarativo (JSON), catálogo embarcado, editor no painel | três JSON de exemplo (TCP, HTTP, UDP) verdes contra o simulado |
-| 4 | LinkPlay como driver multiroom, DP-bus completo, cenas | fumaça com caixa real registrada na matriz de aparelhos |
-| 5 | Drivers nativos, um por vez, cada um com simulado: Denon, Onkyo, Yamaha, Samsung, LG webOS, Roku, Sony, Sonos, HEOS, Android TV | cada um com teste; pareamento explícito onde o aparelho exige |
-| 6 | Release: tag, imagem no GHCR (arm64 e amd64), aviso de versão nova no painel, `API.md` gerado | um estranho instala pelo README sem ajuda |
-| 7 | Beta público | matriz de aparelhos aberta, templates de issue e PR, CLA no bot |
+O driver de um aparelho novo é escrito como um arquivo JSON, sem programar. O arquivo diz como falar com o aparelho (uma linha de texto numa porta TCP, uma requisição HTTP simples ou UDP), quais comandos ele aceita e como ler o estado de volta. O painel abre um modelo de partida por transporte, valida o arquivo campo a campo e o carrega sem reiniciar o hub; um arquivo colocado à mão na pasta `drivers` do volume de dados é carregado no boot seguinte e vence um driver embarcado do mesmo tipo. Um arquivo que não valida é recusado e registrado pelo nome: ele nunca custa o boot, e todo outro driver segue carregando. O formato está descrito na seção 7 do [CLAUDE.md](CLAUDE.md).
+
+O que ainda falta é o lado Tuya. O DP-bus, as cenas e o driver multiroom chegam nos marcos abaixo, um por vez, cada um fechado com CI verde, então por enquanto o hub é conduzido pelo próprio painel e pela própria API REST, e ainda não pelo app Tuya.
+
+| # | Situação | Marco | Portão de saída |
+|---|---|---|---|
+| 0 | entregue | Esqueleto: estrutura, pytest, CI em PR, Dockerfile, compose, README que roda | `docker compose up` sobe um `/health` |
+| 1 | entregue | `config`, `auth`, `portao` (portão de host), `api/setup`, painel mínimo (senha, login, sair) | todos os testes de segurança verdes |
+| 2 | entregue | Contrato de driver, catálogo, descoberta gerada, aparelho simulado, painel de equipamentos | driver de exemplo contra o simulado, descoberta com teste |
+| 3 | entregue | Motor declarativo (JSON), catálogo embarcado, editor no painel | três JSON de exemplo (TCP, HTTP, UDP) verdes contra o simulado |
+| 4 | planejado | LinkPlay como driver multiroom, DP-bus completo, cenas | fumaça com caixa real registrada na matriz de aparelhos |
+| 5 | planejado | Drivers nativos, um por vez, cada um com simulado: Denon, Onkyo, Yamaha, Samsung, LG webOS, Roku, Sony, Sonos, HEOS, Android TV | cada um com teste; pareamento explícito onde o aparelho exige |
+| 6 | planejado | Release: tag, imagem no GHCR (arm64 e amd64), aviso de versão nova no painel, `API.md` gerado | um estranho instala pelo README sem ajuda |
+| 7 | planejado | Beta público | matriz de aparelhos aberta, templates de issue e PR, CLA no bot |
 
 A matriz de aparelhos fica em [docs/MATRIZ.md](docs/MATRIZ.md).
 
@@ -281,6 +291,8 @@ O diretório de dados (`IPHUB_DATA`, um volume nomeado no compose) guarda a conf
 | `config.json` | configuração, versão do esquema e o hash da senha |
 | `api-token.txt` | credencial de máquina usada pelo DP-bus, nunca entregue ao painel |
 | `sessoes.json` | sessões do painel, com os tokens guardados por hash |
+
+Ao lado desses arquivos o daemon mantém uma pasta `drivers`, modo `0700`: é onde um driver salvo pelo painel é gravado, e onde um driver escrito à mão é colocado. Um arquivo colocado ali carrega no boot seguinte, e um salvo pelo painel carrega na hora.
 
 Apagar o volume apaga a senha junto: o hub volta ao primeiro acesso, sem dono de novo, então defina a senha imediatamente.
 

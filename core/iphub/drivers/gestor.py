@@ -7,6 +7,7 @@ Seção 6 num lugar só: o portão de capacidade, o poll escalonado e o contador
 
 import asyncio
 import contextlib
+import functools
 import logging
 import time
 from collections.abc import Awaitable, Callable, Coroutine, Iterable
@@ -101,6 +102,8 @@ class Gestor:
         self._problemas: dict[str, str] = {}
         self._tarefa: asyncio.Task | None = None
         self._visitas: set[asyncio.Task] = set()
+        self._em_voo: dict[str, asyncio.Task] = {}
+        self._montando: set[str] = set()
         self._proximo = 0.0
 
     @property
@@ -123,7 +126,11 @@ class Gestor:
             # daemon não pode falhar por causa disso; o callback já registrou quando aconteceu.
             with contextlib.suppress(asyncio.CancelledError, Exception):
                 await tarefa
-        visitas = tuple(self._visitas)
+        # Why: a poll of the loop is a task of its own now, and cancelling only the loop
+        # would leave it on the wire of a device the shutdown is closing.
+        # Por que: um poll do laço agora é uma tarefa própria, e cancelar só o laço o deixaria
+        # no fio de um aparelho que o desligamento está fechando.
+        visitas = tuple(self._visitas | set(self._em_voo.values()))
         for visita in visitas:
             visita.cancel()
         await asyncio.gather(*visitas, return_exceptions=True)
@@ -227,6 +234,30 @@ class Gestor:
         self.visitar_agora(cadastro.identidade)
         return self.cadastros
 
+    async def trocar_catalogo(
+        self, catalogo: dict[str, type[Driver]], *, refazer: Iterable[str] = ()
+    ) -> None:
+        """Section 7: a driver saved in the panel is usable at once, with no restart.
+
+        Seção 7: um driver salvo no painel serve na hora, sem reiniciar.
+        """
+        # Why: a declaration that was saved is a NEW class for its tipo, so an equipment
+        # already mounted goes on speaking the file it was born with until it is built again.
+        # Only the tipos named are rebuilt, because rebuilding the others would drop the
+        # session of every device on the installation to publish a driver none of them uses.
+        # Por que: uma declaração salva é uma classe NOVA para o tipo dela, então um
+        # equipamento já montado segue falando o arquivo com que nasceu até ser montado de
+        # novo. Só os tipos nomeados são refeitos, porque refazer os outros derrubaria a
+        # sessão de todo aparelho da instalação para publicar um driver que nenhum deles usa.
+        self._catalogo = dict(catalogo)
+        alvos = frozenset(refazer)
+        for cadastro in tuple(self._cadastros.values()):
+            if cadastro.tipo not in alvos:
+                continue
+            await self._desmontar(cadastro.identidade)
+            await self._montar(cadastro)
+            self.visitar_agora(cadastro.identidade)
+
     def visitar_agora(self, identidade: str) -> None:
         """Polls one equipment out of turn, without holding the caller that asked for it:
         waiting for the scheduled visit shows a fresh registration offline for up to two
@@ -236,11 +267,52 @@ class Gestor:
         agendada mostra um cadastro novo offline por até dois intervalos, o que o integrador
         lê como cadastro que não funcionou.
         """
-        if identidade not in self._drivers:
+        tarefa = self._agendar(identidade)
+        if tarefa is None:
             return
-        tarefa = asyncio.create_task(self._visitar(identidade), name=f"gestor-visita:{identidade}")
         self._visitas.add(tarefa)
         tarefa.add_done_callback(self._visitas.discard)
+
+    def _agendar(self, identidade: str) -> asyncio.Task | None:
+        """The one place a poll of one equipment starts, so a device never gets two sessions.
+
+        O único lugar onde um poll de um equipamento começa, para um aparelho nunca receber
+        duas sessões.
+        """
+        # Why: section 14, a matrix and a projector accept ONE connection at a time. An out of
+        # turn visit landing on top of the scheduled one is a second session on the wire, and
+        # so is a poll of an equipment whose driver is still opening its own.
+        # Por que: seção 14, uma matriz e um projetor aceitam UMA conexão por vez. Uma visita
+        # fora da vez em cima da agendada é uma segunda sessão no fio, e um poll de um
+        # equipamento cujo driver ainda está abrindo a dele também é.
+        if identidade not in self._drivers or identidade in self._montando:
+            return None
+        tarefa = self._em_voo.get(identidade)
+        if tarefa is not None and not tarefa.done():
+            return tarefa
+        tarefa = asyncio.create_task(self._poll(identidade), name=f"gestor-visita:{identidade}")
+        self._em_voo[identidade] = tarefa
+        tarefa.add_done_callback(functools.partial(self._fim_do_poll, identidade))
+        return tarefa
+
+    def _fim_do_poll(self, identidade: str, tarefa: asyncio.Task) -> None:
+        if self._em_voo.get(identidade) is tarefa:
+            del self._em_voo[identidade]
+
+    async def _encerrar_poll(self, identidade: str) -> None:
+        """Takes the poll in flight off the wire, so nothing opens a session on top of it.
+
+        Tira do fio o poll em voo, para nada abrir uma sessão em cima dele.
+        """
+        # Why: waiting for it instead would hand a device that accepted the connection and
+        # went quiet the power to hold a save of the panel for the whole deadline.
+        # Por que: esperar por ele daria a um aparelho que aceitou a conexão e emudeceu o poder
+        # de segurar um salvamento do painel pelo prazo inteiro.
+        tarefa = self._em_voo.pop(identidade, None)
+        if tarefa is None or tarefa.done():
+            return
+        tarefa.cancel()
+        await asyncio.gather(tarefa, return_exceptions=True)
 
     async def _com_prazo[T](self, chamada: Coroutine[object, object, T]) -> T:
         """The deadline of a call into a driver is the gestor's: a device that accepts the
@@ -272,12 +344,16 @@ class Gestor:
         self._drivers[identidade] = driver
         self._falhas[identidade] = 0
         self._problemas.pop(identidade, None)
+        self._montando.add(identidade)
         try:
             await self._com_prazo(driver.iniciar())
         except Exception as erro:
             self._falhar(identidade, driver, erro)
+        finally:
+            self._montando.discard(identidade)
 
     async def _desmontar(self, identidade: str) -> None:
+        await self._encerrar_poll(identidade)
         driver = self._drivers.pop(identidade, None)
         self._falhas.pop(identidade, None)
         self._problemas.pop(identidade, None)
@@ -350,6 +426,16 @@ class Gestor:
         self._proximo = alvo
 
     async def _visitar(self, identidade: str) -> None:
+        tarefa = self._agendar(identidade)
+        if tarefa is None:
+            return
+        # Why: asyncio.wait, because the swap cancels the poll in flight and awaiting a
+        # cancelled task would end the loop with the cancellation of somebody else.
+        # Por que: asyncio.wait, porque a troca cancela o poll em voo e esperar por uma tarefa
+        # cancelada encerraria o laço com o cancelamento de outra pessoa.
+        await asyncio.wait({tarefa})
+
+    async def _poll(self, identidade: str) -> None:
         driver = self._drivers.get(identidade)
         if driver is None:
             return

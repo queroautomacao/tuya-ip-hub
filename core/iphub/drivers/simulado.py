@@ -225,6 +225,64 @@ class ServidorHttp(_Servidor):
         return web.Response(status=rota[0], text=rota[1])
 
 
+class ServidorDatagrama(_Servidor):
+    """UDP answering one datagram per datagram, the shape of a screen or an amplifier relay.
+
+    A key of respostas is the datagram EXACTLY as it arrives, terminator and hexadecimal frame
+    included, so a test writes the bytes the driver is supposed to put on the wire. A datagram
+    outside the map is recorded and answered with nothing, which is how a device that ignores a
+    command behaves and what makes a deadline testable.
+
+    UDP respondendo um datagrama por datagrama, o formato de uma tela ou de um amplificador
+    com relé.
+
+    Uma chave de respostas é o datagrama EXATAMENTE como ele chega, terminador e quadro
+    hexadecimal inclusos, então um teste escreve os bytes que o driver deveria pôr no fio. Um
+    datagrama fora do mapa é guardado e respondido com nada, que é como se comporta um aparelho
+    que ignora um comando, e o que torna testável um prazo.
+    """
+
+    def __init__(self, respostas: dict[bytes, bytes]) -> None:
+        self.respostas = dict(respostas)
+        self.recebidos: list[bytes] = []
+        self._transporte: asyncio.DatagramTransport | None = None
+
+    async def iniciar(self) -> tuple[str, int]:
+        laco = asyncio.get_running_loop()
+        transporte, _protocolo = await laco.create_datagram_endpoint(
+            lambda: _ProtocoloDatagrama(self), local_addr=(HOST_LOCAL, 0)
+        )
+        self._transporte = transporte
+        anfitriao, porta = transporte.get_extra_info("sockname")[:2]
+        self.endereco = (anfitriao, porta)
+        return self.endereco
+
+    async def parar(self) -> None:
+        if self._transporte is None:
+            return
+        self._transporte.close()
+        self._transporte = None
+
+    def _responder(self, dados: bytes, remetente, transporte: asyncio.DatagramTransport) -> None:
+        self.recebidos.append(dados)
+        resposta = self.respostas.get(dados)
+        if resposta:
+            transporte.sendto(resposta, remetente)
+
+
+class _ProtocoloDatagrama(asyncio.DatagramProtocol):
+    def __init__(self, dono: ServidorDatagrama) -> None:
+        self._dono = dono
+        self._transporte: asyncio.DatagramTransport | None = None
+
+    def connection_made(self, transport: asyncio.BaseTransport) -> None:
+        self._transporte = transport
+
+    def datagram_received(self, data: bytes, addr) -> None:
+        if self._transporte is not None and len(data) <= DATAGRAMA_MAXIMO:
+            self._dono._responder(data, addr, self._transporte)
+
+
 class RespondedorSsdp(_Servidor):
     """UDP answering an M-SEARCH, one datagram per matching entry of respostas.
 

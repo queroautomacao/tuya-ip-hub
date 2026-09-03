@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: AGPL-3.0-only */
 /* Copyright (C) 2026 Quero Automação Ltda */
 @import "./estilos-equipamentos.css";
+@import "./estilos-declarativos.css";
 
 :root {
   color-scheme: light dark;

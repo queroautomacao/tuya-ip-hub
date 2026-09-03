@@ -9,12 +9,18 @@ import {
   CODIGO_SEM_RESPOSTA,
   ErroApi,
   entrar,
+  lerDriversDeclarativos,
   lerEstado,
+  lerModeloDriver,
   lerSessao,
+  problemasDoErro,
+  removerDriver,
   sair,
+  salvarDriver,
   senhaCurta,
   tomarPosse,
   trocarSenha,
+  validarDriver,
 } from "./api.ts";
 import { guardar, ler, limpar } from "./sessao.ts";
 
@@ -248,4 +254,97 @@ test("senhaCurta counts code points, as the daemon does (conta pontos de código
   // python é o que o daemon roda; oito letras acentuadas escritas como letra mais
   // acento combinante são dezesseis pontos de código lá e não podem ser recusadas aqui.
   assert.equal(senhaCurta("e\u0301".repeat(4)), false);
+});
+
+// Why: section 7 promises every refusal of a driver file at once, so the answer carries one
+// code per field and the panel has to keep all of them; a single code would send the
+// integrator back for another round trip per mistake.
+// Por que: a seção 7 promete todas as recusas de um arquivo de driver de uma vez, então a
+// resposta carrega um código por campo e o painel precisa guardar todos; um código só
+// mandaria o integrador a outra ida e volta por erro.
+test("a driver refusal hands back every problem it named (uma recusa de driver devolve todos os problemas que nomeou)", async () => {
+  const corpo = JSON.stringify({
+    ok: false,
+    code: "decl_invalido",
+    problemas: [
+      { campo: "transporte.tcp.porta", codigo: "decl_porta_invalida" },
+      { campo: "estado.le.ligado", codigo: "decl_regex_perigosa" },
+    ],
+  });
+  const { fetch, chamadas } = duble(corpo, 400);
+  await comFetch(fetch, async () => {
+    await assert.rejects(validarDriver({ manifesto: { tipo: "matriz_exemplo" } }), (erro) => {
+      assert.ok(erro instanceof ErroApi);
+      assert.equal(erro.code, "decl_invalido");
+      assert.deepEqual(problemasDoErro(erro), [
+        { campo: "transporte.tcp.porta", codigo: "decl_porta_invalida" },
+        { campo: "estado.le.ligado", codigo: "decl_regex_perigosa" },
+      ]);
+      return true;
+    });
+  });
+  assert.equal(chamadas[0].url, "/api/drivers/validar");
+  assert.equal(chamadas[0].init.method, "POST");
+  assert.deepEqual(JSON.parse(String(chamadas[0].init.body)), {
+    json: { manifesto: { tipo: "matriz_exemplo" } },
+  });
+});
+
+test("a problem list outside the contract never reaches the screen (uma lista de problemas fora do contrato nunca chega à tela)", async () => {
+  const { fetch } = duble('{"ok": false, "code": "decl_invalido", "problemas": [{"campo": 1}]}', 400);
+  await comFetch(fetch, async () => {
+    await assert.rejects(salvarDriver({}), (erro) => {
+      assert.ok(erro instanceof ErroApi);
+      assert.equal(erro.code, "decl_invalido");
+      assert.deepEqual(problemasDoErro(erro), []);
+      return true;
+    });
+  });
+  // Why: every other route answers one code and no field list, so the panel must not invent
+  // one; and a failure that is not an ErroApi has no problems to show either.
+  // Por que: toda outra rota responde um código e nenhuma lista de campos, então o painel não
+  // pode inventar uma; e uma falha que não é ErroApi também não tem problemas para mostrar.
+  await comFetch(duble('{"ok": false, "code": "nao_autenticado"}', 401).fetch, async () => {
+    await assert.rejects(salvarDriver({}), (erro) => {
+      assert.deepEqual(problemasDoErro(erro), []);
+      return true;
+    });
+  });
+  assert.deepEqual(problemasDoErro(new TypeError("network")), []);
+});
+
+test("the driver list is read against the contract (a lista de drivers é lida contra o contrato)", async () => {
+  const manifesto = {
+    tipo: "matriz_exemplo",
+    categoria: "matriz",
+    motor: "declarativo",
+    auth: "nenhuma",
+    capacidades: ["ligar"],
+    rotulo: { pt: "Matriz", en: "Matrix" },
+    textos: { pt: { descricao: "d" }, en: { descricao: "d" } },
+    config_campos: [],
+  };
+  const driver = { tipo: "matriz_exemplo", origem: "integrador", em_uso: false, manifesto };
+  const bom = JSON.stringify({ ok: true, code: null, drivers: [driver] });
+  await comFetch(duble(bom).fetch, async () => {
+    const lidos = await lerDriversDeclarativos();
+    assert.equal(lidos.length, 1);
+    assert.equal(lidos[0].origem, "integrador");
+  });
+  const torto = JSON.stringify({ ok: true, code: null, drivers: [{ ...driver, origem: "outra" }] });
+  await comFetch(duble(torto).fetch, async () => {
+    await assert.rejects(lerDriversDeclarativos(), { code: CODIGO_CORPO_INVALIDO });
+  });
+});
+
+test("a tipo never addresses another route (um tipo nunca endereça outra rota)", async () => {
+  const corpo = JSON.stringify({ ok: true, code: null, modelo: { transporte: { udp: {} } } });
+  const { fetch, chamadas } = duble(corpo);
+  await comFetch(fetch, async () => {
+    await removerDriver("../equipamentos");
+    assert.deepEqual(await lerModeloDriver("udp"), { transporte: { udp: {} } });
+  });
+  assert.equal(chamadas[0].url, "/api/drivers/..%2Fequipamentos");
+  assert.equal(chamadas[0].init.method, "DELETE");
+  assert.equal(chamadas[1].url, "/api/drivers/modelo/udp");
 });

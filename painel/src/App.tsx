@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Assistente from "./Assistente";
+import DriversDeclarativos from "./DriversDeclarativos.tsx";
 import Equipamentos from "./Equipamentos.tsx";
 import Login from "./Login";
 import TrocarSenha from "./TrocarSenha";
@@ -88,6 +89,7 @@ function Painel({
     <>
       <CartaoEstado leitura={leitura} idioma={idioma} />
       <Equipamentos idioma={idioma} />
+      <DriversDeclarativos idioma={idioma} />
       <section className="cartao">
         <h2>{t("instalacao")}</h2>
         <p className="instalacao">{estado.nome_instalacao || t("sem_nome")}</p>

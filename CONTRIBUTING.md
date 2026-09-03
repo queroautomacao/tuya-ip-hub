@@ -22,8 +22,14 @@ Signing once covers all your future contributions under that version of the CLA.
 
 Everything the panel, the discovery, the scenes and the DP-bus know about a device comes from the driver's manifest (`Manifesto`). There are two driver engines, and only two:
 
-- **Declarative driver (JSON)**: the main path for the community, arriving with milestone 3. A JSON file describes the transport (TCP line, HTTP, UDP), the commands, and how to read state back (regex or JSON path). It is data, not a program: no conditionals, no loops, no expressions. It is validated when saved, with an error code per field, and it loads without restarting the hub. It fits any device that takes a line of text on a TCP port or a simple HTTP request.
-- **Native driver (Python)**: for protocols that need a library (pairing with a popup on the TV, multiroom grouping, and so on). A Python class implementing the `Driver` contract from milestone 2, with the same `Manifesto` as every other driver, compiled into the image.
+- **Declarative driver (JSON)**: the main path for the community, and the one to try first. A JSON file describes the transport (a line of text on a TCP port, a simple HTTP request, or UDP), the commands, and how to read state back (a regex or a JSON path). It is data, not a program: no conditionals, no loops, no expressions, no arithmetic. The whole format is section 7 of [CLAUDE.md](CLAUDE.md), and the image carries one worked example of each transport in `core/iphub/drivers/catalogo_json/`: an HDMI matrix over TCP, a relay board over HTTP and an audio amplifier over UDP. The daemon validates the file when it is saved, answering an error code per field, and loads it without restarting the hub; a file that does not validate is refused and logged, and never costs the boot. It fits any device that takes a line of text on a TCP port or a simple HTTP request.
+- **Native driver (Python)**: for protocols that need a library (pairing with a popup on the TV, multiroom grouping, and so on). A Python class implementing the `Driver` contract, with the same `Manifesto` as every other driver, compiled into the image. `core/iphub/drivers/nativos/pjlink.py` is the one that ships today.
+
+A declarative driver lives in one of three places, and they are not the same thing:
+
+- **In the panel**, in the drivers section: it opens a starting template per transport, validates what you typed and saves it. This is how an integrator adds a device to one installation.
+- **By hand, in the data volume**: the same file dropped into the `drivers` directory beside `config.json`, loaded at the next boot of the container. A file here wins over an embedded driver that claims the same `tipo`.
+- **In this repository**, as a pull request that adds the file to `core/iphub/drivers/catalogo_json/`: this is how a driver reaches everybody. Send the JSON file, a test against the simulated device in `core/tests/drivers/`, and a row in [docs/MATRIZ.md](docs/MATRIZ.md) naming the brand and the model it was run against. None of it needs Python.
 
 Rules for both: no code is loaded at runtime (no plugin download, no `exec`, no embedded scripting language); the device identity is a UUID, MAC or serial, never the IP; `volume` is always 0 to 100 and the driver converts the real scale; `estado()` returns the typed `Estado` dataclass, never a loose dict; every text the panel shows comes from the manifest, in both pt and en.
 
@@ -62,7 +68,7 @@ The CI has a test for most of these, so a pull request that ignores them fails b
 
 - **The API returns codes, not phrases**: every response is `{"ok": bool, "code": str|null, ...}`, the code is stable (`nao_encontrado`, `host_nao_permitido`, `painel_ausente`, ...) and the panel translates it. Log lines are in English.
 - **Identifiers follow the contract in CLAUDE.md**, in Portuguese (`versao`, `portao`, `saude`, `painel`, `Manifesto`, `Estado`). Do not rename them.
-- A Python module above 400 lines is a sign that two modules were mixed. Split it.
+- **A module does one thing**, and there is no line limit. A big file is a problem when it does two things; then it is split.
 - Do not cite other automation projects or products in code, comments or docs; describe what the code does. Naming the controlled brands (Denon, Samsung, LG, Sony, Onkyo, Yamaha, Roku, Sonos, LinkPlay, Tuya) is fine.
 - No real network addresses (examples use `192.0.2.x`), no prices, suppliers, customers or people's names.
 
@@ -125,8 +131,14 @@ Assinar uma vez cobre todas as suas contribuições futuras sob aquela versão d
 
 Tudo que o painel, a descoberta, as cenas e o DP-bus sabem de um aparelho vem do manifesto do driver (`Manifesto`). Há dois motores de driver, e só dois:
 
-- **Driver declarativo (JSON)**: o caminho principal da comunidade, que chega com o marco 3. Um arquivo JSON descreve o transporte (linha TCP, HTTP, UDP), os comandos e como ler o estado de volta (regex ou caminho JSON). É dado, não programa: sem condicional, sem laço, sem expressão. É validado ao salvar, com código de erro por campo, e carrega sem reiniciar o hub. Cabe em qualquer aparelho que aceita uma linha de texto numa porta TCP ou uma requisição HTTP simples.
-- **Driver nativo (Python)**: para protocolos que exigem biblioteca (pareamento com popup na TV, agrupamento multiroom, etc.). Uma classe Python que implementa o contrato `Driver` do marco 2, com o mesmo `Manifesto` de todos os outros drivers, compilada na imagem.
+- **Driver declarativo (JSON)**: o caminho principal da comunidade, e o primeiro a tentar. Um arquivo JSON descreve o transporte (uma linha de texto numa porta TCP, uma requisição HTTP simples ou UDP), os comandos e como ler o estado de volta (uma regex ou um caminho JSON). É dado, não programa: sem condicional, sem laço, sem expressão, sem aritmética. O formato inteiro é a seção 7 do [CLAUDE.md](CLAUDE.md), e a imagem carrega um exemplo pronto de cada transporte em `core/iphub/drivers/catalogo_json/`: uma matriz HDMI por TCP, uma placa de relés por HTTP e um amplificador de áudio por UDP. O daemon valida o arquivo ao salvar, respondendo um código de erro por campo, e o carrega sem reiniciar o hub; um arquivo que não valida é recusado e registrado, e nunca custa o boot. Cabe em qualquer aparelho que aceita uma linha de texto numa porta TCP ou uma requisição HTTP simples.
+- **Driver nativo (Python)**: para protocolos que exigem biblioteca (pareamento com popup na TV, agrupamento multiroom, etc.). Uma classe Python que implementa o contrato `Driver`, com o mesmo `Manifesto` de todos os outros drivers, compilada na imagem. O `core/iphub/drivers/nativos/pjlink.py` é o que embarca hoje.
+
+Um driver declarativo mora num de três lugares, e eles não são a mesma coisa:
+
+- **No painel**, na seção de drivers: ele abre um modelo de partida por transporte, valida o que você digitou e salva. É assim que um integrador acrescenta um aparelho numa instalação.
+- **À mão, no volume de dados**: o mesmo arquivo colocado na pasta `drivers`, ao lado do `config.json`, carregado no boot seguinte do container. Um arquivo daqui vence um driver embarcado que reivindica o mesmo `tipo`.
+- **Neste repositório**, como um pull request que acrescenta o arquivo em `core/iphub/drivers/catalogo_json/`: é assim que um driver chega para todo mundo. Mande o arquivo JSON, um teste contra o aparelho simulado em `core/tests/drivers/`, e uma linha em [docs/MATRIZ.md](docs/MATRIZ.md) nomeando a marca e o modelo contra o qual ele rodou. Nada disso precisa de Python.
 
 Regras para os dois: nenhum código carrega em runtime (sem download de plugin, sem `exec`, sem linguagem de script embutida); a identidade do aparelho é UUID, MAC ou serial, nunca o IP; `volume` é sempre 0 a 100 e o driver converte a escala real; `estado()` devolve o dataclass tipado `Estado`, nunca um dict solto; todo texto que o painel mostra vem do manifesto, em pt e en.
 
@@ -165,7 +177,7 @@ O CI tem teste para a maioria destas, então um pull request que as ignora falha
 
 - **A API devolve códigos, não frases**: toda resposta é `{"ok": bool, "code": str|null, ...}`, o código é estável (`nao_encontrado`, `host_nao_permitido`, `painel_ausente`, ...) e o painel traduz. Linhas de log são em inglês.
 - **Identificadores seguem o contrato do CLAUDE.md**, em português (`versao`, `portao`, `saude`, `painel`, `Manifesto`, `Estado`). Não os renomeie.
-- Módulo Python acima de 400 linhas é sinal de que dois módulos foram misturados. Divida.
+- **Um módulo faz uma coisa só**, e não há limite de linhas. Um arquivo grande é problema quando faz duas coisas; aí ele é dividido.
 - Não cite outros projetos ou produtos de automação em código, comentário ou doc; descreva o que o código faz. Citar as marcas controladas (Denon, Samsung, LG, Sony, Onkyo, Yamaha, Roku, Sonos, LinkPlay, Tuya) é permitido.
 - Sem endereço de rede real (exemplos usam `192.0.2.x`), sem preço, fornecedor, cliente nem nome de pessoa.
 

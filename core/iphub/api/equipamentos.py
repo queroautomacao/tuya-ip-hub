@@ -22,11 +22,11 @@ from math import isfinite
 from aiohttp import web
 
 from iphub.api.comum import (
-    CATALOGO,
     GESTOR,
     VARREDURA,
     com_sessao,
     config_de,
+    drivers_de,
     ler_corpo,
     resposta_ok,
     trocar_config,
@@ -103,7 +103,7 @@ def _identidade(request: web.Request) -> str:
 
 
 def _manifestos(app: web.Application) -> dict[str, Manifesto]:
-    return {tipo: classe.MANIFESTO for tipo, classe in app[CATALOGO].items()}
+    return {tipo: classe.MANIFESTO for tipo, classe in drivers_de(app).items()}
 
 
 def _texto(bruto: object) -> str:

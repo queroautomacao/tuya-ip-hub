@@ -1,0 +1,120 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (C) 2026 Quero Automação Ltda */
+
+/* The declarative driver screen: the list the hub carries and the JSON editor.
+   A tela dos drivers declarativos: a lista que o hub carrega e o editor de JSON. */
+
+.drivers {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.drivers li {
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+}
+
+.drivers h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.drivers p {
+  margin: 0.15rem 0 0;
+}
+
+.drivers dl {
+  margin-top: 0.6rem;
+  font-size: 0.9rem;
+}
+
+.driver-cabeca {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.driver-cabeca > div {
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.etiqueta {
+  font-size: 0.8rem;
+  color: var(--texto-suave);
+  border: 1px solid var(--borda);
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+}
+
+.drivers .botao,
+.modelos .botao {
+  margin-top: 0.8rem;
+}
+
+.modelos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.editor-json {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  background: var(--fundo);
+  color: var(--texto);
+  resize: vertical;
+  overflow: auto;
+  tab-size: 2;
+}
+
+.editor-json:focus-visible {
+  outline: 2px solid var(--destaque);
+  outline-offset: 1px;
+}
+
+.problemas {
+  margin-top: 0.75rem;
+  color: var(--erro);
+}
+
+.problemas p {
+  margin: 0;
+}
+
+.problemas ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.problemas code {
+  font-size: 0.85rem;
+}
+
+/* Why: the field of a refusal is a path the daemon echoed from a file this hub did not
+   write, and the label of a driver comes from the manifest inside that same file, so both
+   wrap inside their box instead of stretching the card past the screen.
+   Por que: o campo de uma recusa é um caminho que o daemon ecoou de um arquivo que este hub
+   não escreveu, e o rótulo de um driver vem do manifesto desse mesmo arquivo, então os dois
+   quebram dentro da caixa em vez de esticar o cartão para fora da tela. */
+.problemas li,
+.problemas code,
+.drivers h3,
+.drivers p {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}

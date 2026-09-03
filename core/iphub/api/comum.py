@@ -20,6 +20,8 @@ from iphub.config import ARQUIVO as ARQUIVO_CONFIG
 from iphub.config import Config
 from iphub.config import carregar as carregar_config
 from iphub.config import salvar as salvar_config
+from iphub.drivers.base import Driver
+from iphub.drivers.catalogo import Catalogo
 from iphub.drivers.gestor import Gestor
 from iphub.limite import Limite
 from iphub.portao import Handler, resposta_erro
@@ -47,7 +49,7 @@ CONFIG = web.AppKey("config", Mutavel[Config])
 SEGREDOS = web.AppKey("segredos", Mutavel[Segredos])
 SESSOES = web.AppKey("sessoes", Sessoes)
 LIMITE = web.AppKey("limite", Limite)
-CATALOGO = web.AppKey("catalogo", dict)
+CATALOGO = web.AppKey("catalogo", Catalogo)
 GESTOR = web.AppKey("gestor", Gestor)
 VARREDURA = web.AppKey("varredura", Mutavel[asyncio.Task])
 # Why: with no ownership code, the ja_configurado check is the only guard of the claim
@@ -56,6 +58,11 @@ VARREDURA = web.AppKey("varredura", Mutavel[asyncio.Task])
 # posse, e uma checagem que não é atômica com a escrita entrega dois donos a dois
 # concorrentes.
 TRAVA_POSSE = web.AppKey("trava_posse", asyncio.Lock)
+# Why: a save of a driver writes a file, re reads both directories and rebuilds what used the
+# tipo; two of those crossing each other would reload a catalog over a half written folder.
+# Por que: salvar um driver grava um arquivo, relê as duas pastas e refaz o que usava o tipo;
+# dois desses se cruzando recarregariam um catálogo sobre uma pasta escrita pela metade.
+TRAVA_DRIVERS = web.AppKey("trava_drivers", asyncio.Lock)
 
 
 def config_de(app: web.Application) -> Config:
@@ -64,6 +71,18 @@ def config_de(app: web.Application) -> Config:
 
 def segredos_de(app: web.Application) -> Segredos:
     return app[SEGREDOS].valor
+
+
+def catalogo_de(app: web.Application) -> Catalogo:
+    return app[CATALOGO]
+
+
+def drivers_de(app: web.Application) -> dict[str, type[Driver]]:
+    """The natives and the declarations that survived the loading, as one mapping.
+
+    Os nativos e as declarações que sobreviveram à carga, como um mapa só.
+    """
+    return app[CATALOGO].drivers
 
 
 def _config_do_disco(dir_data: Path, atual: Config) -> Config:
@@ -113,18 +132,20 @@ def resposta_ok(**campos: object) -> web.Response:
     return web.json_response({"ok": True, "code": None, **campos})
 
 
-async def ler_corpo(request: web.Request) -> dict | None:
+async def ler_corpo(request: web.Request, *, maximo: int = CORPO_MAXIMO) -> dict | None:
     """The body as a JSON object, or None for anything else, a body too large included.
 
     O corpo como objeto JSON, ou None para qualquer outra coisa, inclusive corpo grande demais.
     """
     # Why: whoever calls these routes is not authenticated yet, so the daemon reads a login
-    # sized body and not one byte more.
+    # sized body and not one byte more. A route that carries a driver file declares the ceiling
+    # of that file instead, because a login sized body would truncate an honest driver.
     # Por que: quem chama estas rotas ainda não está autenticado, então o daemon lê um corpo
-    # do tamanho de um login e nem um byte a mais.
-    if (request.content_length or 0) > CORPO_MAXIMO:
+    # do tamanho de um login e nem um byte a mais. Uma rota que leva um arquivo de driver
+    # declara o teto daquele arquivo, porque um corpo de login truncaria um driver honesto.
+    if (request.content_length or 0) > maximo:
         return None
-    bruto = await _corpo_inteiro(request)
+    bruto = await _corpo_inteiro(request, maximo)
     if bruto is None:
         return None
     try:
@@ -134,7 +155,7 @@ async def ler_corpo(request: web.Request) -> dict | None:
     return dados if isinstance(dados, dict) else None
 
 
-async def _corpo_inteiro(request: web.Request) -> bytes | None:
+async def _corpo_inteiro(request: web.Request, maximo: int) -> bytes | None:
     """Every byte of the body, or None when it goes past the ceiling.
 
     Todo byte do corpo, ou None quando ele passa do teto.
@@ -144,8 +165,8 @@ async def _corpo_inteiro(request: web.Request) -> bytes | None:
     # Por que: uma leitura só devolve o que o buffer já tem, então um corpo que chegou em dois
     # segmentos TCP saía truncado e um cliente honesto e lento não conseguia entrar.
     bruto = bytearray()
-    while len(bruto) <= CORPO_MAXIMO:
-        pedaco = await request.content.read(CORPO_MAXIMO + 1 - len(bruto))
+    while len(bruto) <= maximo:
+        pedaco = await request.content.read(maximo + 1 - len(bruto))
         if not pedaco:
             return bytes(bruto)
         bruto += pedaco

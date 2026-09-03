@@ -20,6 +20,7 @@ from iphub.api.comum import (
     LIMITE,
     SEGREDOS,
     SESSOES,
+    TRAVA_DRIVERS,
     TRAVA_POSSE,
     VARREDURA,
     Mutavel,
@@ -30,7 +31,7 @@ from iphub.arquivos import garantir_diretorio
 from iphub.config import Config
 from iphub.config import carregar as carregar_config
 from iphub.drivers.base import Driver
-from iphub.drivers.catalogo import carregar as carregar_catalogo
+from iphub.drivers.catalogo import Catalogo
 from iphub.drivers.gestor import Gestor
 from iphub.limite import Limite
 from iphub.painel import registrar_painel
@@ -58,6 +59,22 @@ __all__ = [
     "criar_app",
     "trocar_config",
 ]
+
+
+def _catalogo_do_app(amb: Ambiente, catalogo: dict[str, type[Driver]] | None) -> Catalogo:
+    """The drivers of the image plus the JSON of the data directory, section 7.
+
+    Os drivers da imagem mais o JSON do diretório de dados, seção 7.
+    """
+    # Why: a test names the drivers of the hub it is attacking, and the examples that ship in
+    # the image would answer its listing with drivers it never registered; the JSON of the data
+    # directory still loads, because that is the directory the test itself writes into.
+    # Por que: um teste nomeia os drivers do hub que ele ataca, e os exemplos que embarcam na
+    # imagem responderiam à listagem dele com drivers que ele nunca cadastrou; o JSON do
+    # diretório de dados segue carregando, porque é nele que o próprio teste grava.
+    if catalogo is None:
+        return Catalogo(amb.dir_data)
+    return Catalogo(amb.dir_data, nativos=dict(catalogo), pasta_embarcada=None)
 
 
 async def _subir_gestor(app: web.Application) -> None:
@@ -115,10 +132,11 @@ def criar_app(
     app[SEGREDOS] = segs
     app[SESSOES] = Sessoes(amb.dir_data) if sessoes is None else sessoes
     app[LIMITE] = Limite() if limite is None else limite
-    app[CATALOGO] = carregar_catalogo() if catalogo is None else dict(catalogo)
-    app[GESTOR] = Gestor(app[CATALOGO], cfg.valor.equipamentos)
+    app[CATALOGO] = _catalogo_do_app(amb, catalogo)
+    app[GESTOR] = Gestor(app[CATALOGO].drivers, cfg.valor.equipamentos)
     app[VARREDURA] = Mutavel(None)
     app[TRAVA_POSSE] = asyncio.Lock()
+    app[TRAVA_DRIVERS] = asyncio.Lock()
     app.on_startup.append(_subir_gestor)
     app.on_cleanup.append(_baixar_gestor)
     tratar_expect = criar_tratar_expect(obter_hosts)

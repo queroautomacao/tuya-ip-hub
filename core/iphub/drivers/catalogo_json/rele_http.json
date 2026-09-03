@@ -1,0 +1,40 @@
+{
+  "manifesto": {
+    "tipo": "rele_http",
+    "rotulo": {
+      "pt": "Placa de relés por HTTP",
+      "en": "HTTP relay board"
+    },
+    "categoria": "rele",
+    "capacidades": ["ligar", "desligar"],
+    "config_campos": [{"nome": "chave", "tipo": "segredo", "obrigatorio": true}],
+    "textos": {
+      "pt": {
+        "descricao": "Placa de relés que aceita HTTP e responde o estado em JSON. Este driver comanda o canal 1.",
+        "campo_chave": "Chave da placa. Vai no cabeçalho X-Api-Key de cada requisição e nunca sai do daemon."
+      },
+      "en": {
+        "descricao": "Relay board taking HTTP and answering its state in JSON. This driver commands channel 1.",
+        "campo_chave": "Key of the board. It travels in the X-Api-Key header of every request and never leaves the daemon."
+      }
+    }
+  },
+  "transporte": {
+    "http": {
+      "base": "http://{ip}",
+      "metodo": "GET",
+      "timeout_s": 4,
+      "cabecalhos": {"X-Api-Key": "chave"}
+    }
+  },
+  "comandos": {
+    "ligar": {"envia": "/relay/1/on"},
+    "desligar": {"envia": "/relay/1/off"}
+  },
+  "estado": {
+    "pede": [{"envia": "/status.json"}],
+    "le": {
+      "ligado": {"json": "rele1", "verdadeiro": "on"}
+    }
+  }
+}

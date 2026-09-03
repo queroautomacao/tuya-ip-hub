@@ -247,8 +247,8 @@ def test_a_segunda_linha_do_cabecalho_nao_e_perdida():
 
 
 def test_os_saltos_de_proxies_declarados_sao_pulados():
-    declarados = frozenset({"127.0.0.1", "10.0.0.2"})
-    encaminhado = "203.0.113.5, 198.51.100.9, 10.0.0.2"
+    declarados = frozenset({"127.0.0.1", "198.51.100.2"})
+    encaminhado = "203.0.113.5, 198.51.100.9, 198.51.100.2"
     assert ip_do_pedido(pedido("127.0.0.1", encaminhado), declarados) == "198.51.100.9"
 
 

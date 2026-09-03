@@ -52,9 +52,10 @@ Estas regras existem para o projeto não crescer em complexidade.
    hardware. Validação em hardware real é registro na matriz, não portão.
 6. **Segurança no primeiro commit**, não "depois" (§9). A lista é curta e
    conhecida; deixar para depois só produz uma auditoria longa.
-7. **Módulo pequeno, responsabilidade única.** Arquivo Python acima de 400
-   linhas é sinal de que dois módulos foram misturados. A API é um pacote com
-   um arquivo por área, não um arquivo.
+7. **Módulo pequeno, responsabilidade única.** A API é um pacote com um arquivo
+   por área, não um arquivo. **Não há limite de linhas** (decisão de 3/set/2026,
+   que removeu o teto de 400): o critério é a responsabilidade, não o tamanho, e
+   um arquivo grande só é problema quando faz duas coisas.
 8. **Um repositório.** O material interno da empresa vive em `interno/`
    (repositório git próprio, ignorado aqui). Nada de preço, fornecedor,
    cliente, IP de rede real ou estratégia entra neste repositório.

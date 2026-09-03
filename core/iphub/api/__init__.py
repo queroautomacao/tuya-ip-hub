@@ -7,7 +7,7 @@ API REST: um módulo por área, registrados aqui.
 
 from aiohttp import web
 
-from iphub.api import equipamentos, health, setup
+from iphub.api import declarativos, equipamentos, health, setup
 from iphub.portao import TrataExpect, rota_delete, rota_get, rota_post
 
 
@@ -29,3 +29,12 @@ def registrar_rotas(app: web.Application, tratar_expect: TrataExpect) -> None:
         app, "/api/equipamentos/{identidade}/autenticar", equipamentos.autenticar, tratar_expect
     )
     rota_post(app, "/api/descoberta", equipamentos.varredura, tratar_expect)
+    # Why: the fixed paths come first, so a driver named "validar" or "modelo" could never
+    # take the route of the validation or of the templates away from the panel.
+    # Por que: os caminhos fixos vêm antes, para um driver chamado "validar" ou "modelo" nunca
+    # tomar do painel a rota da validação ou a dos modelos.
+    rota_post(app, "/api/drivers/validar", declarativos.validar, tratar_expect)
+    rota_get(app, "/api/drivers/modelo/{transporte}", declarativos.modelo, tratar_expect)
+    rota_get(app, "/api/drivers", declarativos.listar, tratar_expect)
+    rota_post(app, "/api/drivers", declarativos.salvar, tratar_expect)
+    rota_delete(app, "/api/drivers/{tipo}", declarativos.remover, tratar_expect)

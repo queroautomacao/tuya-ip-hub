@@ -35,7 +35,7 @@ function campoDe(parcial: Partial<Campo> & { nome: string }): Campo {
 }
 
 function formularioDeTeste(parcial: Partial<Formulario> = {}): Formulario {
-  const base = { tipo: "projetor_exemplo", identidade: "uuid-1", ip: "192.168.0.10" };
+  const base = { tipo: "projetor_exemplo", identidade: "uuid-1", ip: "192.0.2.10" };
   return { ...VAZIO, ...base, ...parcial };
 }
 
@@ -43,7 +43,7 @@ function achadoDe(parcial: Partial<Achado> = {}): Achado {
   return {
     tipo: "projetor_exemplo",
     identidade: "uuid-1",
-    ip: "192.168.0.10",
+    ip: "192.0.2.10",
     porta: 4352,
     descricao: "servidor",
     ja_cadastrado: false,
@@ -57,14 +57,14 @@ function achadoDe(parcial: Partial<Achado> = {}): Achado {
 // para o hub nunca virar proxy da LAN; estes são os ataques a essa regra.
 test("ipLiteral refuses a name, a URL, a port and a zone id (recusa nome, URL, porta e zone id)", () => {
   for (const bom of [
-    "192.168.0.10",
+    "192.0.2.10",
     "0.0.0.0",
     "255.255.255.255",
     "::1",
     "::",
     "fe80::1",
     "2001:db8::8a2e:370:7334",
-    "::ffff:192.168.0.10",
+    "::ffff:192.0.2.10",
   ]) {
     assert.equal(ipLiteral(bom), true, bom);
   }
@@ -74,23 +74,23 @@ test("ipLiteral refuses a name, a URL, a port and a zone id (recusa nome, URL, p
     "aparelho.local",
     "localhost",
     "example.com",
-    "http://192.168.0.10",
-    "https://192.168.0.10/status",
-    "192.168.0.10:8080",
+    "http://192.0.2.10",
+    "https://192.0.2.10/status",
+    "192.0.2.10:8080",
     "[::1]",
     "[::1]:80",
     "fe80::1%eth0",
-    "192.168.0.10 ",
-    " 192.168.0.10",
-    "192.168.0.1 ",
-    "192.168.0",
-    "192.168.0.10.1",
+    "192.0.2.10 ",
+    " 192.0.2.10",
+    "192.0.2.1 ",
+    "192.0.2",
+    "192.0.2.10.1",
     "010.1.1.1",
     "256.1.1.1",
     "1:2:3:4:5:6:7:8:9",
     "1::2::3",
     ":::",
-    "192.168.0.10/24",
+    "192.0.2.10/24",
     "1".repeat(400),
     "0:".repeat(200),
   ]) {
@@ -121,7 +121,7 @@ test("validarCadastro refuses the form before it costs a request (recusa o formu
     codigo: "campo_invalido",
     campo: "identidade",
   });
-  for (const ip of ["", "aparelho.local", "192.168.0.10:4352", "http://192.168.0.10"]) {
+  for (const ip of ["", "aparelho.local", "192.0.2.10:4352", "http://192.0.2.10"]) {
     assert.deepEqual(validarCadastro({ ...base, ip }, catalogo), {
       ok: false,
       codigo: "ip_invalido",
@@ -150,7 +150,7 @@ test("a valid form sends only the declared fields, trimmed (um formulário váli
     formularioDeTeste({
       identidade: "  uuid-1  ",
       nome: "  Projetor  ",
-      ip: "  192.168.0.10  ",
+      ip: "  192.0.2.10  ",
       // Why: an empty secret is left out so the daemon keeps the credential it already
       // has, and a field the manifest does not declare never reaches the daemon.
       // Por que: um segredo vazio fica de fora para o daemon manter a credencial que já
@@ -164,7 +164,7 @@ test("a valid form sends only the declared fields, trimmed (um formulário váli
     tipo: item.tipo,
     identidade: "uuid-1",
     nome: "Projetor",
-    ip: "192.168.0.10",
+    ip: "192.0.2.10",
     campos: { porta: "4352" },
   });
 });
@@ -253,7 +253,7 @@ test("an edit keeps the stored credential and erases it only when asked (a ediç
     identidade: "uuid-1",
     tipo: item.tipo,
     nome: "Projetor",
-    ip: "192.168.0.10",
+    ip: "192.0.2.10",
     campos: { porta: "4353" },
     segredos_definidos: ["senha"],
     estado: {
@@ -271,7 +271,7 @@ test("an edit keeps the stored credential and erases it only when asked (a ediç
   assert.deepEqual(formulario.campos, { porta: "4353" });
   assert.deepEqual(formulario.apagar, []);
   const mantido = validarCadastro(
-    { ...formulario, ip: "192.168.0.11" },
+    { ...formulario, ip: "192.0.2.11" },
     [item],
     equipamento.segredos_definidos,
   );

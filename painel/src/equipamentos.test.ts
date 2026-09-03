@@ -166,7 +166,7 @@ test("an answer outside the contract is refused whole (uma resposta fora do cont
     identidade: "uuid-1",
     tipo: "projetor_exemplo",
     nome: "Projetor",
-    ip: "192.168.0.10",
+    ip: "192.0.2.10",
     campos: { porta: "4352" },
     segredos_definidos: ["senha"],
     estado: { online: true, ligado: false, volume: null, fontes: ["HDMI1"], detalhe: "" },
@@ -199,7 +199,7 @@ test("the catalog and the sweep are read against the contract (o catálogo e a v
   assert.equal(lerItemCatalogo({ ...cru, capacidades: "ligar" }), null);
   assert.equal(lerItemCatalogo({ ...cru, rotulo: { pt: 1 } }), null);
   assert.equal(lerItemCatalogo({ ...cru, config_campos: [{ nome: "porta", tipo: "senha" }] }), null);
-  const achado = { tipo: "", identidade: "", ip: "192.168.0.10", porta: null, descricao: "servidor" };
+  const achado = { tipo: "", identidade: "", ip: "192.0.2.10", porta: null, descricao: "servidor" };
   assert.deepEqual(lerAchado(achado), { ...achado, ja_cadastrado: false });
   assert.equal(lerAchado({ ...achado, ja_cadastrado: true })?.ja_cadastrado, true);
   assert.equal(lerAchado({ ...achado, ip: "" }), null);
@@ -235,7 +235,7 @@ test("detalhe is rendered as a code and never as a phrase (é desenhado como có
     ]);
   }
   for (const invadido of [
-    "eq_offline: 192.168.0.10 nao respondeu",
+    "eq_offline: 192.0.2.10 nao respondeu",
     "tipo_desconhecido: projetor_sumido",
     "LAMP FAILURE ",
     "a".repeat(900),
