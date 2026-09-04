@@ -724,6 +724,14 @@ class LinkPlay(Driver):
         Um comando do protocolo; a caixa responde OK e nada mais significa feito.
         """
         corpo = await self._pedir(comando)
+        # Why: section 14, this firmware answers OK to any command, including one that does
+        # not exist, so this check only catches a firmware that does report an error. What
+        # really verifies a command on these speakers is the reread of section 8 against the
+        # state the device answers, never this line.
+        # Por que: seção 14, este firmware responde OK a qualquer comando, inclusive a um que
+        # não existe, então esta checagem só pega um firmware que reporta erro. O que
+        # verifica de verdade um comando nestas caixas é a releitura da seção 8 contra o
+        # estado que o aparelho responde, nunca esta linha.
         if corpo.strip().lower() != RESPOSTA_OK:
             log.warning("speaker answered %r to %s", corpo[:TEXTO_MAXIMO], comando)
             raise _Falha(ERRO_APARELHO)

@@ -348,6 +348,8 @@ Custaram dias. Estão aqui para o driver LinkPlay e o DP-bus nascerem certos.
 - Identidade: campo `uuid` de `getStatusEx`. mDNS `_linkplay._tcp` re-resolve
   o IP. Poll `getPlayerStatus` a cada 5 s escalonado; 2 falhas = offline.
 - Comandos: `setPlayerCmd:vol:N`, `setPlayerCmd:play:<url>`, `setPlayerCmd:pause`,
+  `setPlayerCmd:resume` (provado em 4/set/2026 no firmware 4.6: uma caixa em
+  `pause` foi para `play` e o `curpos` andou 3281 ms em 3 s),
   `setPlayerCmd:switchmode:<wifi|bluetooth|line-in|usb>` (só os que
   `plm_support` lista). Preset = tocar URL configurada.
 - Multiroom nativo: `ConnectMasterAp:JoinGroupMaster:...` no escravo,
@@ -361,6 +363,18 @@ Custaram dias. Estão aqui para o driver LinkPlay e o DP-bus nascerem certos.
   com a biblioteca padrão, não uma voz).
 - iEAST TCP 8899 (avançado): mínimo **200 ms entre comandos**; comandos de
   mudo e preset de hardware; tocar URL e agrupar só existem na API HTTP.
+  Ressalva medida em 4/set/2026 no firmware 4.6: **o mudo também funciona por
+  HTTP** (`setPlayerCmd:mute:1` mudou o campo `mute` e voltou), então a porta de
+  controle não é obrigatória para ele. O driver segue no TCP porque é o caminho
+  com teste; trocar exige provar o HTTP no aparelho, e a troca dispensaria o
+  ritmo de 200 ms só para o mudo.
+- **A caixa responde `OK` a qualquer comando**, inclusive a um que não existe
+  (medido em 4/set/2026 no firmware 4.6: `setPlayerCmd:naoexiste` devolve `OK`).
+  Então a resposta HTTP não é confirmação de nada, e um comando que a caixa não
+  suporta chega ao hub como sucesso. A consequência é que a releitura do §8
+  contra o estado real do aparelho não é refinamento, é a única verificação que
+  existe para estas caixas; a checagem de `OK` só serve para o firmware que
+  responde erro.
 - Reboot da caixa: some em ~30 s, volta pela identidade em ~50 s sem tocar em IP.
 
 **DP-bus**: report otimista + releitura em 1,5 s funcionou com ack em ~30 ms.

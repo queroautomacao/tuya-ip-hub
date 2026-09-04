@@ -248,3 +248,29 @@ def test_a_matriz_so_cita_driver_que_existe_no_catalogo():
     citados = {celulas[2].strip("`") for celulas in _linhas_de_aparelho()}
     assert citados, "the matrix has no device row to check"
     assert citados <= tipos, f"the matrix names drivers that do not exist: {citados - tipos}"
+
+
+ASSINATURA = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?, \d{4}-\d{2}-\d{2}$")
+
+
+def test_toda_linha_verificada_da_matriz_e_assinada():
+    """The matrix says a verified row is signed by whoever ran it, with a date, and that a
+    state never moves up because something should work.
+
+    Why: the three states are the only honest thing the matrix has, and an unsigned verified
+    row is a promise nobody can check and nobody can be asked about.
+
+    A matriz diz que uma linha verificada é assinada por quem a rodou, com data, e que um
+    estado nunca sobe porque algo deveria funcionar.
+
+    Por que: os três estados são a única coisa honesta que a matriz tem, e uma linha
+    verificada sem assinatura é promessa que ninguém confere e sobre a qual ninguém responde.
+    """
+    for celulas in _linhas_de_aparelho():
+        if celulas[3].strip("`") != "verificado":
+            continue
+        quem = celulas[4]
+        assert ASSINATURA.fullmatch(quem), (
+            f"a verified row of {celulas[0]} {celulas[1]} is signed {quem!r}, "
+            "and the matrix asks for a GitHub username and a date as YYYY-MM-DD"
+        )
