@@ -27,7 +27,6 @@ export default function Login({ aoEntrar }: { aoEntrar: () => void }) {
   return (
     <section className="cartao">
       <h2>{t("login_titulo")}</h2>
-      <p>{t("login_intro")}</p>
       <form className="formulario" onSubmit={(evento) => void enviar(evento)}>
         <label htmlFor="entrar-senha">{t("login_senha")}</label>
         <input
