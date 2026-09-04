@@ -21,6 +21,7 @@ import pytest
 
 from iphub.dpbus import mapa
 from iphub.dpbus.protocolo import (
+    BLOCO_OFFLINE,
     CODIGOS,
     DP_DESCONHECIDO,
     DP_SOMENTE_LEITURA,
@@ -32,7 +33,6 @@ from iphub.dpbus.protocolo import (
     T_SNAPSHOT,
     TOKEN_MAXIMO,
     VALOR_INVALIDO,
-    ZONA_OFFLINE,
     ack,
     ler_auth,
     ler_set,
@@ -54,7 +54,7 @@ def test_o_vocabulario_e_o_da_secao_8():
         "dp_desconhecido",
         "dp_somente_leitura",
         "valor_invalido",
-        "zona_offline",
+        "bloco_offline",
         "nao_autenticado",
         "frame_invalido",
     }
@@ -141,8 +141,8 @@ def test_o_volume_aceita_a_escala_da_secao_6(valor):
 
 @pytest.mark.parametrize("valor", [-1, 101, 1000, 30.0, "30", True, False, None, [30]])
 def test_o_volume_recusa_o_que_nao_e_um_inteiro_de_zero_a_cem(valor):
-    # Why: True is an int for Python, so a bool would land as the volume 1 of the zone.
-    # Por que: True é int para o Python, então um bool chegaria como o volume 1 da zona.
+    # Why: True is an int for Python, so a bool would land as the volume 1 of the block.
+    # Por que: True é int para o Python, então um bool chegaria como o volume 1 do bloco.
     assert ler_set(_set(v=valor)).codigo == VALOR_INVALIDO
 
 
@@ -242,7 +242,7 @@ def test_o_ack_diz_ok_sem_codigo():
 
 
 def test_o_ack_carrega_o_codigo_que_recusou():
-    assert ack("a", ZONA_OFFLINE) == {"t": T_ACK, "id": "a", "ok": False, "code": ZONA_OFFLINE}
+    assert ack("a", BLOCO_OFFLINE) == {"t": T_ACK, "id": "a", "ok": False, "code": BLOCO_OFFLINE}
 
 
 @pytest.mark.parametrize("codigo", [*CODIGOS, *CODIGOS_DE_DRIVER])
@@ -298,10 +298,10 @@ def test_um_titulo_longo_demais_e_encurtado_e_nao_derruba_o_barramento():
 
 
 def test_um_json_de_nomes_longo_demais_e_recusado_em_vez_de_cortado():
-    # Why: a cut JSON is not JSON, so the bridge would read the names of six zones as garbage.
-    # Por que: um JSON cortado não é JSON, então a ponte leria os nomes de seis zonas como lixo.
+    # Why: a cut JSON is not JSON, so the bridge would read the names of six blocks as garbage.
+    # Por que: um JSON cortado não é JSON, então a ponte leria os nomes de seis blocos como lixo.
     with pytest.raises(ValueError):
-        report(mapa.NOMES_ZONAS, '{"z":["' + "x" * 300 + '"]}', 1.0)
+        report(mapa.NOMES_BLOCOS, '{"z":["' + "x" * 300 + '"]}', 1.0)
 
 
 def test_o_snapshot_leva_so_o_que_pode_ser_reportado():

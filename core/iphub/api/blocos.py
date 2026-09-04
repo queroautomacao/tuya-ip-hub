@@ -2,9 +2,9 @@
 # Copyright (C) 2026 Quero Automação Ltda
 """Section 8 over HTTP: the order of the six blocks, the data points and the group.
 
-A zone is what section 6 says it is, a multiroom equipment occupying one of the six blocks,
+A block is what section 6 says it is, a multiroom equipment occupying one of the six blocks,
 so these routes carry no second registry: the order is a list of identities already
-registered as equipment, and the module of the zones is the one that judges it and answers a
+registered as equipment, and the module of the blocks is the one that judges it and answers a
 stable code. Nothing here decides where a set goes either; aplicar_dp of the common module
 does, so the panel and the bus of the same hub cannot disagree about it.
 
@@ -15,9 +15,9 @@ second copy of the contract, and the day the contract moved only one of them wou
 
 Seção 8 sobre HTTP: a ordem dos seis blocos, os data points e o grupo.
 
-Uma zona é o que a seção 6 diz que ela é, um equipamento multiroom ocupando um dos seis
+Um bloco é o que a seção 6 diz que ela é, um equipamento multiroom ocupando um dos seis
 blocos, então estas rotas não carregam segundo cadastro: a ordem é uma lista de identidades
-já cadastradas como equipamento, e o módulo das zonas é quem a julga e responde um código
+já cadastradas como equipamento, e o módulo dos blocos é quem a julga e responde um código
 estável. Nada aqui decide para onde vai um set tampouco; quem decide é o aplicar_dp do módulo
 comum, para o painel e o barramento do mesmo hub não poderem discordar disso.
 
@@ -37,22 +37,22 @@ from iphub import cenas
 from iphub.api.comum import (
     GESTOR,
     aplicar_dp,
+    blocos_de,
     com_sessao,
     config_de,
     ler_corpo,
     resposta_ok,
     trocar_config,
     valores_dps,
-    zonas_de,
 )
 from iphub.api.formato import estado_json
 from iphub.config import Cadastro
+from iphub.dpbus import blocos as modulo
 from iphub.dpbus import mapa, protocolo
-from iphub.dpbus import zonas as modulo
 from iphub.drivers.manifesto import Estado
 from iphub.portao import resposta_erro
 
-log = logging.getLogger("iphub.api.zonas")
+log = logging.getLogger("iphub.api.blocos")
 
 _SO_DIGITOS = re.compile(r"[0-9]{1,10}")
 
@@ -67,15 +67,14 @@ PAPEL_SOLO = ""
 # O status de todo código estável que estas rotas respondem; nada mais chega ao painel.
 STATUS_POR_CODIGO = {
     CORPO_INVALIDO: 400,
-    modulo.ZONAS_DEMAIS: 400,
-    modulo.ZONA_REPETIDA: 400,
-    modulo.EQ_NAO_MULTIROOM: 400,
+    modulo.BLOCOS_DEMAIS: 400,
+    modulo.BLOCO_REPETIDA: 400,
     modulo.IDENTIDADE_INVALIDA: 400,
     "eq_nao_encontrado": 404,
     protocolo.DP_DESCONHECIDO: 404,
     protocolo.DP_SOMENTE_LEITURA: 400,
     protocolo.VALOR_INVALIDO: 400,
-    protocolo.ZONA_OFFLINE: 503,
+    protocolo.BLOCO_OFFLINE: 503,
     "nao_suportado": 400,
     "auth_pendente": 409,
     "erro_aparelho": 502,
@@ -105,7 +104,7 @@ def _cadastros(request: web.Request) -> dict[str, Cadastro]:
     return {cadastro.identidade: cadastro for cadastro in request.app[GESTOR].cadastros}
 
 
-def _papel(zona: int, mestre: int, escravos: tuple[int, ...], alheios: tuple[int, ...]) -> str:
+def _papel(bloco: int, mestre: int, escravos: tuple[int, ...], alheios: tuple[int, ...]) -> str:
     """What the speaker of this block really is right now, and not only what the hub asked.
 
     Why: a speaker the customer grouped with the app of the manufacturer is a slave of a group
@@ -118,34 +117,34 @@ def _papel(zona: int, mestre: int, escravos: tuple[int, ...], alheios: tuple[int
     este hub não lidera, e ela recusa volume, transporte, preset e entrada. Chamar isso de solo
     desenhava um painel cheio de controles que só respondem não, sem nada dizendo por quê.
     """
-    if mestre and zona == mestre:
+    if mestre and bloco == mestre:
         return PAPEL_MESTRE
-    if zona in escravos or zona in alheios:
+    if bloco in escravos or bloco in alheios:
         return PAPEL_ESCRAVO
     return PAPEL_SOLO
 
 
-def _entradas(zonas: modulo.Zonas, zona: int) -> tuple[str, ...]:
+def _entradas(blocos: modulo.Blocos, bloco: int) -> tuple[str, ...]:
     """The inputs the bus really takes for one block, which the hardware decides.
 
     As entradas que o barramento realmente aceita para um bloco, que o hardware decide.
     """
-    for dp in mapa.da_zona(zona):
+    for dp in mapa.da_bloco(bloco):
         if dp.funcao == mapa.FUNCAO_ENTRADA:
-            return zonas.valores_de(dp)
+            return blocos.valores_de(dp)
     return ()
 
 
-def _dps_do_bloco(zona: int) -> dict[str, int]:
+def _dps_do_bloco(bloco: int) -> dict[str, int]:
     """The data point of every function of one block, straight from the map of section 8.
 
     O data point de cada função de um bloco, direto do mapa da seção 8.
     """
-    return {funcao: mapa.dp_de(zona, funcao) for funcao in mapa.FUNCOES_ZONA}
+    return {funcao: mapa.dp_de(bloco, funcao) for funcao in mapa.FUNCOES_BLOCO}
 
 
-def _zona_json(
-    zona: int,
+def _bloco_json(
+    bloco: int,
     cadastro: Cadastro | None,
     estado: Estado | None,
     entradas: tuple[str, ...],
@@ -162,53 +161,53 @@ def _zona_json(
     # equipamento), então ele responde com identidade vazia e estado nulo em vez de sumir da
     # lista; a POSIÇÃO é o contrato, e uma lista mais curta a moveria.
     return {
-        "zona": zona,
+        "bloco": bloco,
         "identidade": "" if cadastro is None else cadastro.identidade,
         "nome": "" if cadastro is None else cadastro.nome,
         "tipo": "" if cadastro is None else cadastro.tipo,
         "papel": papel,
         "entradas": list(entradas),
-        "dps": _dps_do_bloco(zona),
+        "dps": _dps_do_bloco(bloco),
         "estado": None if estado is None else estado_json(estado),
     }
 
 
 @com_sessao
 async def listar(request: web.Request) -> web.Response:
-    zonas = zonas_de(request.app)
+    blocos = blocos_de(request.app)
     cadastros = _cadastros(request)
     estados = request.app[GESTOR].estados()
-    mestre = modulo.zona_do_grupo(zonas.grupo()) or 0
-    escravos = zonas.escravos()
-    alheios = zonas.escravos_alheios()
-    blocos = []
-    for zona in range(1, mapa.ZONAS + 1):
-        identidade = zonas.identidade(zona)
-        blocos.append(
-            _zona_json(
-                zona,
+    mestre = modulo.bloco_do_grupo(blocos.grupo()) or 0
+    escravos = blocos.escravos()
+    alheios = blocos.escravos_alheios()
+    lista = []
+    for bloco in range(1, mapa.BLOCOS + 1):
+        identidade = blocos.identidade(bloco)
+        lista.append(
+            _bloco_json(
+                bloco,
                 cadastros.get(identidade),
                 estados.get(identidade),
-                _entradas(zonas, zona),
-                _papel(zona, mestre, escravos, alheios),
+                _entradas(blocos, bloco),
+                _papel(bloco, mestre, escravos, alheios),
             )
         )
-    return resposta_ok(zonas=blocos, grupo=zonas.grupo(), dp_grupo=mapa.GRUPO)
+    return resposta_ok(blocos=lista, grupo=blocos.grupo(), dp_grupo=mapa.GRUPO)
 
 
 @com_sessao
 async def definir(request: web.Request) -> web.Response:
-    """Saves the order of the blocks, which is the only registry a zone ever has.
+    """Saves the order of the blocks, which is the only registry a block ever has.
 
-    Grava a ordem dos blocos, que é o único cadastro que uma zona tem.
+    Grava a ordem dos blocos, que é o único cadastro que um bloco tem.
     """
     app = request.app
     dados = await ler_corpo(request)
     if dados is None:
         return erro(CORPO_INVALIDO)
-    zonas = zonas_de(app)
+    blocos = blocos_de(app)
     try:
-        ordem = zonas.validar(dados.get("zonas"))
+        ordem = blocos.validar(dados.get("blocos"))
     except modulo.OrdemInvalida as recusa:
         return erro(recusa.codigo)
     # Why: the file is written before the order is applied, because an order that lived only
@@ -218,19 +217,19 @@ async def definir(request: web.Request) -> web.Response:
     # memória moveria uma caixa de volta ao bloco antigo no próximo boot, em silêncio, num
     # barramento que o cliente já automatizou.
     try:
-        trocar_config(app, replace(config_de(app), zonas=ordem))
+        trocar_config(app, replace(config_de(app), blocos=ordem))
     except OSError as falha:
-        log.error("could not write the order of the zones: %s", falha)
+        log.error("could not write the order of the blocks: %s", falha)
         return erro(ERRO_INTERNO)
     try:
         # Why: the module judges the order again under its own lock, so an equipment removed
         # between the two calls is a stable code and never a 500 with a traceback.
         # Por que: o módulo julga a ordem de novo sob a trava dele, então um equipamento
         # removido entre as duas chamadas é um código estável e nunca um 500 com traceback.
-        await zonas.definir_ordem(ordem)
+        await blocos.definir_ordem(ordem)
     except modulo.OrdemInvalida as recusa:
         return erro(recusa.codigo)
-    return resposta_ok(zonas=list(ordem))
+    return resposta_ok(blocos=list(ordem))
 
 
 @com_sessao
@@ -240,11 +239,11 @@ async def dps(request: web.Request) -> web.Response:
     Todo data point reportável e a tabela da seção 8, para o painel e para o curl.
     """
     quadro = protocolo.snapshot(valores_dps(request.app))
-    zonas = zonas_de(request.app)
+    blocos = blocos_de(request.app)
     tabela = [
         {
             "dpid": dp.dpid,
-            "zona": dp.zona,
+            "bloco": dp.bloco,
             "funcao": dp.funcao,
             "tipo": dp.tipo.value,
             "sentido": dp.sentido.value,
@@ -254,7 +253,7 @@ async def dps(request: web.Request) -> web.Response:
             # Por que: as entradas de uma caixa vêm do hardware (seção 14, plm_support), então
             # os valores daquele enum são os que este hub realmente oferece agora e não uma
             # lista que o painel pudesse adivinhar do contrato.
-            "valores": list(zonas.valores_de(dp)),
+            "valores": list(blocos.valores_de(dp)),
         }
         for dp in mapa.DPS
     ]
@@ -276,15 +275,15 @@ async def ajustar(request: web.Request) -> web.Response:
 
 @com_sessao
 async def grupo(request: web.Request) -> web.Response:
-    """DP 132 by name: solo takes the group down, grupoN forms the one that zone leads.
+    """DP 132 by name: solo takes the group down, grupoN forms the one that block leads.
 
-    O DP 132 pelo nome: solo derruba o grupo, grupoN forma o que aquela zona lidera.
+    O DP 132 pelo nome: solo derruba o grupo, grupoN forma o que aquele bloco lidera.
     """
     dados = await ler_corpo(request)
     if dados is None:
         return erro(CORPO_INVALIDO)
     codigo = await aplicar_dp(request.app, mapa.GRUPO, dados.get("v"))
-    return resposta_ok(grupo=zonas_de(request.app).grupo()) if codigo is None else erro(codigo)
+    return resposta_ok(grupo=blocos_de(request.app).grupo()) if codigo is None else erro(codigo)
 
 
 def _dpid(request: web.Request) -> object:

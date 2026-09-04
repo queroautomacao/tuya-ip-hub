@@ -16,6 +16,7 @@ import {
   lerSnapshot,
   nomeValido,
   prepararEspera,
+  prepararIntervalo,
   prepararValor,
   textoDoValor,
   valorPadrao,
@@ -25,7 +26,7 @@ import {
 
 const VOLUME: ItemDoMapa = {
   dpid: 101,
-  zona: 1,
+  bloco: 1,
   funcao: "volume",
   tipo: "value",
   sentido: "rw",
@@ -51,7 +52,7 @@ const TOCANDO: ItemDoMapa = {
 const ENTRADA: ItemDoMapa = { ...VOLUME, dpid: 141, funcao: "entrada", tipo: "enum", valores: [] };
 const CENA: ItemDoMapa = {
   dpid: 131,
-  zona: 0,
+  bloco: 0,
   funcao: "cena",
   tipo: "enum",
   sentido: "envio",
@@ -59,7 +60,7 @@ const CENA: ItemDoMapa = {
 };
 const GRUPO: ItemDoMapa = {
   dpid: 132,
-  zona: 0,
+  bloco: 0,
   funcao: "grupo",
   tipo: "enum",
   sentido: "rw",
@@ -72,6 +73,7 @@ function cenaDe(parcial: Partial<Cena> = {}): Cena {
   return {
     numero: 1,
     nome: "Filme",
+    intervalo_ms: 1000,
     em_curso: false,
     passos: [{ dpid: 101, valor: 30, espera_ms: 0 }],
     ...parcial,
@@ -82,13 +84,18 @@ test("lerCena takes a scene and refuses one outside the contract (aceita uma cen
   const bruto = {
     numero: 2,
     nome: "Festa",
+    intervalo_ms: 500,
     em_curso: true,
-    passos: [{ dpid: 101, valor: 30, espera_ms: 250 }],
+    passos: [{ dpid: 101, valor: 30, espera_ms: 250 }, { dpid: 102, valor: true, espera_ms: null }],
   };
   const lida = lerCena(bruto);
   assert.ok(lida !== null);
   assert.equal(lida.em_curso, true);
+  assert.equal(lida.intervalo_ms, 500);
   assert.equal(lida.passos[0]?.espera_ms, 250);
+  assert.equal(lida.passos[1]?.espera_ms, null);
+  assert.equal(lerCena({ ...bruto, intervalo_ms: "500" }), null);
+  assert.equal(lerCena({ ...bruto, passos: [{ dpid: 101, valor: 1, espera_ms: "0" }] }), null);
   assert.equal(lerCena({ ...bruto, numero: "2" }), null);
   assert.equal(lerCena({ ...bruto, passos: [{ dpid: 101, espera_ms: 0 }] }), null);
   assert.equal(lerCena({ ...bruto, passos: [{ dpid: "101", valor: 1, espera_ms: 0 }] }), null);
@@ -96,10 +103,11 @@ test("lerCena takes a scene and refuses one outside the contract (aceita uma cen
 });
 
 test("lerLeituraDeCenas carries the ceilings the daemon fixes (leva os tetos que o daemon fixa)", () => {
-  const bruto = { cenas: [], maximo: 8, passos_maximos: 32, espera_maxima_ms: 30000 };
+  const bruto = { cenas: [], maximo: 8, passos_maximos: 32, espera_maxima_ms: 30000, intervalo_padrao_ms: 1000 };
   assert.equal(lerLeituraDeCenas(bruto)?.maximo, 8);
   assert.equal(lerLeituraDeCenas({ ...bruto, maximo: "8" }), null);
   assert.equal(lerLeituraDeCenas({ ...bruto, passos_maximos: undefined }), null);
+  assert.equal(lerLeituraDeCenas({ ...bruto, intervalo_padrao_ms: undefined }), null);
 });
 
 test("lerItemDoMapa refuses a type or a direction outside section 8 (recusa tipo ou sentido fora da seção 8)", () => {
@@ -156,10 +164,23 @@ test("prepararValor judges the value by the type the data point declares (julga 
 });
 
 test("prepararEspera keeps the wait inside the band of the daemon (mantém a espera dentro da faixa do daemon)", () => {
-  assert.deepEqual(prepararEspera("", 30000), { ok: true, valor: 0 });
+  assert.deepEqual(prepararEspera("", 30000), { ok: true, valor: null });
+  assert.deepEqual(prepararEspera("0", 30000), { ok: true, valor: 0 });
   assert.deepEqual(prepararEspera("250", 30000), { ok: true, valor: 250 });
   for (const bruto of ["30001", "-1", "abc", "1.5"]) {
     assert.deepEqual(prepararEspera(bruto, 30000), { ok: false, codigo: "cena_espera_invalida" });
+  }
+});
+
+// Why: the interval is what every step without a wait of its own sleeps, so it has to be a
+// number; an empty interval is a refusal and never a silent zero.
+// Por que: o intervalo é o que todo passo sem espera própria dorme, então ele precisa ser um
+// número; um intervalo vazio é recusa e nunca um zero calado.
+test("prepararIntervalo refuses an empty interval (recusa um intervalo vazio)", () => {
+  assert.deepEqual(prepararIntervalo("1000", 30000), { ok: true, valor: 1000 });
+  assert.deepEqual(prepararIntervalo(" 0 ", 30000), { ok: true, valor: 0 });
+  for (const bruto of ["", "30001", "-1", "x"]) {
+    assert.deepEqual(prepararIntervalo(bruto, 30000), { ok: false, codigo: "cena_intervalo_invalido" });
   }
 });
 
@@ -200,10 +221,10 @@ test("nomeValido measures the name the way the daemon does (mede o nome como o d
 test("corpoDeCenas and comCenas keep the position of a scene (mantêm a posição de uma cena)", () => {
   const cenas = [cenaDe({ numero: 1, nome: "", passos: [] }), cenaDe({ numero: 2, nome: "Festa" })];
   assert.deepEqual(corpoDeCenas(cenas), [
-    { nome: "", passos: [] },
-    { nome: "Festa", passos: [{ dpid: 101, valor: 30, espera_ms: 0 }] },
+    { nome: "", intervalo_ms: 1000, passos: [] },
+    { nome: "Festa", intervalo_ms: 1000, passos: [{ dpid: 101, valor: 30, espera_ms: 0 }] },
   ]);
-  const oito = comCenas([cenaDe()], 8);
+  const oito = comCenas([cenaDe()], 8, 1000);
   assert.equal(oito.length, 8);
   assert.deepEqual(
     oito.map((cena) => cena.numero),

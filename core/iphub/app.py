@@ -15,6 +15,7 @@ from iphub.ambiente import Ambiente
 from iphub.api import registrar_rotas, sistema
 from iphub.api.comum import (
     AMBIENTE,
+    BLOCOS,
     CATALOGO,
     CONFIG,
     GESTOR,
@@ -24,7 +25,6 @@ from iphub.api.comum import (
     TRAVA_DRIVERS,
     TRAVA_POSSE,
     VARREDURA,
-    ZONAS,
     Mutavel,
     aplicar_dp,
     montar_dpbus,
@@ -161,18 +161,18 @@ def criar_app(
     montar_dpbus(app, cfg.valor)
     # Why: the bus of section 8 owns no state of its own; it takes the same door the panel
     # routes take (aplicar_dp and valores_dps), so a set that arrives over the socket and a
-    # set that arrives over /api/dp land on the very same zones and scenes.
+    # set that arrives over /api/dp land on the very same blocks and scenes.
     # Por que: o barramento da seção 8 não é dono de estado nenhum; ele toma a mesma porta que
     # as rotas do painel tomam (aplicar_dp e valores_dps), então um set que chega pelo socket e
-    # um que chega pelo /api/dp caem nas mesmíssimas zonas e cenas.
+    # um que chega pelo /api/dp caem nas mesmíssimas blocos e cenas.
     app[BARRAMENTO] = Barramento(
         functools.partial(aplicar_dp, app),
         functools.partial(valores_dps, app),
         lambda: segs.valor.api_token,
-        valores_de=app[ZONAS].valores_de,
-        sanear=app[ZONAS].sanear,
-        sincronizar=app[ZONAS].sincronizar,
-        reler=app[ZONAS].reler,
+        valores_de=app[BLOCOS].valores_de,
+        sanear=app[BLOCOS].sanear,
+        sincronizar=app[BLOCOS].sincronizar,
+        reler=app[BLOCOS].reler,
         dormir=dormir,
         agora=agora,
     )
@@ -189,10 +189,10 @@ def criar_app(
     app.on_startup.append(_subir_gestor)
     # Why: on boot the bus takes down the zombie group of section 14, which reaches the
     # speakers, so it rises AFTER the gestor mounted the drivers and falls BEFORE the gestor
-    # drops them; a socket left open over drivers that are gone reads a hub that has no zones.
+    # drops them; a socket left open over drivers that are gone reads a hub that has no blocks.
     # Por que: no boot o barramento derruba o grupo zumbi da seção 14, o que alcança as caixas,
     # então ele sobe DEPOIS de o gestor montar os drivers e cai ANTES de o gestor os largar; um
-    # socket aberto sobre drivers que já foram lê um hub sem zona nenhuma.
+    # socket aberto sobre drivers que já foram lê um hub sem bloco nenhum.
     app.on_startup.append(subir_barramento)
     app.on_cleanup.append(baixar_barramento)
     app.on_cleanup.append(_baixar_gestor)

@@ -169,7 +169,7 @@ cadastro='{"tipo": "multiroom_linkplay", "identidade": "fumaca-uuid-1", "nome": 
 codigo="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 -X POST \
     -H 'Content-Type: application/json' "${autorizado[@]}" -d "$cadastro" "$base/api/equipamentos" || true)"
 if [ "$codigo" = "200" ]; then
-    pass "POST /api/equipamentos: a multiroom equipment was registered and took a zone"
+    pass "POST /api/equipamentos: a multiroom equipment was registered and took a block"
 else
     fail "POST /api/equipamentos: expected 200, got '$codigo'"
 fi

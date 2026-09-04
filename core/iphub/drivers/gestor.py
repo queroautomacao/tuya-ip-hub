@@ -151,11 +151,11 @@ class Gestor:
         """
         # Why: the group moves of section 14 (join a master, ungroup, a slave volume, read the
         # real group, mirror what the master plays) are not actions of section 6, so the gate
-        # of executar has no vocabulary for them and the module that owns the zones has no
+        # of executar has no vocabulary for them and the module that owns the blocks has no
         # other door to the driver. It stays a read: the gestor still owns the lifecycle.
         # Por que: os movimentos de grupo da seção 14 (entrar num mestre, desagrupar, volume de
         # escravo, ler o grupo real, espelhar o que o mestre toca) não são ações da seção 6,
-        # então o portão do executar não tem vocabulário para eles e o módulo dono das zonas
+        # então o portão do executar não tem vocabulário para eles e o módulo dono dos blocos
         # não tem outra porta para o driver. Isto continua sendo leitura: o ciclo de vida
         # segue sendo do gestor.
         return self._drivers.get(identidade)

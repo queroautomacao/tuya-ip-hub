@@ -34,7 +34,7 @@ Tuya app  -->  Tuya cloud  -->  Tuya device (bridge)
 When complete, the hub is three parts, and only three:
 
 1. A daemon in Python (asyncio + aiohttp): talks to the devices, keeps the configuration, exposes a local REST API and the DP-bus WebSocket.
-2. A web panel (React + Vite) for the integrator: first-run assistant, audio zones, equipment, drivers, scenes.
+2. A web panel (React + Vite) for the integrator: first-run assistant, audio blocks, equipment, drivers, scenes.
 3. A single Docker image, published on GHCR, with the panel built inside.
 
 ### Project status
@@ -43,7 +43,7 @@ Milestones 0 to 4 are delivered, so the hub controls equipment today and publish
 
 A driver for a new device is written as a JSON file, with no programming. The file says how to reach the device (a line of text on a TCP port, a simple HTTP request, or UDP), which commands it takes and how to read its state back. The panel opens a starting template per transport, validates the file field by field and loads it without restarting the hub; a file dropped by hand into the `drivers` directory of the data volume is loaded on the next boot and wins over an embedded driver of the same type. A file that does not validate is refused and logged by name: it never costs the boot, and every other driver goes on loading. The format is described in section 7 of [CLAUDE.md](CLAUDE.md).
 
-Audio zones, scenes and the DP-bus arrived with milestone 4. Up to six multiroom speakers occupy the six data point blocks the contract numbers, a scene is a list of steps saved as data, and the bus is a WebSocket at `/dpbus` that authenticates on its first frame with the `api_token` and never from the URL. The data point scheme is public and written down in [CLAUDE.md](CLAUDE.md), so anybody may write a bridge on top of it. What is still missing are the native drivers of the receivers and the TVs and the published image, in the milestones below, one at a time, each one closed with a green CI.
+Audio blocks, scenes and the DP-bus arrived with milestone 4. Up to six multiroom speakers occupy the six data point blocks the contract numbers, a scene is a list of steps saved as data, and the bus is a WebSocket at `/dpbus` that authenticates on its first frame with the `api_token` and never from the URL. The data point scheme is public and written down in [CLAUDE.md](CLAUDE.md), so anybody may write a bridge on top of it. What is still missing are the native drivers of the receivers and the TVs and the published image, in the milestones below, one at a time, each one closed with a green CI.
 
 | # | Status | Milestone | Exit gate |
 |---|---|---|---|
@@ -130,7 +130,7 @@ On Docker Desktop, where the port is published instead of shared with the host, 
 
 The hub has no password recovery over the network, on purpose: there is no mail, no second factor and no cloud to prove who the owner is, so a route that reset the password would be the way in and not the way back. What proves ownership of an appliance is reaching its data directory, which means the host that runs the container.
 
-Clearing the password hands the hub back to the first access, and keeps the equipment, the zones and the scenes; erasing `config.json` would take those with it. Every session dies and the machine `api_token` is rotated, the same way changing the password does.
+Clearing the password hands the hub back to the first access, and keeps the equipment, the blocks and the scenes; erasing `config.json` would take those with it. Every session dies and the machine `api_token` is rotated, the same way changing the password does.
 
 ```
 docker compose exec iphub python -m iphub.esquecer
@@ -228,7 +228,7 @@ App Tuya  -->  Nuvem Tuya  -->  Dispositivo Tuya (ponte)
 Quando completo, o hub são três peças, e só três:
 
 1. Um daemon em Python (asyncio + aiohttp): fala com os aparelhos, guarda a configuração, expõe uma API REST local e o WebSocket do DP-bus.
-2. Um painel web (React + Vite) para o integrador: assistente de primeiro uso, zonas de áudio, equipamentos, drivers, cenas.
+2. Um painel web (React + Vite) para o integrador: assistente de primeiro uso, equipamentos (número no app e multiroom no detalhe de cada um), drivers, cenas.
 3. Uma imagem Docker única, publicada no GHCR, com o painel construído dentro.
 
 ### Estado do projeto
@@ -237,7 +237,7 @@ Os marcos 0 a 4 estão entregues, então o hub já controla equipamento e já pu
 
 O driver de um aparelho novo é escrito como um arquivo JSON, sem programar. O arquivo diz como falar com o aparelho (uma linha de texto numa porta TCP, uma requisição HTTP simples ou UDP), quais comandos ele aceita e como ler o estado de volta. O painel abre um modelo de partida por transporte, valida o arquivo campo a campo e o carrega sem reiniciar o hub; um arquivo colocado à mão na pasta `drivers` do volume de dados é carregado no boot seguinte e vence um driver embarcado do mesmo tipo. Um arquivo que não valida é recusado e registrado pelo nome: ele nunca custa o boot, e todo outro driver segue carregando. O formato está descrito na seção 7 do [CLAUDE.md](CLAUDE.md).
 
-As zonas de áudio, as cenas e o DP-bus chegaram com o marco 4. Até seis caixas multiroom ocupam os seis blocos de data points que o contrato numera, uma cena é uma lista de passos salva como dado, e o barramento é um WebSocket em `/dpbus` que autentica no primeiro quadro com o `api_token` e nunca pela URL. O esquema de data points é público e está escrito no [CLAUDE.md](CLAUDE.md), então qualquer um pode escrever uma ponte em cima dele. O que ainda falta são os drivers nativos dos receivers e das TVs e a imagem publicada, nos marcos abaixo, um por vez, cada um fechado com CI verde.
+Os números no app, as cenas e o DP-bus chegaram com o marco 4. Qualquer equipamento cadastrado pode ocupar um dos seis números de equipamento que o contrato de data points numera (o play/pause do app vira liga/desliga num aparelho sem transporte), um equipamento multiroom agrupa com outros do mesmo tipo a partir do detalhe dele, uma cena é uma lista de passos salva como dado, com um intervalo entre os passos, e o barramento é um WebSocket em `/dpbus` que autentica no primeiro quadro com o `api_token` e nunca pela URL. O esquema de data points é público e está escrito no [CLAUDE.md](CLAUDE.md), então qualquer um pode escrever uma ponte em cima dele. O que ainda falta são os drivers nativos dos receivers e das TVs e a imagem publicada, nos marcos abaixo, um por vez, cada um fechado com CI verde.
 
 | # | Situação | Marco | Portão de saída |
 |---|---|---|---|
@@ -324,7 +324,7 @@ No Docker Desktop, onde a porta é publicada em vez de compartilhada com o host,
 
 O hub não tem recuperação de senha pela rede, de propósito: não há e-mail, nem segundo fator, nem nuvem que prove quem é o dono, então uma rota que zerasse a senha seria a porta de entrada, não a de volta. O que prova posse de um appliance é alcançar o diretório de dados dele, o que significa o host que roda o container.
 
-Apagar a senha devolve o hub ao primeiro acesso, e mantém os equipamentos, as zonas e as cenas; apagar o `config.json` levaria tudo isso junto. Toda sessão morre e o `api_token` de máquina é rotacionado, do mesmo jeito que a troca de senha faz.
+Apagar a senha devolve o hub ao primeiro acesso, e mantém os equipamentos, os números no app e as cenas; apagar o `config.json` levaria tudo isso junto. Toda sessão morre e o `api_token` de máquina é rotacionado, do mesmo jeito que a troca de senha faz.
 
 ```
 docker compose exec iphub python -m iphub.esquecer

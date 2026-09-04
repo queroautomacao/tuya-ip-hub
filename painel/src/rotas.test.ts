@@ -40,7 +40,7 @@ test("the registration screen is never mistaken for an identity (a tela de cadas
 test("an address nobody knows lands on the home screen instead of a blank page (endereço desconhecido cai no início, não em página vazia)", () => {
   for (const hash of [
     "#/nada",
-    "#/zonas/1",
+    "#/blocos/1",
     "#/equipamentos",
     "#/equipamentos/",
     "#/equipamentos/a/b",
@@ -52,7 +52,7 @@ test("an address nobody knows lands on the home screen instead of a blank page (
   }
 });
 
-test("the zone, scene and simulator tabs are drawn dimmed until a multiroom equipment exists (as abas de zona, cena e simulador ficam apagadas até existir equipamento multiroom)", async () => {
+test("the scene and simulator tabs are drawn dimmed until an equipment exists (as abas de cena e simulador ficam apagadas até existir equipamento)", async () => {
   const { abasDoMenu } = await import("./rotas.ts");
   const sem = abasDoMenu(false);
   assert.deepEqual(
@@ -61,7 +61,7 @@ test("the zone, scene and simulator tabs are drawn dimmed until a multiroom equi
   );
   assert.deepEqual(
     sem.filter(({ ativa }) => !ativa).map(({ aba }) => aba),
-    ["zonas", "cenas", "simulador"],
+    ["cenas", "simulador"],
   );
   assert.ok(abasDoMenu(true).every(({ ativa }) => ativa));
 });

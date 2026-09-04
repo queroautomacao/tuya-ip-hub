@@ -22,13 +22,13 @@ import pytest
 
 from iphub.config import ARQUIVO as ARQUIVO_CONFIG
 from iphub.config import Cadastro, Config
-from tests.api.test_zonas import IP_1, IP_2, TIPO, _cadastro, _caixa, _fabrica
+from tests.api.test_blocos import IP_1, IP_2, TIPO, _cadastro, _caixa, _fabrica
 
 VOLUME_1, ONLINE_1, TOCANDO_1 = 101, 104, 105
 VOLUME_2 = 106
 CENA = 131
 GRUPO = 132
-NOMES_ZONAS = 133
+NOMES_BLOCOS = 133
 
 # Why: the deadline is the whole point of a test that waits, and a scene reaches a fake
 # driver in microseconds; anything longer than this is a scene that never started.
@@ -39,10 +39,10 @@ PRAZO_S = 2.0
 
 @pytest.fixture
 def abrir(fabrica_cliente, posse, bearer):
-    async def criar(catalogo: dict, *, equipamentos=(), zonas=(), cenas=()):
+    async def criar(catalogo: dict, *, equipamentos=(), blocos=(), cenas=()):
         cliente = await fabrica_cliente(
             catalogo=catalogo,
-            config=Config(equipamentos=equipamentos, zonas=zonas, cenas=cenas),
+            config=Config(equipamentos=equipamentos, blocos=blocos, cenas=cenas),
         )
         return cliente, bearer(await posse(cliente))
 
@@ -62,7 +62,7 @@ async def hub(abrir):
             _cadastro("uuid-1", ip=IP_1, nome="Sala"),
             _cadastro("uuid-2", ip=IP_2, nome="Cozinha"),
         ),
-        zonas=("uuid-1", "uuid-2"),
+        blocos=("uuid-1", "uuid-2"),
     )
     return cliente, auth, classe
 
@@ -125,6 +125,7 @@ async def test_a_cena_salva_chega_ao_arquivo_e_a_leitura(hub, amb):
     assert em_disco["cenas"] == [
         {
             "nome": "Filme",
+            "intervalo_ms": 1000,
             "passos": [
                 {"dpid": VOLUME_1, "valor": 30, "espera_ms": 250},
                 {"dpid": VOLUME_2, "valor": 10, "espera_ms": 0},
@@ -158,7 +159,7 @@ async def test_a_vaga_de_uma_cena_apagada_continua_ali(hub):
     [
         (ONLINE_1, "cena_dp_somente_leitura"),
         (TOCANDO_1, "cena_dp_somente_leitura"),
-        (NOMES_ZONAS, "cena_dp_somente_leitura"),
+        (NOMES_BLOCOS, "cena_dp_somente_leitura"),
         (CENA, "cena_dp_proibido"),
         (999, "cena_dp_desconhecido"),
     ],
@@ -293,7 +294,7 @@ async def test_uma_cena_pode_formar_o_grupo(hub):
     assert (await cliente.post("/api/cenas/1/executar", headers=auth)).status == 200
     await _esperar(lambda: _caixa(classe, "uuid-2").chamadas)
     assert _caixa(classe, "uuid-2").chamadas == [("entrar_no_grupo", IP_1)]
-    assert (await _json(await cliente.get("/api/zonas", headers=auth)))["grupo"] == "grupo1"
+    assert (await _json(await cliente.get("/api/blocos", headers=auth)))["grupo"] == "grupo1"
 
 
 async def test_a_config_editada_na_mao_com_uma_cena_invalida_nao_sobe(fabrica_cliente, amb):
@@ -342,3 +343,21 @@ async def test_um_numero_de_cena_fora_do_contrato_nunca_e_erro_interno(hub, nume
     resposta = await cliente.post(f"/api/cenas/{numero}/executar", headers=auth)
     assert resposta.status != 500, await resposta.text()
     assert (await _json(resposta))["code"] != "erro_interno"
+
+
+async def test_a_leitura_traz_o_intervalo_padrao_e_o_de_cada_cena(hub):
+    """The panel reads the default interval from here, each scene carries its own, and a
+    step with no wait of its own answers null, never a zero that would read as an order.
+
+    O painel lê o intervalo padrão daqui, cada cena carrega o dela, e um passo sem espera
+    própria responde null, nunca um zero que se leria como ordem.
+    """
+    cliente, auth, _classe = hub
+    corpo = await _json(await cliente.get("/api/cenas", headers=auth))
+    assert corpo["intervalo_padrao_ms"] == 1_000
+    cena = {**_cena(passos=((VOLUME_1, 30, None),)), "intervalo_ms": 250}
+    resposta = await _salvar(cliente, auth, [cena])
+    assert resposta.status == 200, await resposta.text()
+    corpo = await _json(await cliente.get("/api/cenas", headers=auth))
+    assert corpo["cenas"][0]["intervalo_ms"] == 250
+    assert corpo["cenas"][0]["passos"][0]["espera_ms"] is None

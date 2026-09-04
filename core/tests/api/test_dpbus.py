@@ -32,7 +32,7 @@ import json
 
 import pytest
 
-from iphub.api.comum import ZONAS
+from iphub.api.comum import BLOCOS
 from iphub.cenas import Cena, Passo
 from iphub.config import Cadastro, Config
 from iphub.dpbus.socket import BARRAMENTO, Barramento
@@ -54,7 +54,7 @@ FONTES = ("wifi", "line-in")
 # Os números da seção 8, escritos na mão de propósito.
 VOLUME_1, PRESET_1, ONLINE_1, TOCANDO_1, ENTRADA_1 = 101, 103, 104, 105, 141
 VOLUME_2 = 106
-CENA, GRUPO, NOMES_ZONAS, NOMES_CENAS = 131, 132, 133, 134
+CENA, GRUPO, NOMES_BLOCOS, NOMES_CENAS = 131, 132, 133, 134
 
 # The two waits of the bus, which the fake clock releases by name.
 # As duas esperas do barramento, que o relógio falso solta pelo nome.
@@ -163,7 +163,7 @@ def _config(cenas: tuple[Cena, ...] = ()) -> Config:
             Cadastro(identidade="uuid-1", tipo=TIPO, nome="Sala", ip=IP_1),
             Cadastro(identidade="uuid-2", tipo=TIPO, nome="Cozinha", ip=IP_2),
         ),
-        zonas=("uuid-1", "uuid-2"),
+        blocos=("uuid-1", "uuid-2"),
         cenas=cenas,
     )
 
@@ -250,7 +250,7 @@ async def test_o_snapshot_do_primeiro_frame_traz_so_o_que_pode_ser_reportado(hub
     assert dps[str(ONLINE_1)] is True
     assert dps[str(VOLUME_1)] == 20
     assert dps[str(GRUPO)] == "solo"
-    assert json.loads(dps[str(NOMES_ZONAS)]) == {"z": ["Sala", "Cozinha"]}
+    assert json.loads(dps[str(NOMES_BLOCOS)]) == {"z": ["Sala", "Cozinha"]}
     await ws.close()
 
 
@@ -391,7 +391,7 @@ async def test_o_grupo_do_dp_132_forma_pelo_barramento(hub, caixas):
     await ws.close()
 
 
-async def test_a_entrada_da_zona_aceita_so_o_que_o_hardware_declara(hub, caixas):
+async def test_a_entrada_da_bloco_aceita_so_o_que_o_hardware_declara(hub, caixas):
     cliente = await hub()
     ws = await _abrir(cliente)
     await _ler(ws)
@@ -417,9 +417,9 @@ async def test_um_quadro_ruim_e_recusado_e_o_socket_segue_vivo(hub):
             {"t": "ack", "id": None, "ok": False, "code": "frame_invalido"}
         ]
     # Why: the other end is whatever bridge somebody implemented from the public contract, and
-    # one bad frame must not drop a socket that is carrying six zones.
+    # one bad frame must not drop a socket that is carrying six blocks.
     # Por que: do outro lado está a ponte que alguém implementou do contrato público, e um
-    # quadro ruim não pode derrubar um socket que carrega seis zonas.
+    # quadro ruim não pode derrubar um socket que carrega seis blocos.
     await _ajustar(ws, VOLUME_1, 30, identificador=9)
     assert _acks(await _tudo(ws)) == [{"t": "ack", "id": 9, "ok": True, "code": None}]
     await ws.close()
@@ -469,7 +469,7 @@ async def test_o_estado_que_o_aparelho_muda_sozinho_e_publicado_no_tique(hub, ca
     await ws.close()
 
 
-async def test_o_titulo_da_zona_respeita_o_limite_de_cinco_segundos(hub, caixas, agenda):
+async def test_o_titulo_da_bloco_respeita_o_limite_de_cinco_segundos(hub, caixas, agenda):
     cliente = await hub()
     ws = await _abrir(cliente)
     await _ler(ws)
@@ -525,9 +525,9 @@ async def test_um_defeito_nosso_vira_codigo_estavel_e_nunca_uma_excecao():
         raise RuntimeError("quebrei")
 
     # Why: an exception out of here would leave the client waiting for an ack that never comes
-    # and would take down a socket that is carrying six zones.
+    # and would take down a socket that is carrying six blocks.
     # Por que: uma exceção saindo daqui deixaria o cliente esperando por um ack que nunca vem e
-    # derrubaria um socket que carrega seis zonas.
+    # derrubaria um socket que carrega seis blocos.
     barramento = Barramento(explode, dict, lambda: TOKEN)
     assert await barramento.aplicar(VOLUME_1, 10) == "erro_interno"
 
@@ -537,19 +537,19 @@ def _pendentes(dpid: int) -> int:
     return len([t for t in asyncio.all_tasks() if t.get_name() == nome and not t.done()])
 
 
-async def test_uma_zona_esvaziada_corrige_o_que_ja_tinha_reportado(hub, agenda):
+async def test_uma_bloco_esvaziada_corrige_o_que_ja_tinha_reportado(hub, agenda):
     """Section 8: a block whose speaker was removed stops producing values, and the last
     thing published about it must not stand forever.
 
     Why: the publish loop only walks the values it has, so an emptied block was never visited
-    again and the bridge kept showing DP 104 online, at a volume, for a zone with no speaker.
+    again and the bridge kept showing DP 104 online, at a volume, for a block with no speaker.
 
     Seção 8: um bloco cuja caixa foi removida para de produzir valores, e o último publicado a
     respeito dele não pode ficar valendo para sempre.
 
     Por que: o laço de publicação só caminha pelos valores que tem, então um bloco esvaziado
     nunca era visitado de novo e a ponte seguia mostrando o DP 104 online, num volume, para
-    uma zona sem caixa.
+    um bloco sem caixa.
     """
     cliente = await hub()
     ws = await _abrir(cliente)
@@ -561,7 +561,7 @@ async def test_uma_zona_esvaziada_corrige_o_que_ja_tinha_reportado(hub, agenda):
     await cliente.app[BARRAMENTO].publicar()
     await _tudo(ws)
 
-    await cliente.app[ZONAS].esquecer("uuid-1")
+    await cliente.app[BLOCOS].esquecer("uuid-1")
     await cliente.app[BARRAMENTO].publicar()
 
     quadros = await _tudo(ws)

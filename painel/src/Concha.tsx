@@ -40,14 +40,6 @@ function Icone({ aba }: { aba: Aba }) {
           <path d="M5 10v10h5v-6h4v6h5V10" />
         </svg>
       );
-    case "zonas":
-      return (
-        <svg {...TRACO}>
-          <rect x="5" y="3" width="14" height="18" rx="2" />
-          <circle cx="12" cy="14" r="3.5" />
-          <circle cx="12" cy="7.5" r="1" />
-        </svg>
-      );
     case "cenas":
       return (
         <svg {...TRACO}>
@@ -217,7 +209,7 @@ export default function Concha({
               <span>{t(chave)}</span>
             </a>
           ) : (
-            <span key={aba} className="desativada" aria-disabled="true" title={t("zonas_exclusivo")}>
+            <span key={aba} className="desativada" aria-disabled="true" title={t("nav_precisa_equipamento")}>
               <Icone aba={aba} />
               <span>{t(chave)}</span>
             </span>

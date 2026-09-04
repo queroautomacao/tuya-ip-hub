@@ -14,33 +14,30 @@ export type Rota =
   | { tela: "inicio" }
   | { tela: "novo" }
   | { tela: "equipamento"; identidade: string }
-  | { tela: "zonas" }
   | { tela: "cenas" }
   | { tela: "simulador" }
   | { tela: "drivers" }
   | { tela: "conta" };
 
-export type Aba = "inicio" | "zonas" | "cenas" | "simulador" | "drivers" | "conta";
+export type Aba = "inicio" | "cenas" | "simulador" | "drivers" | "conta";
 
 // The tabs of the navigation, in the order they are drawn; the label is an i18n key.
 // As abas da navegação, na ordem em que são desenhadas; o rótulo é uma chave de i18n.
 export const ABAS: readonly { aba: Aba; rota: Rota; chave: `nav_${Aba}` }[] = [
   { aba: "inicio", rota: { tela: "inicio" }, chave: "nav_inicio" },
-  { aba: "zonas", rota: { tela: "zonas" }, chave: "nav_zonas" },
   { aba: "cenas", rota: { tela: "cenas" }, chave: "nav_cenas" },
   { aba: "simulador", rota: { tela: "simulador" }, chave: "nav_simulador" },
   { aba: "drivers", rota: { tela: "drivers" }, chave: "nav_drivers" },
   { aba: "conta", rota: { tela: "conta" }, chave: "nav_conta" },
 ];
 
-// Why: section 6, a zone is a multiroom equipment, and the scenes and the simulator only set
-// zone data points, so the three tabs exist once a multiroom equipment is registered and not
-// before; a screen full of empty blocks is a question the operator cannot yet answer.
-// Por que: seção 6, uma zona é um equipamento multiroom, e as cenas e o simulador só ajustam
-// data points de zona, então as três abas existem quando há um equipamento multiroom
-// cadastrado e não antes; uma tela cheia de blocos vazios é uma pergunta que o operador ainda
-// não consegue responder.
-export const ABAS_DE_MULTIROOM: readonly Aba[] = ["zonas", "cenas", "simulador"];
+// Why: the scenes and the simulator only set data points of equipment, so the two tabs exist
+// once an equipment is registered and not before; a screen of empty numbers is a question the
+// operator cannot yet answer.
+// Por que: as cenas e o simulador só ajustam data points de equipamento, então as duas abas
+// existem quando há um equipamento cadastrado e não antes; uma tela de números vazios é uma
+// pergunta que o operador ainda não consegue responder.
+export const ABAS_DE_EQUIPAMENTO: readonly Aba[] = ["cenas", "simulador"];
 
 export interface AbaDoMenu {
   aba: Aba;
@@ -50,13 +47,13 @@ export interface AbaDoMenu {
 }
 
 // Why: a tab that exists but cannot be used yet is drawn dimmed and not taken away, so the
-// operator learns what the hub does before the first speaker is registered.
+// operator learns what the hub does before the first equipment is registered.
 // Por que: uma aba que existe mas ainda não pode ser usada é desenhada apagada e não é
-// tirada, para o operador saber o que o hub faz antes de a primeira caixa ser cadastrada.
-export function abasDoMenu(temMultiroom: boolean): AbaDoMenu[] {
+// tirada, para o operador saber o que o hub faz antes de o primeiro equipamento ser cadastrado.
+export function abasDoMenu(temEquipamento: boolean): AbaDoMenu[] {
   return ABAS.map((entrada) => ({
     ...entrada,
-    ativa: temMultiroom || !ABAS_DE_MULTIROOM.includes(entrada.aba),
+    ativa: temEquipamento || !ABAS_DE_EQUIPAMENTO.includes(entrada.aba),
   }));
 }
 
@@ -98,7 +95,6 @@ export function lerRota(hash: string): Rota {
   }
   if (segundo !== undefined) return INICIO;
   if (
-    primeiro === "zonas" ||
     primeiro === "cenas" ||
     primeiro === "simulador" ||
     primeiro === "drivers" ||

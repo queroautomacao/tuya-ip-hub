@@ -75,10 +75,10 @@ URL = "http://10.0.0.2/audio/bipe.wav"
 @dataclass(frozen=True)
 class _Cadastro:
     """A registration whose identity is NOT the uuid of the speaker, on purpose: an
-    integrator names a zone what he likes, and the identity of the box is what the box says.
+    integrator names a block what he likes, and the identity of the box is what the box says.
 
     Um cadastro cuja identidade NÃO é o uuid da caixa, de propósito: um integrador nomeia uma
-    zona como quiser, e a identidade da caixa é o que a caixa diz.
+    bloco como quiser, e a identidade da caixa é o que a caixa diz.
     """
 
     identidade: str = "cozinha"
@@ -896,14 +896,14 @@ async def test_outra_caixa_no_mesmo_endereco_e_recusada_e_nao_comandada(caixa):
     """Section 6: identity is the uuid, and the address is only where it answered today.
 
     Why: asking once and never again left the hub commanding whatever box now holds the
-    address, under the name of this zone, for as long as the daemon ran: a lease that moved
-    would have the volume of somebody else's speaker following this zone.
+    address, under the name of this block, for as long as the daemon ran: a lease that moved
+    would have the volume of somebody else's speaker following this block.
 
     Seção 6: a identidade é o uuid, e o endereço é só onde ela respondeu hoje.
 
     Por que: perguntar uma vez e nunca mais deixava o hub comandando a caixa que estivesse com
-    o endereço, com o nome desta zona, enquanto o daemon rodasse: uma concessão que mudasse
-    faria o volume da caixa de outra pessoa seguir esta zona.
+    o endereço, com o nome deste bloco, enquanto o daemon rodasse: uma concessão que mudasse
+    faria o volume da caixa de outra pessoa seguir este bloco.
     """
     async with ServidorHttp(_fala()) as aparelho:
         driver = caixa(aparelho)

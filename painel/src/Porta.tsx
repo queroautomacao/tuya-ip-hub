@@ -2,13 +2,13 @@
 // Copyright (C) 2026 Quero Automação Ltda
 
 // Why: before the owner is in there is no navigation to draw, so this is the whole page: the
-// brand, what the hub is, and one card with the only thing to do. The photo is the room the
-// product serves, and it is a background and never a wall the form has to fight: the card
-// keeps the tokens of the theme, so it reads the same light or dark.
+// brand and one card with the only thing to do. The photo is the room the product serves, and
+// it is a background and never a wall the form has to fight: the card keeps the tokens of the
+// theme and lets a little of the room through, so it reads the same light or dark.
 // Por que: antes de o dono entrar não há navegação para desenhar, então isto é a página
-// inteira: a marca, o que o hub é, e um cartão com a única coisa a fazer. A foto é a sala que
-// o produto serve, e ela é fundo e nunca uma parede contra a qual o formulário lute: o cartão
-// mantém os tokens do tema, então ele se lê igual claro ou escuro.
+// inteira: a marca e um cartão com a única coisa a fazer. A foto é a sala que o produto serve,
+// e ela é fundo e nunca uma parede contra a qual o formulário lute: o cartão mantém os tokens
+// do tema e deixa passar um pouco da sala, então ele se lê igual claro ou escuro.
 
 import type { ReactNode } from "react";
 import { BotaoTema, Idiomas } from "./Concha.tsx";
@@ -44,7 +44,6 @@ export default function Porta({
           <header className="porta-marca">
             <img src={marca} alt="" width={64} height={64} />
             <h1>{t("produto")}</h1>
-            <p>{t("subtitulo")}</p>
           </header>
           <main className="porta-cartao">{children}</main>
         </div>

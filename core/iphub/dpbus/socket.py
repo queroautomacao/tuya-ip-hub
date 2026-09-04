@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Quero Automação Ltda
 """Sections 8 and 9: the WebSocket of the DP-bus, thin over the map, the protocol and the
-zones.
+blocks.
 
 What a frame means was decided in protocolo.py and where a set lands was decided by the
-module that owns the zones and the scenes, so this file holds only what needs a socket: the
+module that owns the blocks and the scenes, so this file holds only what needs a socket: the
 handshake, the first frame, who is listening, and when a report goes out. Everything it
 touches of the installation arrives as a function, which is why every rule below is tested
 without a speaker and without a route.
@@ -24,10 +24,10 @@ Section 9 holds here exactly as it holds for /api/*: the Host rule, the Origin r
 four headers are the same middlewares of the gate, and the handshake response passes through
 them like any other response. Nothing this module sends ever carries the api_token back.
 
-Seções 8 e 9: o WebSocket do DP-bus, fino sobre o mapa, o protocolo e as zonas.
+Seções 8 e 9: o WebSocket do DP-bus, fino sobre o mapa, o protocolo e os blocos.
 
 O que um quadro significa foi decidido no protocolo.py e onde um set cai foi decidido pelo
-módulo dono das zonas e das cenas, então este arquivo guarda só o que precisa de socket: o
+módulo dono dos blocos e das cenas, então este arquivo guarda só o que precisa de socket: o
 aperto de mão, o primeiro quadro, quem está escutando, e quando um report sai. Tudo que ele
 toca da instalação chega como função, e é por isso que toda regra abaixo é testada sem caixa
 e sem rota.
@@ -88,12 +88,12 @@ INTERVALO_S = 1.0
 
 # Why: a client that stops reading fills the kernel buffer and then send_str waits forever,
 # on the single task that publishes every report and reconciles the group. One stalled bridge
-# would freeze the bus of six zones for everybody, and the frames it never took would grow
+# would freeze the bus of six blocks for everybody, and the frames it never took would grow
 # without bound in the daemon of an appliance. A frame that does not leave in this many
 # seconds means the socket is not taking frames any more, so it goes.
 # Por que: um cliente que para de ler enche o buffer do kernel e então o send_str espera para
 # sempre, na única tarefa que publica todo report e reconcilia o grupo. Uma ponte travada
-# congelaria o barramento de seis zonas para todo mundo, e os quadros que ela nunca pegou
+# congelaria o barramento de seis blocos para todo mundo, e os quadros que ela nunca pegou
 # cresceriam sem limite no daemon de um appliance. Um quadro que não sai neste tanto de
 # segundos diz que o socket não está mais pegando quadros, então ele vai embora.
 ENVIO_S = 2.0
@@ -226,14 +226,14 @@ class Barramento:
         Why: a socket authenticates on its first frame and is never asked again, so without
         this the documented remediation for a leaked machine credential remediates nothing:
         whoever holds the old token keeps volume, transport, input, group and scene control
-        of every zone for as long as the daemon runs, and a bridge socket is long lived by
+        of every block for as long as the daemon runs, and a bridge socket is long lived by
         design, so it never has to reconnect.
 
         Seção 9: o api_token foi rotacionado, então todo socket que ele autenticou acabou.
 
         Por que: um socket autentica no primeiro quadro e nunca mais é perguntado, então sem
         isto a remediação documentada de uma credencial de máquina vazada não remedia nada:
-        quem tem o token antigo mantém volume, transporte, entrada, grupo e cena de toda zona
+        quem tem o token antigo mantém volume, transporte, entrada, grupo e cena de todo bloco
         enquanto o daemon viver, e um socket de ponte é longevo por projeto, então ele nunca
         precisa reconectar.
         """
@@ -278,10 +278,10 @@ class Barramento:
             raise
         except Exception as erro:
             # Why: a defect of ours below this line would leave the client waiting for an ack
-            # that never comes and take the socket of six zones down with it; the code says the
+            # that never comes and take the socket of six blocks down with it; the code says the
             # daemon failed, which is not the same as the speaker refusing.
             # Por que: um defeito nosso abaixo desta linha deixaria o cliente esperando por um
-            # ack que nunca vem e levaria junto o socket de seis zonas; o código diz que o
+            # ack que nunca vem e levaria junto o socket de seis blocos; o código diz que o
             # daemon falhou, que não é a mesma coisa que a caixa recusar.
             log.exception("the bus failed to set dp %r: %s", dpid, _causa(erro))
             return ERRO_INTERNO
@@ -331,12 +331,12 @@ class Barramento:
         atuais = self._valores()
         # Why: a block whose speaker was removed stops appearing in the values at all, so the
         # loop below never visits it and the last thing published about it stands forever: the
-        # bridge keeps showing DP 104 online, with a volume and a title, for a zone that has
-        # no speaker. A data point that stopped existing is reported as the empty zone it is.
+        # bridge keeps showing DP 104 online, with a volume and a title, for a block that has
+        # no speaker. A data point that stopped existing is reported as the empty block it is.
         # Por que: um bloco cuja caixa foi removida deixa de aparecer nos valores, então o laço
         # abaixo nunca passa por ele e o último publicado a respeito fica valendo para sempre:
-        # a ponte segue mostrando o DP 104 online, com volume e título, para uma zona que não
-        # tem caixa. Um data point que deixou de existir é reportado como a zona vazia que é.
+        # a ponte segue mostrando o DP 104 online, com volume e título, para um bloco que não
+        # tem caixa. Um data point que deixou de existir é reportado como o bloco vazio que é.
         for dpid in tuple(self._ultimos):
             if dpid in atuais:
                 continue
@@ -410,10 +410,10 @@ class Barramento:
             bruto = _objeto(mensagem)
             # Why: an unknown frame is answered and the socket lives on, because the other end
             # is whatever bridge somebody implemented from the public contract, and one bad
-            # frame must not drop a socket that is carrying six zones.
+            # frame must not drop a socket that is carrying six blocks.
             # Por que: um quadro desconhecido é respondido e o socket segue vivo, porque do
             # outro lado está a ponte que alguém implementou do contrato público, e um quadro
-            # ruim não pode derrubar um socket que carrega seis zonas.
+            # ruim não pode derrubar um socket que carrega seis blocos.
             leitura = protocolo.ler_set(bruto, valores=self._valores_do_quadro(bruto))
             if leitura.pedido is None:
                 await self._mandar(ws, protocolo.ack(leitura.id, leitura.codigo))
@@ -425,12 +425,12 @@ class Barramento:
         """The values the enum of THAT data point really offers, which is a list of inputs.
 
         Section 14: only what plm_support declares is offered, and the list lives with the
-        zones; the frame only says which data point is being asked about.
+        blocks; the frame only says which data point is being asked about.
 
         Os valores que o enum DAQUELE data point realmente oferece, que é uma lista de
         entradas.
 
-        Seção 14: só o que o plm_support declara é oferecido, e a lista mora com as zonas; o
+        Seção 14: só o que o plm_support declara é oferecido, e a lista mora com os blocos; o
         quadro só diz sobre qual data point se está perguntando.
         """
         if not isinstance(bruto, dict):
@@ -513,9 +513,9 @@ class Barramento:
                 await ws.close()
         except Exception as erro:
             # Why: a client that went away between the comparison and the send is a socket
-            # that is gone and not a failure of the bus, and the other zones keep publishing.
+            # that is gone and not a failure of the bus, and the other blocks keep publishing.
             # Por que: um cliente que sumiu entre a comparação e o envio é um socket que foi
-            # embora e não uma falha do barramento, e as outras zonas seguem publicando.
+            # embora e não uma falha do barramento, e as outros blocos seguem publicando.
             log.debug("a dpbus client did not take a frame: %s", _causa(erro))
             self._clientes.discard(ws)
 

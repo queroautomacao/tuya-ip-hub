@@ -5,21 +5,23 @@
 // a step names one data point and one value, plus a wait after it, and that is the whole
 // vocabulary. Which data points may be named comes from the daemon, and the daemon refuses
 // the list field by field, so the screen never has to decide what a scene may do. What the
-// screen does decide is how a step reads: a zone, then what to do with it, then the value.
+// screen does decide is how a step reads: an equipment, then what to do with it, then the
+// value; the wait after a step is the interval of the scene unless the step names its own.
 // Por que: uma cena é DADO, então esta tela é um editor de uma lista e nunca uma
 // linguagenzinha: um passo nomeia um data point e um valor, mais uma espera depois dele, e
 // esse é o vocabulário inteiro. Quais data points podem ser nomeados vêm do daemon, e o daemon
 // recusa a lista campo a campo, então a tela nunca precisa decidir o que uma cena pode fazer.
-// O que a tela decide é como um passo se lê: uma zona, depois o que fazer com ela, depois o
-// valor.
+// O que a tela decide é como um passo se lê: um equipamento, depois o que fazer com ele, depois
+// o valor; a espera depois de um passo é o intervalo da cena, salvo o passo nomear a dele.
 
 import { useCallback, useEffect, useState } from "react";
 import {
   codigoDoErro,
   executarCena,
+  lerCatalogo,
   lerCenas,
   lerDps,
-  lerZonas,
+  lerBlocos,
   problemasDoErro,
   salvarCenas,
 } from "./api.ts";
@@ -29,6 +31,7 @@ import {
   itemDoDp,
   nomeValido,
   prepararEspera,
+  prepararIntervalo,
   prepararValor,
   textoDoValor,
   valorPadrao,
@@ -36,17 +39,19 @@ import {
   type ItemDoMapa,
   type PassoDeCena,
 } from "./cenas.ts";
-import { INTERVALO_MS } from "./equipamentos.ts";
+import { INTERVALO_MS, type ItemCatalogo } from "./equipamentos.ts";
 import { t, traduzirErro, type Chave } from "./i18n";
-import type { Zona } from "./zonas.ts";
+import { controlesDaBloco, type Bloco } from "./blocos.ts";
 
 interface Leitura {
   cenas: Cena[];
   maximo: number;
   espera_maxima_ms: number;
+  intervalo_padrao_ms: number;
   passos_maximos: number;
   mapa: ItemDoMapa[];
-  zonas: Zona[];
+  blocos: Bloco[];
+  catalogo: ItemCatalogo[];
   erro: string | null;
 }
 
@@ -54,9 +59,11 @@ const VAZIA: Leitura = {
   cenas: [],
   maximo: 0,
   espera_maxima_ms: 0,
+  intervalo_padrao_ms: 0,
   passos_maximos: 0,
   mapa: [],
-  zonas: [],
+  blocos: [],
+  catalogo: [],
   erro: null,
 };
 
@@ -74,29 +81,52 @@ const CHAVE_DA_FUNCAO: Record<string, Chave> = {
   grupo: "cenas_funcao_grupo",
 };
 
-function rotuloDaFuncao(funcao: string): string {
+function rotuloDaFuncao(funcao: string, energia: boolean): string {
+  if (funcao === "play" && energia) return t("cenas_funcao_energia");
   const chave = CHAVE_DA_FUNCAO[funcao];
   return chave === undefined ? funcao : t(chave);
 }
 
-function rotuloDaZona(numero: number, zonas: readonly Zona[]): string {
-  if (numero === 0) return t("cenas_global");
-  const zona = zonas.find((candidata) => candidata.zona === numero);
-  const nome = zona === undefined ? "" : zona.nome || zona.identidade;
-  return nome ? `${t("zonas_bloco")} ${numero}: ${nome}` : `${t("zonas_bloco")} ${numero}`;
+// Why: section 8, DP 102 is play/pause for an equipment with transport and the power switch
+// for any other, so a step reads "Power: on" on a matrix and "Play or pause: play" on a
+// speaker, from what the driver of the equipment in that number declares.
+// Por que: seção 8, o DP 102 é play/pause para um equipamento com transporte e a chave de
+// ligar para qualquer outro, então um passo se lê "Ligar ou desligar: ligar" numa matriz e
+// "Play ou pause: play" numa caixa, a partir do que o driver do equipamento naquele número
+// declara.
+function energiaNoBloco(
+  numero: number,
+  blocos: readonly Bloco[],
+  catalogo: readonly ItemCatalogo[],
+): boolean {
+  const bloco = blocos.find((candidato) => candidato.bloco === numero);
+  if (bloco === undefined) return false;
+  const item = catalogo.find((candidato) => candidato.tipo === bloco.tipo);
+  return controlesDaBloco(bloco, item).some(
+    (controle) => controle.funcao === "play" && controle.especie === "ligar",
+  );
 }
 
-function zonasDoMapa(mapa: readonly ItemDoMapa[]): number[] {
-  return [...new Set(mapa.map((item) => item.zona))].sort((a, b) => a - b);
+function rotuloDaBloco(numero: number, blocos: readonly Bloco[]): string {
+  if (numero === 0) return t("cenas_global");
+  const bloco = blocos.find((candidata) => candidata.bloco === numero);
+  const nome = bloco === undefined ? "" : bloco.nome || bloco.identidade;
+  return nome ? `${t("blocos_bloco")} ${numero}: ${nome}` : `${t("blocos_bloco")} ${numero}`;
+}
+
+function blocosDoMapa(mapa: readonly ItemDoMapa[]): number[] {
+  return [...new Set(mapa.map((item) => item.bloco))].sort((a, b) => a - b);
 }
 
 function Valor({
   item,
   passo,
+  energia,
   aoMudar,
 }: {
   item: ItemDoMapa;
   passo: PassoDeCena;
+  energia: boolean;
   aoMudar: (valor: unknown, codigo: string | null) => void;
 }) {
   const texto = textoDoValor(passo.valor);
@@ -107,8 +137,8 @@ function Valor({
   if (item.tipo === "bool") {
     return (
       <select aria-label={t("cenas_valor")} value={texto} onChange={(evento) => escolher(evento.target.value)}>
-        <option value="true">{item.funcao === "play" ? t("zonas_tocar") : t("sim")}</option>
-        <option value="false">{item.funcao === "play" ? t("zonas_pausar") : t("nao")}</option>
+        <option value="true">{rotuloDoLogico(item, energia, true)}</option>
+        <option value="false">{rotuloDoLogico(item, energia, false)}</option>
       </select>
     );
   }
@@ -137,18 +167,28 @@ function Valor({
   );
 }
 
+function rotuloDoLogico(item: ItemDoMapa, energia: boolean, valor: boolean): string {
+  if (item.funcao !== "play") return valor ? t("sim") : t("nao");
+  if (energia) return valor ? t("acao_ligar") : t("acao_desligar");
+  return valor ? t("blocos_tocar") : t("blocos_pausar");
+}
+
 function Passo({
   passo,
   mapa,
-  zonas,
+  blocos,
+  catalogo,
   maximoDeEspera,
+  intervalo,
   aoMudar,
   aoRemover,
 }: {
   passo: PassoDeCena;
   mapa: ItemDoMapa[];
-  zonas: Zona[];
+  blocos: Bloco[];
+  catalogo: ItemCatalogo[];
   maximoDeEspera: number;
+  intervalo: number;
   aoMudar: (novo: PassoDeCena, codigo: string | null) => void;
   aoRemover: () => void;
 }) {
@@ -168,7 +208,8 @@ function Passo({
       </li>
     );
   }
-  const funcoes = mapa.filter((candidato) => candidato.zona === item.zona);
+  const funcoes = mapa.filter((candidato) => candidato.bloco === item.bloco);
+  const energia = energiaNoBloco(item.bloco, blocos, catalogo);
   const trocar = (escolhido: ItemDoMapa | undefined): void => {
     if (escolhido === undefined) return;
     aoMudar({ ...passo, dpid: escolhido.dpid, valor: valorPadrao(escolhido) }, null);
@@ -177,22 +218,22 @@ function Passo({
     <li className="passo">
       <div className="passo-alvo">
         <select
-          aria-label={t("cenas_passo_zona")}
-          value={String(item.zona)}
+          aria-label={t("cenas_passo_bloco")}
+          value={String(item.bloco)}
           onChange={(evento) => {
-            // Why: moving a step to another zone keeps what it does when that zone offers it,
-            // so "volume of zone 1" dragged to zone 2 is "volume of zone 2" and not a reset.
-            // Por que: mover um passo para outra zona mantém o que ele faz quando aquela zona
-            // oferece isso, então "volume da zona 1" levado à zona 2 é "volume da zona 2" e
+            // Why: moving a step to another block keeps what it does when that block offers it,
+            // so "volume of block 1" dragged to block 2 is "volume of block 2" and not a reset.
+            // Por que: mover um passo para outro bloco mantém o que ele faz quando aquele bloco
+            // oferece isso, então "volume do bloco 1" levado ao bloco 2 é "volume do bloco 2" e
             // não um recomeço.
-            const zona = Number(evento.target.value);
-            const mesma = mapa.find((c) => c.zona === zona && c.funcao === item.funcao);
-            trocar(mesma ?? mapa.find((c) => c.zona === zona));
+            const bloco = Number(evento.target.value);
+            const mesma = mapa.find((c) => c.bloco === bloco && c.funcao === item.funcao);
+            trocar(mesma ?? mapa.find((c) => c.bloco === bloco));
           }}
         >
-          {zonasDoMapa(mapa).map((zona) => (
-            <option key={zona} value={String(zona)}>
-              {rotuloDaZona(zona, zonas)}
+          {blocosDoMapa(mapa).map((bloco) => (
+            <option key={bloco} value={String(bloco)}>
+              {rotuloDaBloco(bloco, blocos)}
             </option>
           ))}
         </select>
@@ -203,12 +244,17 @@ function Passo({
         >
           {funcoes.map((candidato) => (
             <option key={candidato.dpid} value={String(candidato.dpid)}>
-              {rotuloDaFuncao(candidato.funcao)}
+              {rotuloDaFuncao(candidato.funcao, energia)}
             </option>
           ))}
         </select>
       </div>
-      <Valor item={item} passo={passo} aoMudar={(valor, codigo) => aoMudar({ ...passo, valor }, codigo)} />
+      <Valor
+        item={item}
+        passo={passo}
+        energia={energia}
+        aoMudar={(valor, codigo) => aoMudar({ ...passo, valor }, codigo)}
+      />
       <label className="passo-espera">
         <span className="texto-suave">{t("cenas_e_depois")}</span>
         <input
@@ -218,10 +264,11 @@ function Passo({
           min={0}
           max={maximoDeEspera}
           aria-label={t("cenas_espera")}
-          value={String(passo.espera_ms)}
+          placeholder={String(intervalo)}
+          value={passo.espera_ms === null ? "" : String(passo.espera_ms)}
           onChange={(evento) => {
             const preparo = prepararEspera(evento.target.value, maximoDeEspera);
-            const espera = preparo.ok ? (preparo.valor as number) : passo.espera_ms;
+            const espera = preparo.ok ? (preparo.valor as number | null) : passo.espera_ms;
             aoMudar({ ...passo, espera_ms: espera }, preparo.ok ? null : preparo.codigo);
           }}
         />
@@ -245,7 +292,7 @@ function CartaoCena({
   aoMudar: (nova: Cena, codigo: string | null) => void;
   aoExecutar: () => void;
 }) {
-  const { mapa, zonas } = leitura;
+  const { mapa, blocos, catalogo } = leitura;
   const cheia = cena.passos.length >= leitura.passos_maximos;
   const vazia = cena.passos.length === 0;
   return (
@@ -284,14 +331,37 @@ function CartaoCena({
       {vazia ? (
         <p className="texto-suave cena-dica">{t("cenas_vazia")}</p>
       ) : (
+        <label className="cena-intervalo">
+          <span>{t("cenas_intervalo")}</span>
+          <input
+            className="curto"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={leitura.espera_maxima_ms}
+            aria-label={t("cenas_intervalo")}
+            value={String(cena.intervalo_ms)}
+            onChange={(evento) => {
+              const preparo = prepararIntervalo(evento.target.value, leitura.espera_maxima_ms);
+              const intervalo = preparo.ok ? (preparo.valor as number) : cena.intervalo_ms;
+              aoMudar({ ...cena, intervalo_ms: intervalo }, preparo.ok ? null : preparo.codigo);
+            }}
+          />
+          <span>{t("cenas_ms")}</span>
+          <span className="texto-suave cena-intervalo-ajuda">{t("cenas_intervalo_ajuda")}</span>
+        </label>
+      )}
+      {!vazia && (
         <ol className="passos">
           {cena.passos.map((passo, indice) => (
             <Passo
               key={`${indice}-${passo.dpid}`}
               passo={passo}
               mapa={mapa}
-              zonas={zonas}
+              blocos={blocos}
+              catalogo={catalogo}
               maximoDeEspera={leitura.espera_maxima_ms}
+              intervalo={cena.intervalo_ms}
               aoMudar={(novo, codigo) =>
                 aoMudar(
                   { ...cena, passos: cena.passos.map((atual, posicao) => (posicao === indice ? novo : atual)) },
@@ -313,7 +383,7 @@ function CartaoCena({
           const primeiro = mapa[0];
           if (primeiro === undefined) return;
           aoMudar(
-            { ...cena, passos: [...cena.passos, { dpid: primeiro.dpid, valor: valorPadrao(primeiro), espera_ms: 0 }] },
+            { ...cena, passos: [...cena.passos, { dpid: primeiro.dpid, valor: valorPadrao(primeiro), espera_ms: null }] },
             null,
           );
         }}
@@ -334,14 +404,21 @@ export default function Cenas() {
 
   const recarregar = useCallback(async (): Promise<void> => {
     try {
-      const [cenas, snapshot, zonas] = await Promise.all([lerCenas(), lerDps(), lerZonas()]);
+      const [cenas, snapshot, blocos, catalogo] = await Promise.all([
+        lerCenas(),
+        lerDps(),
+        lerBlocos(),
+        lerCatalogo(),
+      ]);
       setLeitura({
-        cenas: comCenas(cenas.cenas, cenas.maximo),
+        cenas: comCenas(cenas.cenas, cenas.maximo, cenas.intervalo_padrao_ms),
         maximo: cenas.maximo,
         espera_maxima_ms: cenas.espera_maxima_ms,
+        intervalo_padrao_ms: cenas.intervalo_padrao_ms,
         passos_maximos: cenas.passos_maximos,
         mapa: ajustaveis(snapshot.mapa),
-        zonas: zonas.zonas,
+        blocos: blocos.blocos,
+        catalogo,
         erro: null,
       });
     } catch (falha) {

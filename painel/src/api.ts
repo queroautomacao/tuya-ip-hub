@@ -30,7 +30,7 @@ import {
 } from "./equipamentos.ts";
 import type { CorpoCadastro } from "./formulario.ts";
 import { guardar, ler, limpar } from "./sessao.ts";
-import { lerLeituraDeZonas, type LeituraDeZonas } from "./zonas.ts";
+import { lerLeituraDeBlocos, type LeituraDeBlocos } from "./blocos.ts";
 
 export const SENHA_MINIMA = 8;
 
@@ -329,20 +329,20 @@ export async function lerModeloDriver(
   return modelo;
 }
 
-export async function lerZonas(): Promise<LeituraDeZonas> {
-  const leitura = lerLeituraDeZonas(await pedir("/api/zonas", "GET"));
+export async function lerBlocos(): Promise<LeituraDeBlocos> {
+  const leitura = lerLeituraDeBlocos(await pedir("/api/blocos", "GET"));
   if (leitura === null) throw new ErroApi(CODIGO_CORPO_INVALIDO);
   return leitura;
 }
 
 // Why: the whole order travels, because the POSITION of a block is the data point block of
 // section 8; sending one slot alone would need an index anyway and a shorter list would move
-// a speaker from zone 2 to zone 1 in every automation the customer already built.
+// a speaker from block 2 to block 1 in every automation the customer already built.
 // Por que: a ordem inteira viaja, porque a POSIÇÃO de um bloco é o bloco de data points da
 // seção 8; mandar uma vaga sozinha precisaria de um índice de todo jeito e uma lista mais
-// curta moveria uma caixa da zona 2 para a zona 1 em toda automação que o cliente já montou.
-export async function salvarZonas(zonas: readonly string[]): Promise<void> {
-  await pedir("/api/zonas", "POST", { zonas });
+// curta moveria uma caixa do bloco 2 para o bloco 1 em toda automação que o cliente já montou.
+export async function salvarBlocos(blocos: readonly string[]): Promise<void> {
+  await pedir("/api/blocos", "POST", { blocos });
 }
 
 export async function lerDps(): Promise<Snapshot> {

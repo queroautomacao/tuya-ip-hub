@@ -13,7 +13,7 @@ then {"t":"set","id":..,"dpid":..,"v":..}. What the server sends: {"t":"ack","id
 A frame that is not an object, that carries no t, an unknown t or a dpid that is not a
 number is refused with a stable code and never with an exception, because the other end is
 whatever bridge implemented the public contract and one bad frame must not drop a socket
-that is carrying six zones. A key the contract does not name is ignored instead of refused,
+that is carrying six blocks. A key the contract does not name is ignored instead of refused,
 for the same reason: this is a wire protocol other people implement, not a file this
 repository validates.
 
@@ -30,7 +30,7 @@ O que o cliente manda: {"t":"auth","token":...} como PRIMEIRO quadro e nunca na 
 Um quadro que não é objeto, que não carrega t, que carrega um t desconhecido ou um dpid que
 não é número é recusado com um código estável e nunca com exceção, porque do outro lado está
 a ponte que alguém implementou do contrato público e um quadro ruim não pode derrubar um
-socket que carrega seis zonas. Uma chave que o contrato não nomeia é ignorada em vez de
+socket que carrega seis blocos. Uma chave que o contrato não nomeia é ignorada em vez de
 recusada, pelo mesmo motivo: isto é protocolo de fio que outros implementam, não um arquivo
 que este repositório valida.
 """
@@ -52,14 +52,14 @@ T_SNAPSHOT = "snapshot"
 DP_DESCONHECIDO = "dp_desconhecido"
 DP_SOMENTE_LEITURA = "dp_somente_leitura"
 VALOR_INVALIDO = "valor_invalido"
-ZONA_OFFLINE = "zona_offline"
+BLOCO_OFFLINE = "bloco_offline"
 NAO_AUTENTICADO = "nao_autenticado"
 FRAME_INVALIDO = "frame_invalido"
 CODIGOS = (
     DP_DESCONHECIDO,
     DP_SOMENTE_LEITURA,
     VALOR_INVALIDO,
-    ZONA_OFFLINE,
+    BLOCO_OFFLINE,
     NAO_AUTENTICADO,
     FRAME_INVALIDO,
 )
@@ -131,7 +131,7 @@ def ler_auth(bruto: object) -> str:
 def ler_set(bruto: object, *, valores: tuple[str, ...] = ()) -> Leitura:
     """One set frame as a request, or a refusal carrying the code the ack answers with.
 
-    valores are the values a runtime enum really offers, which is the input of a zone: the
+    valores are the values a runtime enum really offers, which is the input of a block: the
     map fixes the presets, the scenes and the groups, and the inputs come from the hardware
     (section 14, plm_support). With none given no input is accepted, which is the safe
     default: a bus that guessed would command an input the speaker does not have.
@@ -139,7 +139,7 @@ def ler_set(bruto: object, *, valores: tuple[str, ...] = ()) -> Leitura:
     Um quadro set como pedido, ou uma recusa com o código com que o ack responde.
 
     valores são os valores que um enum de runtime realmente oferece, que é a entrada de uma
-    zona: o mapa fixa os presets, as cenas e os grupos, e as entradas vêm do hardware (seção
+    bloco: o mapa fixa os presets, as cenas e os grupos, e as entradas vêm do hardware (seção
     14, plm_support). Sem nenhum informado nenhuma entrada é aceita, que é o padrão seguro:
     um barramento que adivinhasse comandaria uma entrada que a caixa não tem.
     """
@@ -149,9 +149,9 @@ def ler_set(bruto: object, *, valores: tuple[str, ...] = ()) -> Leitura:
     if identificador is _ID_RECUSADO:
         return Leitura(codigo=FRAME_INVALIDO)
     # Why: the JSON true is an int for Python and 101.0 is a float, and neither is a data
-    # point number; taking either would set the volume of zone 1 from a malformed frame.
+    # point number; taking either would set the volume of block 1 from a malformed frame.
     # Por que: o true do JSON é int para o Python e 101.0 é float, e nenhum dos dois é número
-    # de data point; aceitar qualquer um ajustaria o volume da zona 1 por quadro malformado.
+    # de data point; aceitar qualquer um ajustaria o volume do bloco 1 por quadro malformado.
     dpid = bruto.get("dpid")
     if type(dpid) is not int:
         return Leitura(id=identificador, codigo=FRAME_INVALIDO)
@@ -172,8 +172,8 @@ def valor_valido(dp: mapa.Dp, valor: object, valores: tuple[str, ...] = ()) -> b
     O valor contra o tipo que o DP declara na seção 8, e nada mais largo.
     """
     if dp.tipo is mapa.Tipo.VALOR:
-        # Why: True is an int for Python and would land as the volume 1 of a zone.
-        # Por que: True é int para o Python e chegaria como o volume 1 de uma zona.
+        # Why: True is an int for Python and would land as the volume 1 of a block.
+        # Por que: True é int para o Python e chegaria como o volume 1 de um bloco.
         return type(valor) is int and mapa.VALOR_MINIMO <= valor <= mapa.VALOR_MAXIMO
     if dp.tipo is mapa.Tipo.BOOL:
         return type(valor) is bool
@@ -219,12 +219,12 @@ def snapshot(valores: Mapping[int, object]) -> dict:
     """Everything the bus holds that may be reported, in the order of section 8.
 
     A data point with no value yet is absent instead of null, because a bridge that read a
-    null would take it for a state and turn an empty zone slot into a speaker that is off.
+    null would take it for a state and turn an empty block slot into a speaker that is off.
 
     Tudo que o barramento guarda e pode ser reportado, na ordem da seção 8.
 
     Um data point ainda sem valor fica ausente em vez de nulo, porque uma ponte que lesse um
-    nulo o tomaria por estado e tornaria um bloco de zona vazio numa caixa desligada.
+    nulo o tomaria por estado e tornaria um bloco de bloco vazio numa caixa desligada.
     """
     # Why: a JSON object key is a string, so the number travels as text and a bridge reads
     # dps["101"] in any language instead of depending on how one of them parses a key.

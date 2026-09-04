@@ -261,6 +261,43 @@ export function controles(capacidades: readonly string[]): Controle[] {
 
 export type Preparo = { ok: true; valor: unknown } | { ok: false; codigo: string };
 
+export const ENERGIA = ["ligar", "desligar"] as const;
+export const TRANSPORTE = ["anterior", "tocar", "pausar", "proxima"] as const;
+export type Energia = (typeof ENERGIA)[number];
+export type Transporte = (typeof TRANSPORTE)[number];
+
+export interface Paineis {
+  energia: Energia[];
+  volume: boolean;
+  mudo: boolean;
+  transporte: Transporte[];
+  fonte: boolean;
+  extra: boolean;
+  algum: boolean;
+}
+
+// Why: the integrator bench-tests an equipment with the controls of a remote, grouped the way
+// a remote groups them, so the capabilities of section 6 are read into panels here and the
+// screen draws a panel when its capabilities exist. Grouping is not a button: it is the
+// multiroom card, which needs the number of the equipment on the app.
+// Por que: o integrador testa um equipamento na bancada com os controles de um controle
+// remoto, agrupados como um controle os agrupa, então as capacidades da seção 6 são lidas em
+// painéis aqui e a tela desenha um painel quando as capacidades dele existem. Agrupar não é
+// botão: é o cartão de multiroom, que precisa do número do equipamento no app.
+export function paineis(capacidades: readonly string[]): Paineis {
+  const tem = (capacidade: Capacidade): boolean => capacidades.includes(capacidade);
+  const energia = ENERGIA.filter(tem);
+  const transporte = TRANSPORTE.filter(tem);
+  const [volume, mudo, fonte, extra] = [tem("volume"), tem("mudo"), tem("fonte"), tem("comando_extra")];
+  const algum = energia.length > 0 || transporte.length > 0 || volume || mudo || fonte || extra;
+  return { energia, volume, mudo, transporte, fonte, extra, algum };
+}
+
+export function prepararTexto(entrada: string): Preparo {
+  const limpo = entrada.trim();
+  return limpo ? { ok: true, valor: limpo } : { ok: false, codigo: "invalid_value" };
+}
+
 // Why: a volume of 300 is refused with the same stable code the daemon would use.
 // Por que: um volume de 300 é recusado com o mesmo código estável que o daemon usaria.
 export function prepararAcao(
@@ -275,7 +312,7 @@ export function prepararAcao(
     const dentro = /^\d{1,3}$/.test(limpo) && Number(limpo) <= 100;
     return dentro ? { ok: true, valor: Number(limpo) } : { ok: false, codigo: "invalid_value" };
   }
-  return limpo ? { ok: true, valor: limpo } : { ok: false, codigo: "invalid_value" };
+  return prepararTexto(limpo);
 }
 
 export type LinhaEstado =

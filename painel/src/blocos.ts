@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Quero Automação Ltda
 
-// Why: a zone is a multiroom equipment occupying one of the six blocks of section 8, and
-// nothing here decides which equipment that may be nor which data point a block carries: the
-// daemon answers both, so the panel never keeps a second copy of the contract. What lives
-// here is what a screen needs from that answer, as pure functions with tests.
-// Por que: uma zona é um equipamento multiroom ocupando um dos seis blocos da seção 8, e nada
-// aqui decide qual equipamento pode ser nem qual data point um bloco carrega: o daemon
-// responde os dois, então o painel nunca guarda uma segunda cópia do contrato. Aqui mora o
-// que uma tela precisa daquela resposta, como funções puras com teste.
+// Why: a block is one of the six equipment numbers of the app (section 8), which any
+// registered equipment may occupy, and nothing here decides which data point a block carries
+// nor what it means: the daemon answers both, so the panel never keeps a second copy of the
+// contract. What lives here is what a screen needs from that answer, as pure functions with
+// tests.
+// Por que: um bloco é um dos seis números de equipamento do app (seção 8), que qualquer
+// equipamento cadastrado pode ocupar, e nada aqui decide qual data point um bloco carrega nem
+// o que ele significa: o daemon responde os dois, então o painel nunca guarda uma segunda
+// cópia do contrato. Aqui mora o que uma tela precisa daquela resposta, como funções puras
+// com teste.
 
 import {
   lerEstadoEquipamento,
@@ -21,11 +23,11 @@ import {
 export const SOLO = "solo";
 export const PREFIXO_GRUPO = "grupo";
 
-// Why: section 6 fixes what a zone is, and the daemon refuses a block for anything else; the
-// panel offers the same set so the integrator is never offered a refusal.
-// Por que: a seção 6 fixa o que é uma zona, e o daemon recusa um bloco para qualquer outra
-// coisa; o painel oferece o mesmo conjunto para o integrador nunca receber uma recusa.
-export const CATEGORIA_DE_ZONA = "multiroom";
+// Why: section 6, multiroom is a capability of the equipment, declared by the manifest as the
+// category plus agrupar, and the panel reads the same two facts the daemon reads.
+// Por que: seção 6, multiroom é capacidade do equipamento, declarada pelo manifesto como a
+// categoria mais agrupar, e o painel lê os mesmos dois fatos que o daemon lê.
+export const CATEGORIA_DE_GRUPO = "multiroom";
 export const CAPACIDADE_DE_GRUPO = "agrupar";
 
 export const PAPEIS = ["", "mestre", "escravo"] as const;
@@ -48,21 +50,20 @@ export type FuncaoDoBloco = (typeof FUNCOES_DO_BLOCO)[number];
 // dictionaries, and a test asserts that it has one.
 // Por que: a API responde um código estável e nunca uma frase, então cada um precisa de
 // entrada nos dois dicionários, e um teste garante isso.
-export const CODIGOS_ZONAS = [
-  "zonas_demais",
-  "zona_repetida",
-  "eq_nao_multiroom",
+export const CODIGOS_BLOCOS = [
+  "blocos_demais",
+  "bloco_repetida",
   "identidade_invalida",
   "dp_desconhecido",
   "dp_somente_leitura",
   "valor_invalido",
-  "zona_offline",
+  "bloco_offline",
 ] as const;
 
 export type DpsDoBloco = Record<FuncaoDoBloco, number>;
 
-export interface Zona {
-  zona: number;
+export interface Bloco {
+  bloco: number;
   identidade: string;
   nome: string;
   tipo: string;
@@ -72,8 +73,8 @@ export interface Zona {
   estado: EstadoEquipamento | null;
 }
 
-export interface LeituraDeZonas {
-  zonas: Zona[];
+export interface LeituraDeBlocos {
+  blocos: Bloco[];
   grupo: string;
   dp_grupo: number;
 }
@@ -102,8 +103,8 @@ function lerDps(valor: unknown): DpsDoBloco | null {
   return dps as DpsDoBloco;
 }
 
-export function lerZona(valor: unknown): Zona | null {
-  if (!ehObjeto(valor) || !ehNumero(valor.zona)) return null;
+export function lerBloco(valor: unknown): Bloco | null {
+  if (!ehObjeto(valor) || !ehNumero(valor.bloco)) return null;
   const { identidade, nome, tipo } = valor;
   if (!ehTexto(identidade) || !ehTexto(nome) || !ehTexto(tipo)) return null;
   const papel = lerPapel(valor.papel);
@@ -116,72 +117,80 @@ export function lerZona(valor: unknown): Zona | null {
   // hub funciona com zero equipamento e a POSIÇÃO do bloco é o contrato.
   const estado = valor.estado === null ? null : lerEstadoEquipamento(valor.estado);
   if (estado === undefined) return null;
-  return { zona: valor.zona, identidade, nome, tipo, papel, entradas, dps, estado };
+  return { bloco: valor.bloco, identidade, nome, tipo, papel, entradas, dps, estado };
 }
 
-export function lerLeituraDeZonas(dados: Objeto): LeituraDeZonas | null {
-  const zonas = lerLista(dados.zonas, lerZona);
-  if (zonas === null || !ehTexto(dados.grupo) || !ehNumero(dados.dp_grupo)) return null;
-  return { zonas, grupo: dados.grupo, dp_grupo: dados.dp_grupo };
+export function lerLeituraDeBlocos(dados: Objeto): LeituraDeBlocos | null {
+  const blocos = lerLista(dados.blocos, lerBloco);
+  if (blocos === null || !ehTexto(dados.grupo) || !ehNumero(dados.dp_grupo)) return null;
+  return { blocos, grupo: dados.grupo, dp_grupo: dados.dp_grupo };
 }
 
-export function valorDoGrupo(zona: number): string {
-  return `${PREFIXO_GRUPO}${zona}`;
+export function valorDoGrupo(bloco: number): string {
+  return `${PREFIXO_GRUPO}${bloco}`;
 }
 
-export function ordemDe(zonas: readonly Zona[]): string[] {
-  return zonas.map((bloco) => bloco.identidade);
+export function ordemDe(blocos: readonly Bloco[]): string[] {
+  return blocos.map((bloco) => bloco.identidade);
 }
 
-// Why: a shift would move the speaker of zone 2 into zone 1 in every automation the customer
+// Why: a shift would move the speaker of block 2 into block 1 in every automation the customer
 // already built, so a block is emptied where it is and the identity is only taken off the
 // block it used to occupy.
-// Por que: um empurrão moveria a caixa da zona 2 para a zona 1 em toda automação que o cliente
+// Por que: um empurrão moveria a caixa do bloco 2 para o bloco 1 em toda automação que o cliente
 // já montou, então um bloco é esvaziado no lugar e a identidade só sai do bloco que ela
 // ocupava.
 export function comIdentidade(
   ordem: readonly string[],
-  zona: number,
+  bloco: number,
   identidade: string,
 ): string[] {
   return ordem.map((atual, posicao) => {
-    if (posicao === zona - 1) return identidade;
+    if (posicao === bloco - 1) return identidade;
     return identidade !== "" && atual === identidade ? "" : atual;
   });
 }
 
+// Why: any equipment whose driver the image knows may take a number on the app; what the
+// number does (play/pause or power on DP 102) follows the manifest, on the daemon side.
+// Por que: qualquer equipamento cujo driver a imagem conhece pode ter um número no app; o que
+// o número faz (play/pause ou ligar no DP 102) segue o manifesto, do lado do daemon.
 export function podeOcuparBloco(item: ItemCatalogo | undefined): boolean {
+  return item !== undefined;
+}
+
+export function podeAgrupar(item: ItemCatalogo | undefined): boolean {
   if (item === undefined) return false;
   return (
-    item.categoria === CATEGORIA_DE_ZONA &&
+    item.categoria === CATEGORIA_DE_GRUPO &&
     item.capacidades.includes(CAPACIDADE_DE_GRUPO as Capacidade)
   );
 }
 
-// Why: section 14, a group only ever exists between speakers of the same domain, so a zone
+// Why: section 14, a group only ever exists between speakers of the same domain, so a block
 // that has nobody of its own tipo to lead is never offered as a group; offering a mixed one
 // is what leaves half of it playing and the other half silent.
-// Por que: seção 14, um grupo só existe entre caixas do mesmo domínio, então uma zona que não
+// Por que: seção 14, um grupo só existe entre caixas do mesmo domínio, então um bloco que não
 // tem ninguém do tipo dela para liderar nunca é oferecida como grupo; oferecer um misto é o
 // que deixa metade dele tocando e a outra metade calada.
-export function gruposPossiveis(zonas: readonly Zona[], catalogo: readonly ItemCatalogo[]): string[] {
+export function gruposPossiveis(blocos: readonly Bloco[], catalogo: readonly ItemCatalogo[]): string[] {
   const item = (tipo: string): ItemCatalogo | undefined =>
     catalogo.find((candidato) => candidato.tipo === tipo);
-  const lideres = zonas.filter(
+  const lideres = blocos.filter(
     (bloco) =>
       bloco.identidade !== "" &&
-      podeOcuparBloco(item(bloco.tipo)) &&
-      zonas.some(
+      podeAgrupar(item(bloco.tipo)) &&
+      blocos.some(
         (outra) =>
-          outra.zona !== bloco.zona && outra.identidade !== "" && outra.tipo === bloco.tipo,
+          outra.bloco !== bloco.bloco && outra.identidade !== "" && outra.tipo === bloco.tipo,
       ),
   );
-  return [SOLO, ...lideres.map((bloco) => valorDoGrupo(bloco.zona))];
+  return [SOLO, ...lideres.map((bloco) => valorDoGrupo(bloco.bloco))];
 }
 
-export type EspecieDeControle = "escala" | "alternar" | "escolha" | "preset";
+export type EspecieDeControle = "escala" | "alternar" | "ligar" | "escolha" | "preset";
 
-export interface ControleDeZona {
+export interface ControleDeBloco {
   funcao: FuncaoDoBloco;
   dpid: number;
   especie: EspecieDeControle;
@@ -189,12 +198,16 @@ export interface ControleDeZona {
 
 // Why: section 6, a capability the manifest does not declare gets no button, because the
 // daemon answers nao_suportado before the driver is touched. The play data point is a toggle
-// over the two transport capabilities, so a driver that declares only one of them gets
-// neither half of the button instead of a button that fails every other press.
+// over the two transport capabilities, or over power for a driver that has no transport
+// (section 8), so a driver that declares only one half of a pair gets neither half of the
+// button instead of a button that fails every other press.
 // Por que: seção 6, uma capacidade que o manifesto não declara não ganha botão, porque o
 // daemon responde nao_suportado antes de tocar no driver. O data point de play é uma chave
-// sobre as duas capacidades de transporte, então um driver que declara só uma delas não ganha
-// metade nenhuma do botão em vez de um botão que falha a cada duas apertadas.
+// sobre as duas capacidades de transporte, ou sobre ligar/desligar num driver sem transporte
+// (seção 8), então um driver que declara só metade de um par não ganha metade nenhuma do
+// botão em vez de um botão que falha a cada duas apertadas.
+const ENERGIA: Capacidade[] = ["ligar", "desligar"];
+
 const EXIGIDAS: Record<FuncaoDoBloco, Capacidade[]> = {
   volume: ["volume"],
   play: ["tocar", "pausar"],
@@ -211,21 +224,30 @@ const ESPECIES: Partial<Record<FuncaoDoBloco, EspecieDeControle>> = {
   entrada: "escolha",
 };
 
-export function controlesDaZona(
-  zona: Zona,
+export function controlesDaBloco(
+  bloco: Bloco,
   item: ItemCatalogo | undefined,
-): ControleDeZona[] {
-  if (zona.identidade === "" || item === undefined) return [];
-  const controles: ControleDeZona[] = [];
+): ControleDeBloco[] {
+  if (bloco.identidade === "" || item === undefined) return [];
+  const controles: ControleDeBloco[] = [];
   for (const funcao of FUNCOES_DO_BLOCO) {
-    const especie = ESPECIES[funcao];
-    const exigidas = EXIGIDAS[funcao];
-    if (especie === undefined || exigidas.length === 0) continue;
-    if (!exigidas.every((capacidade) => item.capacidades.includes(capacidade))) continue;
-    if (funcao === "entrada" && zona.entradas.length === 0) continue;
-    controles.push({ funcao, dpid: zona.dps[funcao], especie });
+    const especie = especieDe(funcao, item);
+    if (especie === undefined) continue;
+    if (funcao === "entrada" && bloco.entradas.length === 0) continue;
+    controles.push({ funcao, dpid: bloco.dps[funcao], especie });
   }
   return controles;
+}
+
+function especieDe(funcao: FuncaoDoBloco, item: ItemCatalogo): EspecieDeControle | undefined {
+  const tem = (lista: Capacidade[]): boolean =>
+    lista.length > 0 && lista.every((capacidade) => item.capacidades.includes(capacidade));
+  if (funcao === "play") {
+    if (tem(EXIGIDAS.play)) return "alternar";
+    return tem(ENERGIA) ? "ligar" : undefined;
+  }
+  const especie = ESPECIES[funcao];
+  return especie !== undefined && tem(EXIGIDAS[funcao]) ? especie : undefined;
 }
 
 export type Preparo = { ok: true; valor: unknown } | { ok: false; codigo: string };
@@ -241,10 +263,10 @@ export function prepararVolume(entrada: string): Preparo {
   return dentro ? { ok: true, valor: Number(limpo) } : { ok: false, codigo: "valor_invalido" };
 }
 
-export function tocando(zona: Zona): boolean {
+export function tocando(bloco: Bloco): boolean {
   // Why: section 14, a slave answers stop even while the group plays, so the daemon mirrors
   // what the master plays onto it and the screen reads that and never the slave itself.
   // Por que: seção 14, um escravo responde stop mesmo com o grupo tocando, então o daemon
   // espelha nele o que o mestre toca e a tela lê isso, e nunca o próprio escravo.
-  return zona.estado !== null && zona.estado.tocando !== null && zona.estado.tocando !== "";
+  return bloco.estado !== null && bloco.estado.tocando !== null && bloco.estado.tocando !== "";
 }

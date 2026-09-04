@@ -23,7 +23,7 @@ from iphub.config import Config
 from iphub.config import carregar as carregar_config
 from iphub.config import salvar as salvar_config
 from iphub.dpbus import mapa, protocolo
-from iphub.dpbus.zonas import OrdemInvalida, Zonas
+from iphub.dpbus.blocos import Blocos, OrdemInvalida
 from iphub.drivers.base import Driver
 from iphub.drivers.catalogo import Catalogo
 from iphub.drivers.gestor import Gestor
@@ -67,26 +67,26 @@ TRAVA_POSSE = web.AppKey("trava_posse", asyncio.Lock)
 # Por que: salvar um driver grava um arquivo, relê as duas pastas e refaz o que usava o tipo;
 # dois desses se cruzando recarregariam um catálogo sobre uma pasta escrita pela metade.
 TRAVA_DRIVERS = web.AppKey("trava_drivers", asyncio.Lock)
-# Why: section 8 has ONE state of the zones and ONE list of scenes for the whole daemon, so
+# Why: section 8 has ONE state of the blocks and ONE list of scenes for the whole daemon, so
 # the panel routes and the bus of the same hub command the same objects; two instances would
 # form a group by one door and publish solo through the other.
-# Por que: a seção 8 tem UM estado de zonas e UMA lista de cenas para o daemon inteiro, então
+# Por que: a seção 8 tem UM estado de blocos e UMA lista de cenas para o daemon inteiro, então
 # as rotas do painel e o barramento do mesmo hub comandam os mesmos objetos; duas instâncias
 # formariam grupo por uma porta e publicariam solo pela outra.
 log = logging.getLogger("iphub.api.comum")
 
-ZONAS = web.AppKey("zonas", Zonas)
+BLOCOS = web.AppKey("blocos", Blocos)
 CENAS = web.AppKey("cenas", modulo_cenas.Executor)
 
 
 def _ordem_confiavel(gestor: Gestor, ordem: tuple[str, ...]) -> tuple[str, ...]:
-    """The saved order with every block the zones module refuses left empty.
+    """The saved order with every block the blocks module refuses left empty.
 
-    A ordem salva com todo bloco que o módulo das zonas recusa deixado vazio.
+    A ordem salva com todo bloco que o módulo dos blocos recusa deixado vazio.
     """
-    juiz = Zonas(gestor)
+    juiz = Blocos(gestor)
     aceitos: list[str] = []
-    for identidade in ordem[: mapa.ZONAS]:
+    for identidade in ordem[: mapa.BLOCOS]:
         try:
             juiz.validar([*aceitos, identidade])
         except OrdemInvalida as erro:
@@ -104,22 +104,22 @@ def montar_dpbus(app: web.Application, cfg: Config) -> None:
     """
     # Why: the route validates the order and config.json does not, so an order edited by hand,
     # or left behind by an equipment that changed tipo, boots a hub whose blocks name a device
-    # that is not multiroom, or is not registered at all. The zones module is the one that
+    # that is not multiroom, or is not registered at all. The blocks module is the one that
     # judges an order, so it judges this one too, and a block it refuses is left empty instead
-    # of publishing a zone nothing can command.
+    # of publishing a block nothing can command.
     # Por que: a rota valida a ordem e o config.json não, então uma ordem editada na mão, ou
     # deixada por um equipamento que trocou de tipo, sobe um hub cujos blocos nomeiam um
-    # aparelho que não é multiroom, ou que nem está cadastrado. O módulo das zonas é quem julga
+    # aparelho que não é multiroom, ou que nem está cadastrado. O módulo dos blocos é quem julga
     # uma ordem, então ele julga esta também, e um bloco que ele recusa fica vazio em vez de
-    # publicar uma zona que ninguém comanda.
-    app[ZONAS] = Zonas(app[GESTOR], _ordem_confiavel(app[GESTOR], cfg.zonas))
-    # Why: a scene sets data points and the zones are what a data point reaches, so the
+    # publicar um bloco que ninguém comanda.
+    app[BLOCOS] = Blocos(app[GESTOR], _ordem_confiavel(app[GESTOR], cfg.blocos))
+    # Why: a scene sets data points and the blocks are what a data point reaches, so the
     # executor is handed the same door the bus and the panel use; a scene may not set DP 131
     # (the validation refuses it), so a scene never starts another one.
-    # Por que: uma cena ajusta data points e as zonas são o que um data point alcança, então o
+    # Por que: uma cena ajusta data points e os blocos são o que um data point alcança, então o
     # executor recebe a mesma porta que o barramento e o painel usam; uma cena não pode
     # ajustar o DP 131 (a validação recusa), então uma cena nunca dispara outra.
-    app[CENAS] = modulo_cenas.Executor(cfg.cenas, app[ZONAS].aplicar)
+    app[CENAS] = modulo_cenas.Executor(cfg.cenas, app[BLOCOS].aplicar)
     # Why: registered before the cleanup of the gestor, so a scene in flight is taken off the
     # wire while the drivers it commands are still mounted.
     # Por que: registrado antes da limpeza do gestor, para uma cena em curso sair do fio
@@ -131,8 +131,8 @@ async def _parar_cenas(app: web.Application) -> None:
     await app[CENAS].parar()
 
 
-def zonas_de(app: web.Application) -> Zonas:
-    return app[ZONAS]
+def blocos_de(app: web.Application) -> Blocos:
+    return app[BLOCOS]
 
 
 def cenas_de(app: web.Application) -> modulo_cenas.Executor:
@@ -144,11 +144,11 @@ def valores_dps(app: web.Application) -> dict[int, object]:
 
     Todo data point reportável da seção 8 que este hub tem agora.
     """
-    valores = zonas_de(app).valores()
+    valores = blocos_de(app).valores()
     # Why: DP 134 carries the names of the scenes, which belong to the scenes and not to the
-    # zones; a list that does not fit the 255 bytes is left out instead of published cut,
+    # blocks; a list that does not fit the 255 bytes is left out instead of published cut,
     # because a cut JSON reaches the bridge impossible to read.
-    # Por que: o DP 134 leva os nomes das cenas, que são das cenas e não das zonas; uma lista
+    # Por que: o DP 134 leva os nomes das cenas, que são das cenas e não dos blocos; uma lista
     # que não cabe nos 255 bytes fica de fora em vez de sair cortada, porque um JSON cortado
     # chega à ponte impossível de ler.
     try:
@@ -162,12 +162,12 @@ async def aplicar_dp(app: web.Application, dpid: object, valor: object) -> str |
     """One set of section 8 wherever it lands, done or refused with a stable code.
 
     DP 131 is the scene, which belongs to the scenes, and every other settable data point
-    belongs to the zones; the caller does not choose, so the panel route and the bus of the
+    belongs to the blocks; the caller does not choose, so the panel route and the bus of the
     same hub cannot disagree about where a set goes.
 
     Um set da seção 8 onde quer que ele caia, feito ou recusado com um código estável.
 
-    O DP 131 é a cena, que é das cenas, e todo outro data point ajustável é das zonas; quem
+    O DP 131 é a cena, que é das cenas, e todo outro data point ajustável é dos blocos; quem
     chama não escolhe, então a rota do painel e o barramento do mesmo hub não podem discordar
     sobre para onde vai um set.
     """
@@ -181,7 +181,7 @@ async def aplicar_dp(app: web.Application, dpid: object, valor: object) -> str |
         if numero is None:
             return protocolo.VALOR_INVALIDO
         return cenas_de(app).executar(numero)
-    return await zonas_de(app).aplicar(dp.dpid, valor)
+    return await blocos_de(app).aplicar(dp.dpid, valor)
 
 
 def config_de(app: web.Application) -> Config:

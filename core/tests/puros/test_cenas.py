@@ -43,6 +43,7 @@ from iphub.cenas import (
     CENA_DP_SOMENTE_LEITURA,
     CENA_EM_CURSO,
     CENA_ESPERA_INVALIDA,
+    CENA_INTERVALO_INVALIDO,
     CENA_NAO_ENCONTRADA,
     CENA_NAO_OBJETO,
     CENA_NOME_INVALIDO,
@@ -54,6 +55,7 @@ from iphub.cenas import (
     CENAS_NAO_LISTA,
     CODIGOS,
     ESPERA_MAXIMA_MS,
+    INTERVALO_PADRAO_MS,
     MAXIMO,
     NOME_MAXIMO,
     PASSOS_MAXIMOS,
@@ -231,12 +233,12 @@ ATAQUES = (
         {("cenas[0].passos[0].dpid", CENA_DP_DESCONHECIDO)},
     ),
     (
-        "passo que escreve o online da zona 1",
+        "passo que escreve o online do bloco 1",
         [_cena(passos=[_passo(dpid=ONLINE_1, valor=True)])],
         {("cenas[0].passos[0].dpid", CENA_DP_SOMENTE_LEITURA)},
     ),
     (
-        "passo que escreve o tocando da zona 1",
+        "passo que escreve o tocando do bloco 1",
         [_cena(passos=[_passo(dpid=TOCANDO_1, valor="Nada")])],
         {("cenas[0].passos[0].dpid", CENA_DP_SOMENTE_LEITURA)},
     ),
@@ -311,6 +313,21 @@ ATAQUES = (
         {("cenas[0].passos[0].espera_ms", CENA_ESPERA_INVALIDA)},
     ),
     (
+        "intervalo negativo",
+        [_cena(intervalo_ms=-1)],
+        {("cenas[0].intervalo_ms", CENA_INTERVALO_INVALIDO)},
+    ),
+    (
+        "intervalo acima do teto",
+        [_cena(intervalo_ms=ESPERA_MAXIMA_MS + 1)],
+        {("cenas[0].intervalo_ms", CENA_INTERVALO_INVALIDO)},
+    ),
+    (
+        "intervalo que e o true do json",
+        [_cena(intervalo_ms=True)],
+        {("cenas[0].intervalo_ms", CENA_INTERVALO_INVALIDO)},
+    ),
+    (
         "oito nomes que nao cabem nos 255 bytes do dp 134",
         [_cena(nome="n" * 29) for _ in range(MAXIMO)],
         {("cenas", mapa.NOMES_LONGOS)},
@@ -370,7 +387,7 @@ def test_a_cena_valida_vira_dado_tipado():
             nome="Noite",
             passos=(
                 Passo(dpid=VOLUME_1, valor=30, espera_ms=500),
-                Passo(dpid=PLAY_1, valor=True, espera_ms=0),
+                Passo(dpid=PLAY_1, valor=True, espera_ms=None),
             ),
         ),
     )
@@ -395,7 +412,7 @@ def test_a_posicao_de_uma_cena_e_o_numero_dela(barramento):
     assert executor.cena_de(2).nome == "Jantar"
 
 
-def test_a_entrada_de_uma_zona_aceita_o_valor_que_o_hardware_declara():
+def test_a_entrada_de_uma_bloco_aceita_o_valor_que_o_hardware_declara():
     """Section 14: the inputs come from plm_support, so the map cannot judge one; the shape
     is judged here and the bus refuses the value the speaker does not have when it runs.
 
@@ -403,7 +420,7 @@ def test_a_entrada_de_uma_zona_aceita_o_valor_que_o_hardware_declara():
     aqui e o barramento recusa o valor que a caixa não tem quando o passo roda.
     """
     cenas = _uma([_passo(dpid=ENTRADA_1, valor="bluetooth")])
-    assert cenas[0].passos[0] == Passo(dpid=ENTRADA_1, valor="bluetooth", espera_ms=0)
+    assert cenas[0].passos[0] == Passo(dpid=ENTRADA_1, valor="bluetooth", espera_ms=None)
 
 
 def test_oito_nomes_no_limite_exato_do_dp_134_passam():
@@ -415,10 +432,10 @@ def test_oito_nomes_no_limite_exato_do_dp_134_passam():
 
 
 def test_o_teto_do_dp_134_e_de_bytes_e_nao_de_letras():
-    """The bench fixed the names of six zones in 255 bytes, and an accented letter costs two
+    """The bench fixed the names of six blocks in 255 bytes, and an accented letter costs two
     of them; counting characters would publish a JSON the bridge cannot read.
 
-    A bancada fixou os nomes de seis zonas em 255 bytes, e uma letra acentuada custa dois
+    A bancada fixou os nomes de seis blocos em 255 bytes, e uma letra acentuada custa dois
     deles; contar caracteres publicaria um JSON que a ponte não consegue ler.
     """
     nomes = ["n" * 28 for _ in range(MAXIMO - 1)] + ["ç" + "n" * 27]
@@ -465,6 +482,43 @@ async def test_a_espera_do_ultimo_passo_nao_e_dormida(barramento, sono):
     assert sono.esperas == []
 
 
+async def test_um_passo_sem_espera_dorme_o_intervalo_da_cena(barramento, sono):
+    """An AV device needs a moment between commands, so a step that names no wait sleeps the
+    interval of the scene, one second unless the scene says otherwise; a wait of zero written
+    on the step is an order and sleeps nothing.
+
+    Um aparelho de AV precisa de um instante entre comandos, então um passo que não nomeia
+    espera dorme o intervalo da cena, um segundo salvo a cena dizer outro; uma espera zero
+    escrita no passo é ordem e não dorme nada.
+    """
+    passos = [_passo(), _passo(espera_ms=0), _passo(dpid=PLAY_1, valor=True)]
+    cenas = validar([{"nome": "Filme", "passos": passos}])
+    assert cenas[0].intervalo_ms == INTERVALO_PADRAO_MS == 1_000
+    assert [passo.espera_ms for passo in cenas[0].passos] == [None, 0, None]
+    executor = Executor(cenas, barramento, dormir=sono)
+    assert executor.executar(1) is None
+    await _terminar(executor, 1)
+    assert sono.esperas == [1.0]
+
+
+async def test_o_intervalo_da_cena_e_editavel_e_zero_desliga_a_espera(barramento, sono):
+    dois = [_passo(), _passo(dpid=PLAY_1, valor=True)]
+    cenas = validar(
+        [
+            {"nome": "Rapida", "intervalo_ms": 0, "passos": dois},
+            {"nome": "Lenta", "intervalo_ms": 2_500, "passos": dois},
+        ]
+    )
+    assert (cenas[0].intervalo_ms, cenas[1].intervalo_ms) == (0, 2_500)
+    executor = Executor(cenas, barramento, dormir=sono)
+    assert executor.executar(1) is None
+    await _terminar(executor, 1)
+    assert sono.esperas == []
+    assert executor.executar(2) is None
+    await _terminar(executor, 2)
+    assert sono.esperas == [2.5]
+
+
 async def test_executar_responde_antes_de_o_primeiro_passo_ir_ao_barramento(barramento, sono):
     """Fire and forget: whoever asked gets the answer at once, and a scene of ten seconds of
     waits does not hold the socket or the route that started it.
@@ -484,14 +538,14 @@ async def test_um_passo_recusado_nao_para_a_cena(barramento, sono, caplog):
 
     Um projetor desligado não pode parar as luzes da mesma cena.
     """
-    barramento.respostas[ENTRADA_1] = "zona_offline"
+    barramento.respostas[ENTRADA_1] = "bloco_offline"
     cenas = _uma([_passo(dpid=ENTRADA_1, valor="wifi"), _passo(), _passo(dpid=PLAY_1, valor=True)])
     executor = Executor(cenas, barramento, dormir=sono)
     with caplog.at_level(logging.WARNING, logger="iphub.cenas"):
         assert executor.executar(1) is None
         await _terminar(executor, 1)
     assert barramento.ajustes == [(ENTRADA_1, "wifi"), (VOLUME_1, 30), (PLAY_1, True)]
-    assert "zona_offline" in caplog.text
+    assert "bloco_offline" in caplog.text
 
 
 @pytest.mark.parametrize(

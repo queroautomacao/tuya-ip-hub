@@ -55,10 +55,10 @@ log = logging.getLogger("iphub.cenas")
 # A seção 8 numera cena1 a cena8 no DP 131, e não existe uma nona.
 MAXIMO = mapa.CENAS
 
-# Why: the whole of section 8 one scene may set is four data points per zone plus the group,
+# Why: the whole of section 8 one scene may set is four data points per block plus the group,
 # twenty five of them, so this ceiling holds a scene that touches everything and still
 # refuses a file that grew into a program.
-# Por que: tudo da seção 8 que uma cena pode ajustar são quatro data points por zona mais o
+# Por que: tudo da seção 8 que uma cena pode ajustar são quatro data points por bloco mais o
 # grupo, vinte e cinco deles, então este teto cabe uma cena que toca em tudo e ainda recusa um
 # arquivo que virou programa.
 PASSOS_MAXIMOS = 32
@@ -71,13 +71,21 @@ PASSOS_MAXIMOS = 32
 # automação na plataforma e não um passo aqui.
 ESPERA_MAXIMA_MS = 30_000
 
+# Why: an AV device needs a moment between one command and the next (a receiver that is
+# powering on drops the input it is sent in the same second), so a scene waits this much
+# after every step that does not name its own wait, and the integrator edits it per scene.
+# Por que: um aparelho de AV precisa de um instante entre um comando e o seguinte (um
+# receiver ligando perde a entrada que recebe no mesmo segundo), então uma cena espera isto
+# depois de todo passo que não nomeia a própria espera, e o integrador edita por cena.
+INTERVALO_PADRAO_MS = 1_000
+
 NOME_MAXIMO = 40
 VALOR_TEXTO_MAXIMO = 64
 
 MILISSEGUNDO_S = 0.001
 
 CAMPO = "cenas"
-CHAVES_CENA = ("nome", "passos")
+CHAVES_CENA = ("nome", "passos", "intervalo_ms")
 CHAVES_PASSO = ("dpid", "valor", "espera_ms")
 
 # The stable codes a refusal carries, section 11: the daemon answers a code and never a
@@ -99,6 +107,7 @@ CENA_DP_SOMENTE_LEITURA = "cena_dp_somente_leitura"
 CENA_DP_PROIBIDO = "cena_dp_proibido"
 CENA_VALOR_INVALIDO = "cena_valor_invalido"
 CENA_ESPERA_INVALIDA = "cena_espera_invalida"
+CENA_INTERVALO_INVALIDO = "cena_intervalo_invalido"
 
 CODIGOS = (
     CENAS_NAO_LISTA,
@@ -114,6 +123,7 @@ CODIGOS = (
     CENA_DP_PROIBIDO,
     CENA_VALOR_INVALIDO,
     CENA_ESPERA_INVALIDA,
+    CENA_INTERVALO_INVALIDO,
     mapa.NOMES_LONGOS,
     mapa.NOME_NAO_GRAVAVEL,
 )
@@ -135,19 +145,21 @@ class Passo:
     """One step: one data point, one value and the pause that follows it.
 
     espera_ms is the pause AFTER the step, so a file reads in the order it happens: power the
-    projector, wait for it, choose the input. The wait of the LAST step is not slept, because
-    nothing follows it and holding the task would only delay a shutdown.
+    projector, wait for it, choose the input. None takes the interval of the scene. The wait
+    of the LAST step is not slept, because nothing follows it and holding the task would only
+    delay a shutdown.
 
     Um passo: um data point, um valor e a pausa que vem depois dele.
 
     espera_ms é a pausa DEPOIS do passo, para um arquivo se ler na ordem em que acontece:
-    liga o projetor, espera por ele, escolhe a entrada. A espera do ÚLTIMO passo não é
-    dormida, porque nada vem depois dela e segurar a tarefa só atrasaria um desligamento.
+    liga o projetor, espera por ele, escolhe a entrada. None toma o intervalo da cena. A
+    espera do ÚLTIMO passo não é dormida, porque nada vem depois dela e segurar a tarefa só
+    atrasaria um desligamento.
     """
 
     dpid: int
     valor: object
-    espera_ms: int = 0
+    espera_ms: int | None = None
 
 
 @dataclass(frozen=True)
@@ -159,6 +171,7 @@ class Cena:
 
     nome: str = ""
     passos: tuple[Passo, ...] = ()
+    intervalo_ms: int = INTERVALO_PADRAO_MS
 
 
 class CenasInvalidas(ValueError):
@@ -317,8 +330,9 @@ class Executor:
         ultimo = len(cena.passos) - 1
         for posicao, passo in enumerate(cena.passos):
             await self._passo(numero, passo)
-            if passo.espera_ms and posicao < ultimo:
-                await self._dormir(passo.espera_ms * MILISSEGUNDO_S)
+            espera = cena.intervalo_ms if passo.espera_ms is None else passo.espera_ms
+            if espera and posicao < ultimo:
+                await self._dormir(espera * MILISSEGUNDO_S)
 
     async def _passo(self, numero: int, passo: Passo) -> None:
         try:
@@ -386,6 +400,7 @@ class _Leitor:
         return Cena(
             nome=self.nome(item.get("nome", ""), onde),
             passos=self.passos(item.get("passos", ()), onde),
+            intervalo_ms=self.intervalo(item.get("intervalo_ms", INTERVALO_PADRAO_MS), onde),
         )
 
     def chaves(self, item: Mapping, aceitas: tuple[str, ...], onde: str) -> None:
@@ -419,7 +434,7 @@ class _Leitor:
             self.anotar(onde, CENA_PASSO_NAO_OBJETO)
             return None
         self.chaves(item, CHAVES_PASSO, onde)
-        espera = self.espera(item.get("espera_ms", 0), onde)
+        espera = self.espera(item.get("espera_ms"), onde)
         dp = self.dp(item.get("dpid"), onde)
         if dp is None:
             return None
@@ -449,13 +464,29 @@ class _Leitor:
             return None
         return dp
 
-    def espera(self, valor: object, onde: str) -> int:
-        # Why: the JSON true is an int for Python, and it is not a millisecond count.
-        # Por que: o true do JSON é int para o Python, e não é uma contagem de milissegundos.
-        if type(valor) is not int or not 0 <= valor <= ESPERA_MAXIMA_MS:
+    def espera(self, valor: object, onde: str) -> int | None:
+        # Why: an absent wait is the interval of the scene, so a file only names the waits
+        # that differ from it.
+        # Por que: uma espera ausente é o intervalo da cena, então um arquivo só nomeia as
+        # esperas que diferem dele.
+        if valor is None:
+            return None
+        if not _milissegundos(valor):
             self.anotar(f"{onde}.espera_ms", CENA_ESPERA_INVALIDA)
-            return 0
+            return None
         return valor
+
+    def intervalo(self, valor: object, onde: str) -> int:
+        if not _milissegundos(valor):
+            self.anotar(f"{onde}.intervalo_ms", CENA_INTERVALO_INVALIDO)
+            return INTERVALO_PADRAO_MS
+        return valor
+
+
+def _milissegundos(valor: object) -> bool:
+    # Why: the JSON true is an int for Python, and it is not a millisecond count.
+    # Por que: o true do JSON é int para o Python, e não é uma contagem de milissegundos.
+    return type(valor) is int and 0 <= valor <= ESPERA_MAXIMA_MS
 
 
 def _valor_valido(dp: mapa.Dp, valor: object) -> bool:
@@ -464,12 +495,12 @@ def _valor_valido(dp: mapa.Dp, valor: object) -> bool:
     O valor contra o que o data point aceita; o protocolo do barramento é dono dos tipos.
     """
     if dp.tipo is mapa.Tipo.ENUM and not dp.valores:
-        # Why: the values of the input of a zone come from the hardware (section 14,
+        # Why: the values of the input of a block come from the hardware (section 14,
         # plm_support) and the map does not know them, so a speaker that was offline when the
         # scene was saved would have its input refused forever. The shape is judged here and
         # the value the speaker does not have is refused by the bus when the step runs, which
         # the scene logs with its code and walks past.
-        # Por que: os valores da entrada de uma zona vêm do hardware (seção 14, plm_support) e
+        # Por que: os valores da entrada de um bloco vêm do hardware (seção 14, plm_support) e
         # o mapa não os conhece, então uma caixa offline na hora de salvar teria a entrada dela
         # recusada para sempre. A forma é julgada aqui e o valor que a caixa não tem é recusado
         # pelo barramento quando o passo roda, o que a cena registra com o código e ultrapassa.

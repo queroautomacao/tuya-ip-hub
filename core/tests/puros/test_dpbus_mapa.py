@@ -21,32 +21,32 @@ import pytest
 
 from iphub.dpbus.mapa import (
     AJUSTAVEIS,
+    BLOCOS,
     CENA,
     CODIGOS_DE_NOMES,
     DPS,
     ENUM_MAXIMO,
+    FUNCOES_BLOCO,
     FUNCOES_GLOBAIS,
-    FUNCOES_ZONA,
     GRUPO,
     GRUPOS,
     MAPA,
     NOME_NAO_GRAVAVEL,
+    NOMES_BLOCOS,
     NOMES_CENAS,
     NOMES_DEMAIS,
     NOMES_GRUPOS,
     NOMES_LONGOS,
-    NOMES_ZONAS,
     REPORTAVEIS,
     TEXTO_MAXIMO_BYTES,
     THROTTLE_TOCANDO_S,
     VALORES_CENA,
     VALORES_GRUPO,
     VALORES_PRESET,
-    ZONAS,
     NomesInvalidos,
     Sentido,
     Tipo,
-    da_zona,
+    da_bloco,
     de_dp,
     dp_de,
     nomes_cabem,
@@ -55,8 +55,8 @@ from iphub.dpbus.mapa import (
     valores_de_enum,
 )
 
-# The whole of the section 8 table, copied from CLAUDE.md; zona 0 is a global data point.
-# A tabela inteira da seção 8, copiada do CLAUDE.md; a zona 0 é um data point global.
+# The whole of the section 8 table, copied from CLAUDE.md; bloco 0 is a global data point.
+# A tabela inteira da seção 8, copiada do CLAUDE.md; o bloco 0 é um data point global.
 SECAO_8 = {
     101: (1, "volume"),
     102: (1, "play"),
@@ -90,7 +90,7 @@ SECAO_8 = {
     130: (6, "tocando"),
     131: (0, "cena"),
     132: (0, "grupo"),
-    133: (0, "nomes_zonas"),
+    133: (0, "nomes_blocos"),
     134: (0, "nomes_cenas"),
     135: (0, "nomes_grupos"),
     141: (1, "entrada"),
@@ -121,13 +121,13 @@ def _nome(tamanho: int, acentos: int = 0) -> str:
 
 def test_a_tabela_e_a_da_secao_8():
     assert set(MAPA) == set(SECAO_8)
-    encontrado = {dp.dpid: (dp.zona, dp.funcao) for dp in DPS}
+    encontrado = {dp.dpid: (dp.bloco, dp.funcao) for dp in DPS}
     assert encontrado == SECAO_8
 
 
 def test_o_vocabulario_de_funcoes_e_o_da_tabela():
-    assert set(FUNCOES_ZONA) == {dp.funcao for dp in DPS if dp.zona}
-    assert set(FUNCOES_GLOBAIS) == {dp.funcao for dp in DPS if not dp.zona}
+    assert set(FUNCOES_BLOCO) == {dp.funcao for dp in DPS if dp.bloco}
+    assert set(FUNCOES_GLOBAIS) == {dp.funcao for dp in DPS if not dp.bloco}
 
 
 def test_os_codigos_de_nomes_sao_estaveis_e_nenhum_e_uma_frase():
@@ -139,23 +139,23 @@ def test_os_codigos_de_nomes_sao_estaveis_e_nenhum_e_uma_frase():
         assert " " not in codigo
 
 
-def test_toda_zona_tem_seis_data_points_e_sao_seis_zonas():
-    assert ZONAS == 6
-    for zona in range(1, ZONAS + 1):
-        assert len(da_zona(zona)) == 6
-    assert not da_zona(7)
+def test_toda_bloco_tem_seis_data_points_e_sao_seis_blocos():
+    assert BLOCOS == 6
+    for bloco in range(1, BLOCOS + 1):
+        assert len(da_bloco(bloco)) == 6
+    assert not da_bloco(7)
 
 
 def test_o_numero_vai_e_volta():
-    for dpid, (zona, funcao) in SECAO_8.items():
-        assert dp_de(zona, funcao) == dpid
+    for dpid, (bloco, funcao) in SECAO_8.items():
+        assert dp_de(bloco, funcao) == dpid
         dp = de_dp(dpid)
         assert dp is not None
-        assert (dp.zona, dp.funcao) == (zona, funcao)
+        assert (dp.bloco, dp.funcao) == (bloco, funcao)
 
 
 @pytest.mark.parametrize(
-    ("zona", "funcao"),
+    ("bloco", "funcao"),
     [
         (0, "volume"),
         (7, "volume"),
@@ -167,9 +167,9 @@ def test_o_numero_vai_e_volta():
         (0, "volume"),
     ],
 )
-def test_dp_de_recusa_um_par_fora_da_tabela(zona, funcao):
+def test_dp_de_recusa_um_par_fora_da_tabela(bloco, funcao):
     with pytest.raises(ValueError):
-        dp_de(zona, funcao)
+        dp_de(bloco, funcao)
 
 
 @pytest.mark.parametrize("dpid", FORA_DO_CONTRATO)
@@ -179,8 +179,8 @@ def test_de_dp_recusa_um_numero_fora_do_contrato(dpid):
 
 @pytest.mark.parametrize("dpid", [True, False, 101.0, "101", None, [101], 101j])
 def test_de_dp_recusa_o_que_nao_e_um_inteiro(dpid):
-    # Why: the JSON true is an int for Python, and True would resolve to the volume of zone 1.
-    # Por que: o true do JSON é int para o Python, e True resolveria o volume da zona 1.
+    # Why: the JSON true is an int for Python, and True would resolve to the volume of block 1.
+    # Por que: o true do JSON é int para o Python, e True resolveria o volume do bloco 1.
     assert de_dp(dpid) is None
 
 
@@ -216,7 +216,7 @@ def test_os_tipos_sao_os_da_secao_8():
     assert de_dp(104).tipo is Tipo.BOOL
     assert de_dp(105).tipo is Tipo.TEXTO
     assert de_dp(141).tipo is Tipo.ENUM
-    for dpid in (NOMES_ZONAS, NOMES_CENAS, NOMES_GRUPOS):
+    for dpid in (NOMES_BLOCOS, NOMES_CENAS, NOMES_GRUPOS):
         assert de_dp(dpid).tipo is Tipo.TEXTO
 
 
@@ -245,13 +245,13 @@ def test_os_valores_fixos_sao_os_do_documento():
     assert VALORES_CENA == tuple(f"cena{n}" for n in range(1, 9))
     assert VALORES_GRUPO[0] == "solo"
     assert VALORES_GRUPO[-1] == f"grupo{GRUPOS}"
-    # Why: a group is named after the zone that leads it, so section 8 offers one per block
-    # and no more: a grupo7 would be a value the panel offers and a scene saves that no zone
+    # Why: a group is named after the block that leads it, so section 8 offers one per block
+    # and no more: a grupo7 would be a value the panel offers and a scene saves that no block
     # can ever name. It stays under the ceiling of ten the platform imposes.
-    # Por que: um grupo tem o nome da zona que o lidera, então a seção 8 oferece um por bloco e
-    # nada além: um grupo7 seria valor que o painel oferece e uma cena salva que nenhuma zona
+    # Por que: um grupo tem o nome do bloco que o lidera, então a seção 8 oferece um por bloco e
+    # nada além: um grupo7 seria valor que o painel oferece e uma cena salva que nenhum bloco
     # consegue nomear. Fica abaixo do teto de dez que a plataforma impõe.
-    assert len(VALORES_GRUPO) == ZONAS + 1
+    assert len(VALORES_GRUPO) == BLOCOS + 1
     assert len(VALORES_GRUPO) <= ENUM_MAXIMO
     assert de_dp(103).valores == VALORES_PRESET
     assert de_dp(CENA).valores == VALORES_CENA
@@ -277,25 +277,25 @@ def test_valores_de_enum_descarta_repetido_e_vazio():
 
 
 def test_o_json_de_nomes_e_compacto_e_mantem_o_acento():
-    texto = nomes_json(NOMES_ZONAS, ["Sala", "Cozinha", "Área"])
+    texto = nomes_json(NOMES_BLOCOS, ["Sala", "Cozinha", "Área"])
     assert texto == '{"z":["Sala","Cozinha","Área"]}'
     assert json.loads(texto) == {"z": ["Sala", "Cozinha", "Área"]}
 
 
 def test_cada_dp_de_nomes_tem_a_sua_chave():
-    assert nomes_json(NOMES_ZONAS, ["a"]).startswith('{"z"')
+    assert nomes_json(NOMES_BLOCOS, ["a"]).startswith('{"z"')
     assert nomes_json(NOMES_CENAS, ["a"]).startswith('{"c"')
     assert nomes_json(NOMES_GRUPOS, ["a"]).startswith('{"g"')
 
 
 def test_duzentos_e_cinquenta_e_cinco_bytes_passam_e_o_byte_seguinte_nao():
     cabe = [_nome(TEXTO_MAXIMO_BYTES - MOLDURA_DE_UM_NOME)]
-    assert len(nomes_json(NOMES_ZONAS, cabe).encode("utf-8")) == TEXTO_MAXIMO_BYTES
+    assert len(nomes_json(NOMES_BLOCOS, cabe).encode("utf-8")) == TEXTO_MAXIMO_BYTES
     nao_cabe = [_nome(TEXTO_MAXIMO_BYTES - MOLDURA_DE_UM_NOME + 1)]
     with pytest.raises(NomesInvalidos) as erro:
-        nomes_json(NOMES_ZONAS, nao_cabe)
+        nomes_json(NOMES_BLOCOS, nao_cabe)
     assert erro.value.codigo == NOMES_LONGOS
-    assert not nomes_cabem(NOMES_ZONAS, nao_cabe)
+    assert not nomes_cabem(NOMES_BLOCOS, nao_cabe)
 
 
 def test_um_byte_a_mais_e_contado_em_bytes_e_nao_em_caracteres():
@@ -305,22 +305,22 @@ def test_um_byte_a_mais_e_contado_em_bytes_e_nao_em_caracteres():
     # caracteres entregaria à plataforma uma string de 260 bytes que ela recusa inteira.
     limite = TEXTO_MAXIMO_BYTES - MOLDURA_DE_UM_NOME
     with pytest.raises(NomesInvalidos) as erro:
-        nomes_json(NOMES_ZONAS, [_nome(limite, acentos=1)])
+        nomes_json(NOMES_BLOCOS, [_nome(limite, acentos=1)])
     assert erro.value.codigo == NOMES_LONGOS
 
 
-def test_seis_zonas_com_nome_longo_e_acentuado_ainda_cabem():
-    # The bench fact of section 14: zone, scene and group names fit 255 bytes with six zones.
-    # O fato de bancada da seção 14: nomes de zona, cena e grupo cabem em 255 bytes com seis.
-    nomes = [_nome(34, acentos=4) for _ in range(ZONAS)]
-    texto = nomes_json(NOMES_ZONAS, nomes)
+def test_seis_blocos_com_nome_longo_e_acentuado_ainda_cabem():
+    # The bench fact of section 14: block, scene and group names fit 255 bytes with six blocks.
+    # O fato de bancada da seção 14: nomes de bloco, cena e grupo cabem em 255 bytes com seis.
+    nomes = [_nome(34, acentos=4) for _ in range(BLOCOS)]
+    texto = nomes_json(NOMES_BLOCOS, nomes)
     assert len(texto.encode("utf-8")) <= TEXTO_MAXIMO_BYTES
     escapado = json.dumps({"z": nomes}, ensure_ascii=True, separators=(",", ":"))
     assert len(escapado.encode("utf-8")) > TEXTO_MAXIMO_BYTES
 
 
 def test_mais_nomes_do_que_o_dp_carrega_e_recusado():
-    for dpid, quantos in ((NOMES_ZONAS, ZONAS), (NOMES_CENAS, 8), (NOMES_GRUPOS, GRUPOS)):
+    for dpid, quantos in ((NOMES_BLOCOS, BLOCOS), (NOMES_CENAS, 8), (NOMES_GRUPOS, GRUPOS)):
         assert nomes_cabem(dpid, ["x"] * quantos)
         with pytest.raises(NomesInvalidos) as erro:
             nomes_json(dpid, ["x"] * (quantos + 1))
@@ -346,7 +346,7 @@ def test_nomes_json_recusa_um_dp_que_nao_e_de_nomes():
 
 def test_nomes_json_recusa_um_nome_que_nao_e_texto():
     with pytest.raises(ValueError):
-        nomes_json(NOMES_ZONAS, ["Sala", 7])
+        nomes_json(NOMES_BLOCOS, ["Sala", 7])
 
 
 def test_um_texto_livre_e_encurtado_sem_partir_um_caractere():

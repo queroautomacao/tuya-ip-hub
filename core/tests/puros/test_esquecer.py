@@ -34,7 +34,7 @@ def _com_dono(dir_data: Path) -> Config:
         senha_hash=SENHA_HASH,
         senha_iteracoes=200_000,
         equipamentos=(Cadastro(identidade="uuid-1", tipo="multiroom_linkplay", ip="192.0.2.10"),),
-        zonas=("uuid-1",),
+        blocos=("uuid-1",),
     )
     salvar(cfg, dir_data)
     return cfg
@@ -48,9 +48,9 @@ def test_esquecer_devolve_o_hub_ao_primeiro_acesso(dir_data: Path):
 
 
 def test_esquecer_mantem_a_instalacao_inteira(dir_data: Path):
-    # Why: erasing config.json would clear the password and take the equipment, the zones and
+    # Why: erasing config.json would clear the password and take the equipment, the blocks and
     # the scenes with it, which is a reinstallation and not a way back in.
-    # Por que: apagar o config.json zeraria a senha e levaria junto os equipamentos, as zonas e
+    # Por que: apagar o config.json zeraria a senha e levaria junto os equipamentos, os blocos e
     # as cenas, o que é uma reinstalação e não um caminho de volta.
     antes = _com_dono(dir_data)
     modulo.esquecer(dir_data)

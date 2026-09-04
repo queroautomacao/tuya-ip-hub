@@ -32,6 +32,7 @@ from dataclasses import replace
 from aiohttp import web
 
 from iphub import cenas as modulo
+from iphub.api.blocos import CORPO_INVALIDO, ERRO_INTERNO, erro
 from iphub.api.comum import (
     cenas_de,
     com_sessao,
@@ -40,7 +41,6 @@ from iphub.api.comum import (
     resposta_ok,
     trocar_config,
 )
-from iphub.api.zonas import CORPO_INVALIDO, ERRO_INTERNO, erro
 from iphub.portao import resposta_erro
 
 log = logging.getLogger("iphub.api.cenas")
@@ -88,6 +88,7 @@ def _cena_json(numero: int, cena: modulo.Cena, em_curso: bool) -> dict:
     return {
         "numero": numero,
         "nome": cena.nome,
+        "intervalo_ms": cena.intervalo_ms,
         "em_curso": em_curso,
         "passos": [
             {"dpid": passo.dpid, "valor": passo.valor, "espera_ms": passo.espera_ms}
@@ -107,6 +108,7 @@ async def listar(request: web.Request) -> web.Response:
         maximo=modulo.MAXIMO,
         passos_maximos=modulo.PASSOS_MAXIMOS,
         espera_maxima_ms=modulo.ESPERA_MAXIMA_MS,
+        intervalo_padrao_ms=modulo.INTERVALO_PADRAO_MS,
     )
 
 

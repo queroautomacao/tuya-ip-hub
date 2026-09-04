@@ -5,8 +5,8 @@ break it, never a happy path.
 
 The bus is the door of the bridge into the whole installation, it carries no session and it
 is exposed on the LAN of the customer with no TLS, so what it refuses is what protects six
-zones. Attacked here: a frame that arrives before the auth, a token smuggled in the URL, a
-wrong token, silence past the deadline, a set on a data point nobody may set, a set on a zone
+blocks. Attacked here: a frame that arrives before the auth, a token smuggled in the URL, a
+wrong token, silence past the deadline, a set on a data point nobody may set, a set on a block
 nobody occupies, a page of another site opening the socket, a Host that is not this hub, the
 api_token leaking back into a frame, a flood of frames, an oversized frame and a client that
 disappears in the middle of a verification.
@@ -15,9 +15,9 @@ Seções 8 e 9 sob ataque no socket do barramento: toda regra aqui é uma tentat
 nunca um caminho feliz.
 
 O barramento é a porta da ponte para a instalação inteira, ele não leva sessão e fica exposto
-na LAN do cliente sem TLS, então o que ele recusa é o que protege seis zonas. Atacados aqui:
+na LAN do cliente sem TLS, então o que ele recusa é o que protege seis blocos. Atacados aqui:
 um quadro que chega antes do auth, um token contrabandeado na URL, um token errado, silêncio
-depois do prazo, um set num data point que ninguém pode ajustar, um set numa zona que ninguém
+depois do prazo, um set num data point que ninguém pode ajustar, um set num bloco que ninguém
 ocupa, uma página de outro site abrindo o socket, um Host que não é este hub, o api_token
 vazando de volta num quadro, uma enxurrada de quadros, um quadro grande demais e um cliente
 que some no meio de uma verificação.
@@ -52,7 +52,7 @@ CAPACIDADES = ("volume", "mudo", "fonte", "tocar", "pausar", "agrupar", "comando
 # Os números da seção 8, escritos na mão de propósito.
 VOLUME_1, ONLINE_1, TOCANDO_1 = 101, 104, 105
 VOLUME_3 = 111
-NOMES_ZONAS, NOMES_CENAS, NOMES_GRUPOS = 133, 134, 135
+NOMES_BLOCOS, NOMES_CENAS, NOMES_GRUPOS = 133, 134, 135
 
 FECHAMENTO_NAO_AUTENTICADO = 4401
 FECHAMENTO_QUADRO_GRANDE = 1009
@@ -140,7 +140,7 @@ async def cliente(fabrica_cliente, agenda, caixas):
     return await fabrica_cliente(
         config=Config(
             equipamentos=(Cadastro(identidade="uuid-1", tipo=TIPO, nome="Sala", ip=IP_1),),
-            zonas=("uuid-1",),
+            blocos=("uuid-1",),
         ),
         segredos=Segredos(api_token=TOKEN),
         catalogo={TIPO: caixas},
@@ -242,7 +242,7 @@ async def test_um_auth_certo_depois_do_prazo_nao_salva_o_socket(cliente, agenda)
     [
         (ONLINE_1, True),
         (TOCANDO_1, "Musica"),
-        (NOMES_ZONAS, '{"z":[]}'),
+        (NOMES_BLOCOS, '{"z":[]}'),
         (NOMES_CENAS, '{"c":[]}'),
         (NOMES_GRUPOS, '{"g":[]}'),
     ],
@@ -258,14 +258,14 @@ async def test_um_set_num_dp_de_so_report_e_recusado(cliente, caixas, dpid, valo
     assert caixas.instancias[0].chamadas == []
 
 
-async def test_um_set_numa_zona_que_ninguem_ocupa_e_recusado(cliente, caixas):
+async def test_um_set_numa_bloco_que_ninguem_ocupa_e_recusado(cliente, caixas):
     ws = await _abrir(cliente)
     await ws.send_str(_set(VOLUME_3, 50))
     # Why: an empty block reaches no equipment, and answering ok for it would tell the bridge
-    # that a zone nobody registered took the command.
+    # that a block nobody registered took the command.
     # Por que: um bloco vazio não alcança equipamento nenhum, e responder ok por ele diria à
-    # ponte que uma zona que ninguém cadastrou aceitou o comando.
-    assert await _tudo(ws) == [{"t": "ack", "id": 1, "ok": False, "code": "zona_offline"}]
+    # ponte que um bloco que ninguém cadastrou aceitou o comando.
+    assert await _tudo(ws) == [{"t": "ack", "id": 1, "ok": False, "code": "bloco_offline"}]
     assert caixas.instancias[0].chamadas == []
 
 
@@ -447,7 +447,7 @@ async def test_trocar_a_senha_fecha_o_socket_que_o_token_antigo_autenticou(
 
     Why: a socket authenticates on its FIRST frame and is never asked again, so without this
     the documented remediation for a leaked machine credential remediates nothing: whoever
-    holds the old token keeps volume, transport, input, group and scene control of every zone
+    holds the old token keeps volume, transport, input, group and scene control of every block
     for as long as the daemon runs, and a bridge socket is long lived by design, so it never
     has to reconnect.
 
@@ -455,7 +455,7 @@ async def test_trocar_a_senha_fecha_o_socket_que_o_token_antigo_autenticou(
 
     Por que: um socket autentica no PRIMEIRO quadro e nunca mais é perguntado, então sem isto
     a remediação documentada de uma credencial de máquina vazada não remedia nada: quem tem o
-    token antigo mantém volume, transporte, entrada, grupo e cena de toda zona enquanto o
+    token antigo mantém volume, transporte, entrada, grupo e cena de todo bloco enquanto o
     daemon viver, e um socket de ponte é longevo por projeto, então ele nunca reconecta.
     """
     sessao = await posse(cliente)
@@ -500,14 +500,14 @@ async def test_tomar_posse_fecha_o_socket_que_o_token_antigo_autenticou(cliente,
 
 async def test_um_cliente_que_para_de_ler_nao_congela_o_barramento(cliente):
     """A bridge that stops reading must not freeze the single task that publishes every
-    report and reconciles the group for all six zones.
+    report and reconciles the group for all six blocks.
 
     Why: send_str waits for the kernel buffer, so one stalled socket held the publish loop of
     the whole hub for everybody, and the frames it never took grew without bound in the daemon
     of an appliance. A socket that does not take a frame within the deadline is dropped.
 
     Uma ponte que para de ler não pode congelar a única tarefa que publica todo report e
-    reconcilia o grupo das seis zonas.
+    reconcilia o grupo das seis blocos.
 
     Por que: o send_str espera pelo buffer do kernel, então um socket travado segurava o laço
     de publicação do hub inteiro para todo mundo, e os quadros que ele nunca pegou cresciam

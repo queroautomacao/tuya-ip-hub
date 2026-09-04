@@ -2,7 +2,7 @@
 /* Copyright (C) 2026 Quero Automação Ltda */
 @import "./estilos-equipamentos.css";
 @import "./estilos-declarativos.css";
-@import "./estilos-zonas.css";
+@import "./estilos-controles.css";
 @import "./estilos-cenas.css";
 @import "./estilos-concha.css";
 @import "./estilos-simulador.css";
@@ -337,6 +337,25 @@ main {
   border-color: var(--borda);
   color: var(--texto);
   margin-top: 0;
+}
+
+/* Why: restarting the hub is the one button on the panel that takes every equipment off the
+   bus for a few seconds, so it is drawn in the colour of an error and never like a setting.
+   Por que: reiniciar o hub é o único botão do painel que tira todo equipamento do barramento
+   por alguns segundos, então ele é desenhado na cor de erro e nunca como um ajuste. */
+.botao.perigo {
+  background: var(--erro);
+  border-color: var(--erro);
+  color: #ffffff;
+  margin-top: 0;
+}
+
+.etiqueta {
+  font-size: 0.75rem;
+  border: 1px solid var(--borda);
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: var(--texto-suave);
 }
 
 .erro {

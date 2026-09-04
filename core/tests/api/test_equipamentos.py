@@ -662,33 +662,27 @@ async def test_os_dois_transportes_falhando_respondem_erro_interno(abrir, varred
     assert await resposta.json() == {"ok": False, "code": "erro_interno"}
 
 
-async def test_trocar_o_tipo_para_um_que_nao_e_multiroom_esvazia_o_bloco_de_zona(abrir):
-    """Section 6: a zone is a multiroom equipment occupying a block, so an equipment that
-    stops being multiroom cannot stay in one.
+async def test_trocar_o_tipo_para_um_que_nao_e_multiroom_mantem_o_bloco(abrir):
+    """Section 6: any registered equipment may occupy a block, so an equipment that stops
+    being multiroom keeps its number on the app; DP 102 follows the new manifest.
 
-    Why: the block would keep publishing a zone whose device refuses every data point of
-    section 8, and nothing anywhere would say why.
-
-    Seção 6: uma zona é um equipamento multiroom ocupando um bloco, então um equipamento que
-    deixa de ser multiroom não pode ficar num.
-
-    Por que: o bloco seguiria publicando uma zona cujo aparelho recusa todo data point da
-    seção 8, e nada em lugar nenhum diria por quê.
+    Seção 6: qualquer equipamento cadastrado pode ocupar um bloco, então um equipamento que
+    deixa de ser multiroom mantém o número dele no app; o DP 102 segue o manifesto novo.
     """
     outro = "projetor_falso"
     caixa = _fabrica(_manifesto(categoria="multiroom", capacidades=("volume", "agrupar")))
     projetor = _fabrica(_manifesto(outro, categoria="projetor"))
     cliente, auth = await abrir({TIPO: caixa, outro: projetor})
     assert (await _cadastrar(cliente, auth)).status == 200
-    resposta = await cliente.post("/api/zonas", json={"zonas": ["uuid-1"]}, headers=auth)
+    resposta = await cliente.post("/api/blocos", json={"blocos": ["uuid-1"]}, headers=auth)
     assert resposta.status == 200, await resposta.text()
 
     resposta = await cliente.post(
         "/api/equipamentos/uuid-1", json={**CORPO, "tipo": outro}, headers=auth
     )
     assert resposta.status == 200, await resposta.text()
-    corpo = await (await cliente.get("/api/zonas", headers=auth)).json()
-    assert corpo["zonas"][0]["identidade"] == ""
+    corpo = await (await cliente.get("/api/blocos", headers=auth)).json()
+    assert corpo["blocos"][0]["identidade"] == "uuid-1"
 
 
 async def test_a_varredura_pergunta_o_uuid_a_caixa_que_o_mdns_achou(

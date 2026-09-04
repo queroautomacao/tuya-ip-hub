@@ -14,13 +14,11 @@ import Login from "./Login";
 import Porta from "./Porta.tsx";
 import NovoEquipamento from "./NovoEquipamento.tsx";
 import Simulador from "./Simulador.tsx";
-import Zonas from "./Zonas.tsx";
 import { lerEstado, lerSessao, sair, type Estado } from "./api";
 import { definirIdioma, idiomaAtual, t, type Idioma } from "./i18n";
 import { abasDoMenu, rotaAtual, type Rota } from "./rotas.ts";
 import { ler as lerToken } from "./sessao";
 import { aplicarTema, definirTema, lerTema, proximoTema, type Tema } from "./tema.ts";
-import { podeOcuparBloco } from "./zonas.ts";
 
 const REPOSITORIO = "https://github.com/queroautomacao/tuya-ip-hub";
 
@@ -60,8 +58,6 @@ function Tela({
       return <NovoEquipamento idioma={idioma} />;
     case "equipamento":
       return <DetalheEquipamento identidade={rota.identidade} idioma={idioma} />;
-    case "zonas":
-      return <Zonas idioma={idioma} />;
     case "cenas":
       return <Cenas />;
     case "simulador":
@@ -111,21 +107,19 @@ function Painel({
   aoRenomear: (nome: string) => void;
 }) {
   const rota = usarRota();
-  const { catalogo, lista } = usarEquipamentos();
-  // Why: section 6, a zone is a multiroom equipment, so the tabs about zones exist once one is
-  // registered; until then a screen of empty blocks would be a question nobody can answer.
-  // Por que: seção 6, uma zona é um equipamento multiroom, então as abas sobre zonas existem
-  // quando um está cadastrado; até lá uma tela de blocos vazios seria pergunta que ninguém
+  const { lista } = usarEquipamentos();
+  // Why: the scenes and the simulator act on registered equipment, so their tabs open once one
+  // exists; until then a screen of empty numbers would be a question nobody can answer.
+  // Por que: as cenas e o simulador agem sobre equipamento cadastrado, então as abas deles
+  // abrem quando existe um; até lá uma tela de números vazios seria pergunta que ninguém
   // responde.
-  const temMultiroom = (lista ?? []).some((equipamento) =>
-    podeOcuparBloco((catalogo ?? []).find((item) => item.tipo === equipamento.tipo)),
-  );
+  const temEquipamento = (lista ?? []).length > 0;
   return (
     <Concha
       rota={rota}
       idioma={idioma}
       tema={tema}
-      abas={abasDoMenu(temMultiroom)}
+      abas={abasDoMenu(temEquipamento)}
       aoSair={aoSair}
       subtitulo={estado.nome_instalacao || t("empresa")}
       aoTrocarIdioma={aoTrocarIdioma}

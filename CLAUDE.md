@@ -20,7 +20,8 @@ Três peças, e só três:
    configuração, expõe uma API REST local e um barramento WebSocket de
    *data points* (DP-bus) que a ponte Tuya consome.
 2. **Painel** web (React + Vite) para o integrador instalar e manter: assistente
-   de primeiro uso, zonas de áudio, equipamentos, drivers, cenas.
+   de primeiro uso, equipamentos (número no app e multiroom no detalhe de cada
+   um), drivers, cenas.
 3. **Imagem Docker** única, publicada no GHCR, com o painel construído dentro.
 
 Código aberto sob **AGPL-3.0-only**, com licença comercial oferecida em
@@ -142,8 +143,11 @@ Regras que o gestor impõe (e testa) para todo driver:
   mesma assinatura SSDP é erro de teste, não decisão em runtime.
 
 **As caixas LinkPlay são um driver** (`nativos/linkplay.py`, categoria
-`multiroom`, capacidades de transporte e `agrupar`). O conceito de "zona" é
-apenas: equipamento multiroom que ocupa um dos seis blocos de DP (§8). O hub
+`multiroom`, capacidades de transporte e `agrupar`). O conceito de "bloco" é
+apenas: um dos seis números de equipamento do app (§8), que **qualquer**
+equipamento cadastrado pode ocupar; o painel chama o bloco de "Equipamento n".
+Multiroom é capacidade do equipamento (categoria `multiroom` mais `agrupar`),
+mostrada no detalhe dele e acionável por cena pelo DP 132. O hub
 funciona com **zero** equipamentos cadastrados; nenhum assistente exige caixa
 para seguir.
 
@@ -206,15 +210,20 @@ plataforma, string DP até 255 bytes, enum até 10 valores.
 
 | DP | Tipo | Sentido | Uso |
 |---|---|---|---|
-| 101 + 5·(n-1) | value 0-100 | R/W | volume da zona n (1..6) |
-| 102 + 5·(n-1) | bool | R/W | play/pause |
+| 101 + 5·(n-1) | value 0-100 | R/W | volume do equipamento n (1..6) |
+| 102 + 5·(n-1) | bool | R/W | play/pause (driver com `tocar`+`pausar`) ou liga/desliga (os demais) |
 | 103 + 5·(n-1) | enum cmd1..cmd8 | só envio | preset |
 | 104 + 5·(n-1) | bool | report | online |
 | 105 + 5·(n-1) | string | report, throttle 5 s | tocando agora |
 | 131 | enum cena1..cena8 | só envio | cena |
 | 132 | enum solo/grupo1..N | R/W | grupo ativo |
-| 133, 134, 135 | string JSON ≤ 255 B | report | nomes de zonas, cenas, grupos |
-| 141..146 | enum | R/W | entrada da zona n |
+| 133, 134, 135 | string JSON ≤ 255 B | report | nomes de equipamentos, cenas, grupos |
+| 141..146 | enum | R/W | entrada do equipamento n |
+
+Um bloco n é o equipamento de número n no app; qualquer equipamento cadastrado
+ocupa um, e o DP 102 segue o manifesto do driver. Uma cena tem `intervalo_ms`
+(padrão 1000, editável), dormido depois de todo passo sem `espera_ms` própria,
+porque um aparelho de AV precisa de um instante entre um comando e o próximo.
 
 WebSocket `/dpbus`: o **primeiro frame** é `{"t":"auth","token":"<api_token>"}`
 (nunca na URL; sem ele em 5 s, fecha com 4401). Depois: `{"t":"set","id":..,
@@ -242,7 +251,7 @@ driver existir:
   **Sem recuperação pela rede** (decisão de 4/set/2026): não há e-mail, segundo
   fator nem nuvem que prove quem é o dono, então uma rota de reset seria a porta
   de entrada. Quem alcança o `/data` já é dono, e `python -m iphub.esquecer`
-  apaga a senha mantendo equipamentos, zonas e cenas, mata as sessões e rotaciona
+  apaga a senha mantendo equipamentos, números no app e cenas, mata as sessões e rotaciona
   o `api_token`. Apagar o `config.json` levaria a instalação junto, então não é
   esse o caminho.
 - **Sessão** do painel: token aleatório, guardado por **hash** em
@@ -392,7 +401,7 @@ Custaram dias. Estão aqui para o driver LinkPlay e o DP-bus nascerem certos.
 - Reboot da caixa: some em ~30 s, volta pela identidade em ~50 s sem tocar em IP.
 
 **DP-bus**: report otimista + releitura em 1,5 s funcionou com ack em ~30 ms.
-Nomes de zona, cena e grupo em JSON compacto cabem em 255 bytes com 6 zonas.
+Nomes de equipamento, cena e grupo em JSON compacto cabem em 255 bytes com 6 equipamentos.
 
 **Receivers e TVs (das bibliotecas usadas)**: Denon aceita **uma** conexão
 telnet e briga com qualquer outro controlador, use só HTTP; Onkyo desligado

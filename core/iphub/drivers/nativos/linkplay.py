@@ -7,7 +7,7 @@ HTTP carries the status, the volume, the transport, the URL and the group, and t
 control port carries what only it has, the mute, the hardware preset and the physical input,
 honouring the 200 ms minimum between two frames.
 
-What the module that owns the zones has to know, because section 14 paid days for it:
+What the module that owns the blocks has to know, because section 14 paid days for it:
 
 - the identity is the uuid of getStatusEx and never the address, so identidade_do_aparelho
   is what tells whether the box answering at this ip is still the registered one;
@@ -23,7 +23,7 @@ What the module that owns the zones has to know, because section 14 paid days fo
   whoever writes the play DP reads it from there.
 
 The group logic itself (who is the master, which speakers may share a group, what to mirror)
-lives in the module that owns the zones. This driver offers only the four moves a group is
+lives in the module that owns the blocks. This driver offers only the four moves a group is
 made of: entrar_no_grupo, desfazer_grupo, volume_de_escravo and ler_grupo.
 
 Caixa multiroom LinkPlay (AudioCast, iEAST), o driver multiroom das seções 6 e 14.
@@ -33,7 +33,7 @@ HTTP leva o estado, o volume, o transporte, a URL e o grupo, e a porta de contro
 leva o que só ela tem, o mudo, o preset de hardware e a entrada física, respeitando o mínimo
 de 200 ms entre dois quadros.
 
-O que o módulo dono das zonas precisa saber, porque a seção 14 pagou dias por isso:
+O que o módulo dono dos blocos precisa saber, porque a seção 14 pagou dias por isso:
 
 - a identidade é o uuid do getStatusEx e nunca o endereço, então identidade_do_aparelho é
   quem diz se a caixa que responde neste ip ainda é a cadastrada;
@@ -49,7 +49,7 @@ O que o módulo dono das zonas precisa saber, porque a seção 14 pagou dias por
   quem escreve o DP de play o lê de lá.
 
 A lógica de grupo em si (quem é o mestre, que caixas podem dividir um grupo, o que espelhar)
-mora no módulo dono das zonas. Este driver oferece só os quatro movimentos de que um grupo é
+mora no módulo dono dos blocos. Este driver oferece só os quatro movimentos de que um grupo é
 feito: entrar_no_grupo, desfazer_grupo, volume_de_escravo e ler_grupo.
 """
 
@@ -397,12 +397,12 @@ class LinkPlay(Driver):
     async def atualizar(self) -> None:
         # Why: section 6, the identity is the uuid and the address is only where it answered
         # today. Asking once and never again means a lease that moved to another box leaves the
-        # hub commanding whatever now holds the address, under the name of this zone, for as
+        # hub commanding whatever now holds the address, under the name of this block, for as
         # long as the daemon runs. The question is one small GET on the LAN, which is a cheap
         # price for never commanding the wrong speaker.
         # Por que: seção 6, a identidade é o uuid e o endereço é só onde ela respondeu hoje.
         # Perguntar uma vez e nunca mais faz uma concessão que passou para outra caixa deixar o
-        # hub comandando quem estiver com o endereço, com o nome desta zona, enquanto o daemon
+        # hub comandando quem estiver com o endereço, com o nome deste bloco, enquanto o daemon
         # viver. A pergunta é um GET pequeno na LAN, preço barato por nunca comandar a caixa
         # errada.
         try:
@@ -620,11 +620,11 @@ class LinkPlay(Driver):
         # Why: section 6 says the identity is the uuid and the address is only where it
         # answered today. Storing the uuid without ever comparing it means a lease that moved
         # to another box has the hub commanding whatever now holds the address: the volume of
-        # a neighbour's speaker, under the name of this zone.
+        # a neighbour's speaker, under the name of this block.
         # Por que: a seção 6 diz que a identidade é o uuid e o endereço é só onde ela respondeu
         # hoje. Guardar o uuid sem nunca compará-lo faz uma concessão que passou para outra
         # caixa deixar o hub comandando quem estiver com o endereço agora: o volume da caixa do
-        # vizinho, com o nome desta zona.
+        # vizinho, com o nome deste bloco.
         if identidade and self._identidade and identidade != self._identidade:
             raise _Falha(EQ_OFFLINE)
         if identidade:

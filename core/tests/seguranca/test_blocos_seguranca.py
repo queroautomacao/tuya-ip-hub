@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Quero Automação Ltda
-"""Section 9 over the zone and scene routes, with every test attacking a rule.
+"""Section 9 over the block and scene routes, with every test attacking a rule.
 
-Nobody without a session commands a zone, nobody from another site commands one either, and
+Nobody without a session commands a block, nobody from another site commands one either, and
 the four headers are on every answer, refusals included. Past the gate the attacks are the
 ones section 8 pays for: a block occupied by an equipment that is not a multiroom one, a
 scene step that writes a data point nobody may write, and a scene name that does not fit the
 255 bytes of DP 134. Each one is checked on the FILE as well, because a refusal that already
 wrote is not a refusal.
 
-Seção 9 sobre as rotas de zona e de cena, com todo teste atacando uma regra.
+Seção 9 sobre as rotas de bloco e de cena, com todo teste atacando uma regra.
 
-Ninguém sem sessão comanda uma zona, ninguém de outro site comanda também, e os quatro
+Ninguém sem sessão comanda um bloco, ninguém de outro site comanda também, e os quatro
 cabeçalhos estão em toda resposta, inclusive nas recusas. Passado o portão, os ataques são os
 que a seção 8 paga: um bloco ocupado por um equipamento que não é multiroom, um passo de cena
 que escreve um data point que ninguém escreve, e um nome de cena que não cabe nos 255 bytes
@@ -36,13 +36,13 @@ TIPO_DE_PROJETOR = "projetor_falso"
 VOLUME_1 = 101
 ONLINE_1 = 104
 CENA = 131
-NOMES_ZONAS = 133
+NOMES_BLOCOS = 133
 
 ALHEIA = "http://evil.example.com"
 
 ROTAS = (
-    ("GET", "/api/zonas"),
-    ("POST", "/api/zonas"),
+    ("GET", "/api/blocos"),
+    ("POST", "/api/blocos"),
     ("GET", "/api/dps"),
     ("POST", f"/api/dp/{VOLUME_1}"),
     ("POST", "/api/grupo"),
@@ -140,7 +140,7 @@ EQUIPAMENTOS = (
 async def hub(fabrica_cliente, posse, bearer):
     Caixa.instancias = []
     cliente = await fabrica_cliente(
-        catalogo=CATALOGO, config=Config(equipamentos=EQUIPAMENTOS, zonas=("uuid-1",))
+        catalogo=CATALOGO, config=Config(equipamentos=EQUIPAMENTOS, blocos=("uuid-1",))
     )
     return cliente, bearer(await posse(cliente))
 
@@ -155,7 +155,7 @@ def _caixa() -> Caixa:
 
 
 @pytest.mark.parametrize(("metodo", "caminho"), ROTAS)
-async def test_nenhuma_rota_de_zona_responde_sem_sessao(hub, metodo, caminho):
+async def test_nenhuma_rota_de_bloco_responde_sem_sessao(hub, metodo, caminho):
     cliente, _auth = hub
     resposta = await cliente.request(metodo, caminho, json={"v": 40})
     assert resposta.status == 401
@@ -166,7 +166,7 @@ async def test_nenhuma_rota_de_zona_responde_sem_sessao(hub, metodo, caminho):
 
 
 @pytest.mark.parametrize(("metodo", "caminho"), ROTAS)
-async def test_nenhuma_rota_de_zona_responde_a_outro_site(hub, metodo, caminho):
+async def test_nenhuma_rota_de_bloco_responde_a_outro_site(hub, metodo, caminho):
     """Section 9: a present Origin that is not this host is 403, which closes CSRF.
 
     Seção 9: um Origin presente que não é este host é 403, o que fecha o CSRF.
@@ -186,45 +186,6 @@ async def test_os_quatro_cabecalhos_estao_na_resposta_com_sessao(hub, metodo, ca
     resposta = await cliente.request(metodo, caminho, json={"v": 40}, headers=auth)
     for nome, valor in CABECALHOS.items():
         assert resposta.headers.get(nome) == valor, nome
-
-
-async def test_um_equipamento_que_nao_e_multiroom_nao_ocupa_um_bloco(hub, amb):
-    """Section 6: a zone IS a multiroom equipment; a projector has no volume of a zone.
-
-    Seção 6: uma zona É um equipamento multiroom; um projetor não tem volume de zona.
-    """
-    cliente, auth = hub
-    resposta = await cliente.post(
-        "/api/zonas", json={"zonas": ["uuid-1", "uuid-projetor"]}, headers=auth
-    )
-    assert resposta.status == 400
-    assert (await resposta.json())["code"] == "eq_nao_multiroom"
-    assert _do_disco(amb).get("zonas", []) != ["uuid-1", "uuid-projetor"]
-    corpo = await (await cliente.get("/api/zonas", headers=auth)).json()
-    assert [bloco["identidade"] for bloco in corpo["zonas"]][:2] == ["uuid-1", ""]
-
-
-@pytest.mark.parametrize("ordem", [["uuid-9"], "uuid-1", [1], [["uuid-1"]], {"1": "uuid-1"}])
-async def test_uma_ordem_que_nao_e_lista_de_identidade_e_recusada(hub, amb, ordem):
-    cliente, auth = hub
-    resposta = await cliente.post("/api/zonas", json={"zonas": ordem}, headers=auth)
-    assert resposta.status in (400, 404)
-    assert (await resposta.json())["ok"] is False
-    assert _do_disco(amb).get("zonas", []) in ([], ["uuid-1"])
-
-
-@pytest.mark.parametrize("dpid", [ONLINE_1, NOMES_ZONAS, 103, CENA + 2])
-async def test_um_passo_de_cena_nao_escreve_o_que_ninguem_escreve(hub, amb, dpid):
-    """Section 8: a report is only ever born of real state, so a scene never writes one.
-
-    Seção 8: um report só nasce de estado real, então uma cena nunca escreve um.
-    """
-    cliente, auth = hub
-    corpo = {"cenas": [{"nome": "Filme", "passos": [{"dpid": dpid, "valor": True}]}]}
-    resposta = await cliente.post("/api/cenas", json=corpo, headers=auth)
-    assert resposta.status == 400
-    assert (await resposta.json())["code"] == "cenas_invalidas"
-    assert _do_disco(amb).get("cenas", []) == []
 
 
 async def test_uma_cena_nao_dispara_uma_cena(hub, amb):

@@ -1,0 +1,153 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (C) 2026 Quero Automação Ltda */
+
+/* The controls of an equipment, drawn like a remote: power keys, a volume slider, round
+   transport keys, the input as a list. Each key is a touch target of 2.75rem, phone first.
+   Os controles de um equipamento, desenhados como um controle remoto: teclas de energia, slider
+   de volume, teclas redondas de transporte, a entrada como lista. Cada tecla é um alvo de toque
+   de 2.75rem, celular primeiro. */
+
+.painel-controles {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  margin-top: 0.75rem;
+}
+
+.controle-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.controle-rotulo {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+
+.segmentos {
+  display: inline-flex;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.segmentos button {
+  font: inherit;
+  font-weight: 600;
+  min-height: 2.75rem;
+  padding: 0 1.2rem;
+  border: 0;
+  background: var(--cartao);
+  color: var(--texto);
+  cursor: pointer;
+}
+
+.segmentos button + button {
+  border-left: 1px solid var(--borda);
+}
+
+.segmentos button[aria-pressed="true"] {
+  background: var(--destaque);
+  color: #ffffff;
+}
+
+.segmentos button[disabled] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.controle-volume {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.controle-volume input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  min-height: 2.75rem;
+  accent-color: var(--destaque);
+}
+
+.controle-volume-valor {
+  width: 2.25rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--texto-suave);
+}
+
+.controle-volume .botao[aria-pressed="true"] {
+  background: var(--destaque);
+  border-color: var(--destaque);
+  color: #ffffff;
+}
+
+.transporte {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.botao-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.9rem;
+  height: 2.9rem;
+  border: 1px solid var(--borda);
+  border-radius: 50%;
+  background: var(--cartao);
+  color: var(--texto);
+  cursor: pointer;
+}
+
+.botao-icone svg {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+.botao-icone[disabled] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.controle-linha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.controle-linha input {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+
+/* The number of the equipment on the app and its multiroom card share the detail screen.
+   O número do equipamento no app e o cartão de multiroom dividem a tela de detalhe. */
+.numero-opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.numero-opcoes select {
+  flex: 1 1 12rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.multiroom-membros {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.multiroom-membros li {
+  overflow-wrap: anywhere;
+}

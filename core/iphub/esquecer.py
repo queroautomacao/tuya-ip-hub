@@ -8,9 +8,9 @@ would be the way in, not the way back. What proves ownership of an appliance is 
 data directory, which means the box itself or the host that runs the container.
 
 This clears the password and hands the hub back to the first access of section 9, keeping the
-equipment, the zones and the scenes: erasing config.json would take those with it. Every
-session dies and the api_token is rotated, the same way changing the password does, because
-whoever could not get in must not keep a credential that was issued before.
+equipment, their numbers on the app and the scenes: erasing config.json would take those with
+it. Every session dies and the api_token is rotated, the same way changing the password does,
+because whoever could not get in must not keep a credential that was issued before.
 
 Esquecer a senha do painel, da máquina que tem o diretório de dados.
 
@@ -19,8 +19,8 @@ segundo fator, nem nuvem que prove quem é o dono, então uma rota que zerasse a
 porta de entrada, não a de volta. O que prova posse de um appliance é alcançar o diretório de
 dados dele, o que significa a própria caixa ou o host que roda o container.
 
-Isto apaga a senha e devolve o hub ao primeiro acesso da seção 9, mantendo os equipamentos, as
-zonas e as cenas: apagar o config.json levaria tudo isso junto. Toda sessão morre e o
+Isto apaga a senha e devolve o hub ao primeiro acesso da seção 9, mantendo os equipamentos, os
+números no app e as cenas: apagar o config.json levaria tudo isso junto. Toda sessão morre e o
 api_token é rotacionado, do mesmo jeito que a troca de senha faz, porque quem não conseguia
 entrar não pode ficar com uma credencial emitida antes.
 """

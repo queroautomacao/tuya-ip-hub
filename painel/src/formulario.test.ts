@@ -55,7 +55,7 @@ function achadoDe(parcial: Partial<Achado> = {}): Achado {
 // the hub never becomes a proxy into the LAN; these are the attacks on that rule.
 // Por que: a seção 9 diz que o ip de toda rota que fala com aparelho é um IP literal,
 // para o hub nunca virar proxy da LAN; estes são os ataques a essa regra.
-test("ipLiteral refuses a name, a URL, a port and a zone id (recusa nome, URL, porta e zone id)", () => {
+test("ipLiteral refuses a name, a URL, a port and a block id (recusa nome, URL, porta e block id)", () => {
   for (const bom of [
     "192.0.2.10",
     "0.0.0.0",

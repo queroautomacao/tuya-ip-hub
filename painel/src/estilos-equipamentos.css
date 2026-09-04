@@ -57,30 +57,8 @@
   font-size: 0.9rem;
 }
 
-.controles {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.8rem;
-}
 
-.controle {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-}
 
-.valor {
-  font: inherit;
-  font-size: max(1rem, 16px);
-  width: 8rem;
-  min-height: 2.75rem;
-  padding: 0.35rem 0.5rem;
-  border: 1px solid var(--borda);
-  border-radius: 8px;
-  background: var(--fundo);
-  color: var(--texto);
-}
 
 .pareamento,
 .confirmacao {

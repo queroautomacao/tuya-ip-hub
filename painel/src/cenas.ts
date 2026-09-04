@@ -11,7 +11,7 @@
 // autoridade que aceita ou recusa a lista, campo a campo.
 
 import { lerLista } from "./equipamentos.ts";
-import type { Preparo } from "./zonas.ts";
+import type { Preparo } from "./blocos.ts";
 
 export const FUNCAO_DA_CENA = "cena";
 
@@ -44,6 +44,7 @@ export const CODIGOS_CENAS = [
   "cena_dp_proibido",
   "cena_valor_invalido",
   "cena_espera_invalida",
+  "cena_intervalo_invalido",
   "nomes_demais",
   "nomes_longos",
   "nome_nao_gravavel",
@@ -52,15 +53,20 @@ export const CODIGOS_CENAS = [
 export const NOME_MAXIMO = 40;
 export const VALOR_TEXTO_MAXIMO = 64;
 
+// Why: a step with no wait of its own (null) sleeps the interval of the scene, so the screen
+// shows the interval as the placeholder of the wait and never writes it into the step.
+// Por que: um passo sem espera própria (null) dorme o intervalo da cena, então a tela mostra o
+// intervalo como placeholder da espera e nunca o escreve no passo.
 export interface PassoDeCena {
   dpid: number;
   valor: unknown;
-  espera_ms: number;
+  espera_ms: number | null;
 }
 
 export interface Cena {
   numero: number;
   nome: string;
+  intervalo_ms: number;
   em_curso: boolean;
   passos: PassoDeCena[];
 }
@@ -70,11 +76,12 @@ export interface LeituraDeCenas {
   maximo: number;
   passos_maximos: number;
   espera_maxima_ms: number;
+  intervalo_padrao_ms: number;
 }
 
 export interface ItemDoMapa {
   dpid: number;
-  zona: number;
+  bloco: number;
   funcao: string;
   tipo: TipoDeDp;
   sentido: Sentido;
@@ -96,34 +103,38 @@ function ehObjeto(valor: unknown): valor is Objeto {
 }
 
 export function lerPasso(valor: unknown): PassoDeCena | null {
-  if (!ehObjeto(valor) || !ehNumero(valor.dpid) || !ehNumero(valor.espera_ms)) return null;
-  if (!("valor" in valor)) return null;
-  return { dpid: valor.dpid, valor: valor.valor, espera_ms: valor.espera_ms };
+  if (!ehObjeto(valor) || !ehNumero(valor.dpid) || !("valor" in valor)) return null;
+  const espera = valor.espera_ms ?? null;
+  if (espera !== null && !ehNumero(espera)) return null;
+  return { dpid: valor.dpid, valor: valor.valor, espera_ms: espera };
 }
 
 export function lerCena(valor: unknown): Cena | null {
   if (!ehObjeto(valor) || !ehNumero(valor.numero) || !ehTexto(valor.nome)) return null;
+  if (!ehNumero(valor.intervalo_ms)) return null;
   const passos = lerLista(valor.passos, lerPasso);
   if (passos === null) return null;
-  return { numero: valor.numero, nome: valor.nome, em_curso: valor.em_curso === true, passos };
+  const { numero, nome, intervalo_ms } = valor;
+  return { numero, nome, intervalo_ms, em_curso: valor.em_curso === true, passos };
 }
 
 export function lerLeituraDeCenas(dados: Objeto): LeituraDeCenas | null {
   const cenas = lerLista(dados.cenas, lerCena);
-  const { maximo, passos_maximos, espera_maxima_ms } = dados;
+  const { maximo, passos_maximos, espera_maxima_ms, intervalo_padrao_ms } = dados;
   if (cenas === null || !ehNumero(maximo)) return null;
   if (!ehNumero(passos_maximos) || !ehNumero(espera_maxima_ms)) return null;
-  return { cenas, maximo, passos_maximos, espera_maxima_ms };
+  if (!ehNumero(intervalo_padrao_ms)) return null;
+  return { cenas, maximo, passos_maximos, espera_maxima_ms, intervalo_padrao_ms };
 }
 
 export function lerItemDoMapa(valor: unknown): ItemDoMapa | null {
-  if (!ehObjeto(valor) || !ehNumero(valor.dpid) || !ehNumero(valor.zona)) return null;
+  if (!ehObjeto(valor) || !ehNumero(valor.dpid) || !ehNumero(valor.bloco)) return null;
   if (!ehTexto(valor.funcao)) return null;
   const tipo = TIPOS_DE_DP.find((candidato) => candidato === valor.tipo);
   const sentido = SENTIDOS.find((candidato) => candidato === valor.sentido);
   const valores = lerLista(valor.valores, (bruto) => (ehTexto(bruto) ? bruto : null));
   if (tipo === undefined || sentido === undefined || valores === null) return null;
-  return { dpid: valor.dpid, zona: valor.zona, funcao: valor.funcao, tipo, sentido, valores };
+  return { dpid: valor.dpid, bloco: valor.bloco, funcao: valor.funcao, tipo, sentido, valores };
 }
 
 export function lerSnapshot(dados: Objeto): Snapshot | null {
@@ -188,11 +199,25 @@ export function prepararValor(item: ItemDoMapa, entrada: string): Preparo {
   return { ok: false, codigo: "cena_dp_somente_leitura" };
 }
 
+function milissegundos(limpo: string, maximo: number): number | null {
+  const dentro = /^\d{1,6}$/.test(limpo) && Number(limpo) <= maximo;
+  return dentro ? Number(limpo) : null;
+}
+
+// Why: an empty wait is not zero, it is "the interval of the scene", so it is kept as null and
+// the daemon sleeps the interval; a zero typed on purpose is an order to wait nothing.
+// Por que: uma espera vazia não é zero, é "o intervalo da cena", então ela fica como null e o
+// daemon dorme o intervalo; um zero digitado de propósito é ordem de não esperar nada.
 export function prepararEspera(entrada: string, maximo: number): Preparo {
   const limpo = entrada.trim();
-  if (limpo === "") return { ok: true, valor: 0 };
-  const dentro = /^\d{1,6}$/.test(limpo) && Number(limpo) <= maximo;
-  return dentro ? { ok: true, valor: Number(limpo) } : { ok: false, codigo: "cena_espera_invalida" };
+  if (limpo === "") return { ok: true, valor: null };
+  const valor = milissegundos(limpo, maximo);
+  return valor === null ? { ok: false, codigo: "cena_espera_invalida" } : { ok: true, valor };
+}
+
+export function prepararIntervalo(entrada: string, maximo: number): Preparo {
+  const valor = milissegundos(entrada.trim(), maximo);
+  return valor === null ? { ok: false, codigo: "cena_intervalo_invalido" } : { ok: true, valor };
 }
 
 // Why: the daemon measures the name in code points, the way python len does, and
@@ -214,9 +239,16 @@ export function nomeValido(nome: string): boolean {
 // Por que: a POSIÇÃO de uma cena é o número dela, então o que se salva é a lista inteira e uma
 // cena apagada mantém a vaga; uma lista que voltasse mais curta moveria a cena 3 para a vaga 2
 // em toda automação que o cliente já montou na plataforma.
-export function corpoDeCenas(cenas: readonly Cena[]): { nome: string; passos: PassoDeCena[] }[] {
+export interface CorpoDeCena {
+  nome: string;
+  intervalo_ms: number;
+  passos: PassoDeCena[];
+}
+
+export function corpoDeCenas(cenas: readonly Cena[]): CorpoDeCena[] {
   return cenas.map((cena) => ({
     nome: cena.nome,
+    intervalo_ms: cena.intervalo_ms,
     passos: cena.passos.map((passo) => ({
       dpid: passo.dpid,
       valor: passo.valor,
@@ -225,14 +257,14 @@ export function corpoDeCenas(cenas: readonly Cena[]): { nome: string; passos: Pa
   }));
 }
 
-export function cenaVazia(numero: number): Cena {
-  return { numero, nome: "", em_curso: false, passos: [] };
+export function cenaVazia(numero: number, intervalo_ms: number): Cena {
+  return { numero, nome: "", intervalo_ms, em_curso: false, passos: [] };
 }
 
-export function comCenas(cenas: readonly Cena[], maximo: number): Cena[] {
+export function comCenas(cenas: readonly Cena[], maximo: number, intervalo_ms: number): Cena[] {
   // Why: the eight slots are always on the screen, because a slot with no step is a number
   // held open for the automations already built on it and not a scene that is missing.
   // Por que: as oito vagas estão sempre na tela, porque uma vaga sem passo é um número guardado
   // para as automações já montadas nela e não uma cena que falta.
-  return Array.from({ length: maximo }, (_ignorado, indice) => cenas[indice] ?? cenaVazia(indice + 1));
+  return Array.from({ length: maximo }, (_ignorado, indice) => cenas[indice] ?? cenaVazia(indice + 1, intervalo_ms));
 }

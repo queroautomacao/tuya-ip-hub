@@ -65,23 +65,60 @@
   gap: 0.5rem;
 }
 
-.editor-json {
+/* Why: a code editor is dark in both themes, because the file is the same file whoever reads
+   it and a light editor over a dark theme reads as a form, not as code.
+   Por que: um editor de código é escuro nos dois temas, porque o arquivo é o mesmo arquivo para
+   quem o lê e um editor claro sobre tema escuro se lê como formulário, não como código. */
+.editor {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  border: 1px solid #2a2f3a;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #0f1117;
+  color: #e6e8ee;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.editor:focus-within {
+  outline: 2px solid var(--destaque);
+  outline-offset: 1px;
+}
+
+.editor-numeros {
+  margin: 0;
+  padding: 0.6rem 0.6rem 0.6rem 0.8rem;
+  border-right: 1px solid #2a2f3a;
+  background: #161a23;
+  color: #6b7280;
+  text-align: right;
+  user-select: none;
+  overflow: hidden;
+  font: inherit;
+}
+
+.editor-json {
+  display: block;
   width: 100%;
-  padding: 0.6rem 0.7rem;
-  border: 1px solid var(--borda);
-  border-radius: 8px;
-  background: var(--fundo);
-  color: var(--texto);
-  resize: vertical;
+  min-height: 24rem;
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: pre;
   overflow: auto;
+  resize: vertical;
   tab-size: 2;
+  caret-color: #ffffff;
 }
 
 .editor-json:focus-visible {
-  outline: 2px solid var(--destaque);
-  outline-offset: 1px;
+  outline: none;
 }
 
 .problemas {

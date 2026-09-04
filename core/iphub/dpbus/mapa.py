@@ -32,23 +32,23 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 
-ZONAS = 6
-ZONA_BASE = 101
-ZONA_PASSO = 5
+BLOCOS = 6
+BLOCO_BASE = 101
+BLOCO_PASSO = 5
 ENTRADA_BASE = 140
 
 CENA = 131
 GRUPO = 132
-NOMES_ZONAS = 133
+NOMES_BLOCOS = 133
 NOMES_CENAS = 134
 NOMES_GRUPOS = 135
 
-# The five DPs of a zone block, in the order section 8 numbers them.
-# Os cinco DPs de um bloco de zona, na ordem em que a seção 8 os numera.
+# The five DPs of a block block, in the order section 8 numbers them.
+# Os cinco DPs de um bloco de bloco, na ordem em que a seção 8 os numera.
 FUNCOES_DO_BLOCO = ("volume", "play", "preset", "online", "tocando")
 FUNCAO_ENTRADA = "entrada"
-FUNCOES_ZONA = (*FUNCOES_DO_BLOCO, FUNCAO_ENTRADA)
-FUNCOES_GLOBAIS = ("cena", "grupo", "nomes_zonas", "nomes_cenas", "nomes_grupos")
+FUNCOES_BLOCO = (*FUNCOES_DO_BLOCO, FUNCAO_ENTRADA)
+FUNCOES_GLOBAIS = ("cena", "grupo", "nomes_blocos", "nomes_cenas", "nomes_grupos")
 
 # Why: a custom enum takes at most ten values on the platform, so solo plus nine groups is
 # the whole of DP 132, and a tenth group would be a value the platform refuses to carry.
@@ -57,13 +57,13 @@ FUNCOES_GLOBAIS = ("cena", "grupo", "nomes_zonas", "nomes_cenas", "nomes_grupos"
 ENUM_MAXIMO = 10
 PRESETS = 8
 CENAS = 8
-# Why: a group is named after the zone that leads it, and section 8 has six blocks, so grupo7
-# to grupo9 were values the panel offered and a scene could save that no zone can ever name:
+# Why: a group is named after the block that leads it, and section 8 has six blocks, so grupo7
+# to grupo9 were values the panel offered and a scene could save that no block can ever name:
 # the platform would take the set and the hub would answer that the group does not exist.
-# Por que: um grupo tem o nome da zona que o lidera, e a seção 8 tem seis blocos, então
-# grupo7 a grupo9 eram valores que o painel oferecia e uma cena podia salvar que nenhuma zona
+# Por que: um grupo tem o nome do bloco que o lidera, e a seção 8 tem seis blocos, então
+# grupo7 a grupo9 eram valores que o painel oferecia e uma cena podia salvar que nenhum bloco
 # consegue nomear: a plataforma aceitaria o set e o hub responderia que o grupo não existe.
-GRUPOS = ZONAS
+GRUPOS = BLOCOS
 
 TEXTO_MAXIMO_BYTES = 255
 THROTTLE_TOCANDO_S = 5.0
@@ -115,14 +115,14 @@ class Sentido(StrEnum):
 
 @dataclass(frozen=True)
 class Dp:
-    """One data point of section 8; zona is 0 for the ones that are not part of a block.
+    """One data point of section 8; bloco is 0 for the ones that are not part of a block.
 
-    Um data point da seção 8; a zona é 0 para os que não fazem parte de um bloco.
+    Um data point da seção 8; o bloco é 0 para os que não fazem parte de um bloco.
     """
 
     dpid: int
     funcao: str
-    zona: int
+    bloco: int
     tipo: Tipo
     sentido: Sentido
     valores: tuple[str, ...] = ()
@@ -170,8 +170,8 @@ _BLOCO: dict[str, dict] = {
 
 # The compact key each names DP carries, and how many names fit in it at most.
 # A chave compacta que cada DP de nomes carrega, e quantos nomes cabem nele no máximo.
-CHAVE_DE_NOMES = {NOMES_ZONAS: "z", NOMES_CENAS: "c", NOMES_GRUPOS: "g"}
-QUANTIDADE_DE_NOMES = {NOMES_ZONAS: ZONAS, NOMES_CENAS: CENAS, NOMES_GRUPOS: GRUPOS}
+CHAVE_DE_NOMES = {NOMES_BLOCOS: "z", NOMES_CENAS: "c", NOMES_GRUPOS: "g"}
+QUANTIDADE_DE_NOMES = {NOMES_BLOCOS: BLOCOS, NOMES_CENAS: CENAS, NOMES_GRUPOS: GRUPOS}
 
 
 def _tabela() -> tuple[Dp, ...]:
@@ -180,15 +180,15 @@ def _tabela() -> tuple[Dp, ...]:
     A seção 8 escrita uma vez: todo número abaixo vem da tabela do documento.
     """
     dps = []
-    for zona in range(1, ZONAS + 1):
-        base = ZONA_BASE + ZONA_PASSO * (zona - 1)
+    for bloco in range(1, BLOCOS + 1):
+        base = BLOCO_BASE + BLOCO_PASSO * (bloco - 1)
         for posicao, funcao in enumerate(FUNCOES_DO_BLOCO):
-            dps.append(Dp(dpid=base + posicao, funcao=funcao, zona=zona, **_BLOCO[funcao]))
+            dps.append(Dp(dpid=base + posicao, funcao=funcao, bloco=bloco, **_BLOCO[funcao]))
         dps.append(
             Dp(
-                dpid=ENTRADA_BASE + zona,
+                dpid=ENTRADA_BASE + bloco,
                 funcao=FUNCAO_ENTRADA,
-                zona=zona,
+                bloco=bloco,
                 tipo=Tipo.ENUM,
                 sentido=Sentido.RW,
             )
@@ -196,7 +196,7 @@ def _tabela() -> tuple[Dp, ...]:
     dps += [
         Dp(CENA, "cena", 0, Tipo.ENUM, Sentido.ENVIO, VALORES_CENA),
         Dp(GRUPO, "grupo", 0, Tipo.ENUM, Sentido.RW, VALORES_GRUPO),
-        Dp(NOMES_ZONAS, "nomes_zonas", 0, Tipo.TEXTO, Sentido.REPORTE),
+        Dp(NOMES_BLOCOS, "nomes_blocos", 0, Tipo.TEXTO, Sentido.REPORTE),
         Dp(NOMES_CENAS, "nomes_cenas", 0, Tipo.TEXTO, Sentido.REPORTE),
         Dp(NOMES_GRUPOS, "nomes_grupos", 0, Tipo.TEXTO, Sentido.REPORTE),
     ]
@@ -205,23 +205,23 @@ def _tabela() -> tuple[Dp, ...]:
 
 DPS = _tabela()
 MAPA = {dp.dpid: dp for dp in DPS}
-_POR_FUNCAO = {(dp.zona, dp.funcao): dp.dpid for dp in DPS}
+_POR_FUNCAO = {(dp.bloco, dp.funcao): dp.dpid for dp in DPS}
 
 REPORTAVEIS = tuple(dp.dpid for dp in DPS if dp.reportavel)
 AJUSTAVEIS = tuple(dp.dpid for dp in DPS if dp.ajustavel)
 
 
-def dp_de(zona: int, funcao: str) -> int:
-    """The number of one function, with zona 0 for a global one. Raises for a pair that is
+def dp_de(bloco: int, funcao: str) -> int:
+    """The number of one function, with bloco 0 for a global one. Raises for a pair that is
     not in the table, because the caller built it from our own configuration and not from
     the wire.
 
-    O número de uma função, com a zona 0 para uma global. Estoura para um par fora da tabela,
+    O número de uma função, com o bloco 0 para uma global. Estoura para um par fora da tabela,
     porque quem chama o montou da nossa própria configuração e não do fio.
     """
-    dpid = _POR_FUNCAO.get((zona, funcao))
+    dpid = _POR_FUNCAO.get((bloco, funcao))
     if dpid is None:
-        raise ValueError(f"section 8 has no data point for zona {zona!r} and funcao {funcao!r}")
+        raise ValueError(f"section 8 has no data point for bloco {bloco!r} and funcao {funcao!r}")
     return dpid
 
 
@@ -242,23 +242,23 @@ def de_dp(dpid: object) -> Dp | None:
 
 
 def vazio_de(dp: Dp) -> object | None:
-    """What a data point reads as when its zone has no speaker, or None when it has no such
+    """What a data point reads as when its block has no speaker, or None when it has no such
     reading.
 
     Why: a block whose equipment was removed stops producing values, and the last thing
-    published about it would stand forever: a bridge showing a zone online, at some volume,
+    published about it would stand forever: a bridge showing a block online, at some volume,
     playing something, with nothing behind it. An enum has no honest empty reading, so it is
     left alone rather than being given an invented one.
 
-    O que um data point lê quando a zona dele não tem caixa, ou None quando ele não tem essa
+    O que um data point lê quando o bloco dele não tem caixa, ou None quando ele não tem essa
     leitura.
 
     Por que: um bloco cujo equipamento foi removido para de produzir valores, e o último
-    publicado a respeito ficaria valendo para sempre: uma ponte mostrando uma zona online, num
+    publicado a respeito ficaria valendo para sempre: uma ponte mostrando um bloco online, num
     volume, tocando algo, sem nada por trás. Um enum não tem leitura vazia honesta, então ele
     fica como está em vez de receber uma inventada.
     """
-    if not dp.zona:
+    if not dp.bloco:
         return None
     if dp.tipo is Tipo.BOOL:
         return False
@@ -269,8 +269,8 @@ def vazio_de(dp: Dp) -> object | None:
     return None
 
 
-def da_zona(zona: int) -> tuple[Dp, ...]:
-    return tuple(dp for dp in DPS if dp.zona == zona)
+def da_bloco(bloco: int) -> tuple[Dp, ...]:
+    return tuple(dp for dp in DPS if dp.bloco == bloco)
 
 
 def valores_de_enum(valores: Iterable[str]) -> tuple[str, ...]:
@@ -280,10 +280,10 @@ def valores_de_enum(valores: Iterable[str]) -> tuple[str, ...]:
     """
     # Why: the inputs of a device come from the hardware (section 14, plm_support) and a
     # device with eleven of them would build an enum the platform refuses whole, which would
-    # take the input of that zone off the bus instead of taking one input off the list.
+    # take the input of that block off the bus instead of taking one input off the list.
     # Por que: as entradas de um aparelho vêm do hardware (seção 14, plm_support) e um
     # aparelho com onze delas montaria um enum que a plataforma recusa inteiro, o que tiraria
-    # a entrada daquela zona do barramento em vez de tirar uma entrada da lista.
+    # a entrada daquele bloco do barramento em vez de tirar uma entrada da lista.
     escolhidos: list[str] = []
     for valor in valores:
         if isinstance(valor, str) and valor and valor not in escolhidos:

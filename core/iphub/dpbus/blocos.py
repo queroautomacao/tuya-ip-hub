@@ -1,20 +1,22 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Quero Automação Ltda
-"""Sections 6, 8 and 14: the six zone blocks, the data points they publish and the group.
+"""Sections 6, 8 and 14: the six blocks, the data points they publish and the group.
 
-A zone is only what section 6 says it is, a multiroom equipment occupying one of the six
-blocks of section 8, so there is no second registry here: the zones are an ORDER over
-identities already registered as equipment, the position IS the block, and an empty string
-is a block nobody occupies. Removing an equipment empties its slot instead of shifting the
-rest, because a shift moves a speaker from zone 2 to zone 1 in every automation the customer
-already built on the platform, and nothing on the bus would say it happened.
+A block is only what section 6 says it is, one of the six equipment numbers of the app, which
+any registered equipment may occupy, so there is no second registry here: the blocks are an
+ORDER over identities already registered as equipment, the position IS the block, and an
+empty string is a block nobody occupies. Removing an equipment empties its slot instead of
+shifting the rest, because a shift moves a speaker from block 2 to block 1 in every automation
+the customer already built on the platform, and nothing on the bus would say it happened.
+What DP 102 of a block means follows the manifest of its driver: play/pause when it declares
+transport, power for everything else (section 8).
 
 The group logic the LinkPlay driver deliberately did not take lives here, and every rule of
 it was paid for on the bench (section 14):
 
 - a group is formed by naming a MASTER, and only speakers of the same tipo are invited: a
   mixed group is never offered, so a speaker of another kind is not even asked to join;
-- a play on a slave dismantles the group, so the transport of a zone that is a slave is
+- a play on a slave dismantles the group, so the transport of a block that is a slave is
   routed to the master;
 - the volume of a slave goes through the master, never to the slave itself;
 - a slave answers stop even while the group plays, so what the master plays is mirrored onto
@@ -24,28 +26,31 @@ it was paid for on the bench (section 14):
 - a zombie group of a previous run, or of an address that changed under us, is sanitized on
   boot before anything is published;
 - forming, sanitizing and reconciling race each other, so ONE lock serializes all of it, and
-  a command of a zone takes the same lock because the routing decision it makes (is this
-  zone a slave, and who leads it) has to be the same one the group logic is holding.
+  a command of a block takes the same lock because the routing decision it makes (is this
+  block a slave, and who leads it) has to be the same one the group logic is holding.
 
-grupoN of DP 132 is the group led by the speaker of ZONE N, which is what keeps the enum
-stable: a group defined as an entry in a list would renumber itself the day a zone is added,
-which is the same silent move the empty slot exists to prevent.
+grupoN of DP 132 is the group led by the speaker of BLOCK N, which is what keeps the enum
+stable: a group defined as an entry in a list would renumber itself the day a block is added,
+which is the same silent move the empty slot exists to prevent. Multiroom is a capability of
+the equipment (section 6), so only a block whose manifest declares it can lead or join.
 
-Seções 6, 8 e 14: os seis blocos de zona, os data points que eles publicam e o grupo.
+Seções 6, 8 e 14: os seis blocos, os data points que eles publicam e o grupo.
 
-Uma zona é só o que a seção 6 diz que ela é, um equipamento multiroom ocupando um dos seis
-blocos da seção 8, então não existe segundo cadastro aqui: as zonas são uma ORDEM sobre
-identidades já cadastradas como equipamento, a posição É o bloco, e uma string vazia é um
-bloco que ninguém ocupa. Remover um equipamento esvazia a vaga dele em vez de empurrar o
-resto, porque empurrar move uma caixa da zona 2 para a zona 1 em toda automação que o cliente
-já montou na plataforma, e nada no barramento diria que isso aconteceu.
+Um bloco é só o que a seção 6 diz que ele é, um dos seis números de equipamento do app, que
+qualquer equipamento cadastrado pode ocupar, então não existe segundo cadastro aqui: os
+blocos são uma ORDEM sobre identidades já cadastradas como equipamento, a posição É o bloco,
+e uma string vazia é um bloco que ninguém ocupa. Remover um equipamento esvazia a vaga dele em
+vez de empurrar o resto, porque empurrar move uma caixa do bloco 2 para o bloco 1 em toda
+automação que o cliente já montou na plataforma, e nada no barramento diria que isso
+aconteceu. O que o DP 102 de um bloco significa segue o manifesto do driver dele: play/pause
+quando ele declara transporte, ligar/desligar para todo o resto (seção 8).
 
 A lógica de grupo que o driver LinkPlay de propósito não tomou mora aqui, e cada regra dela
 foi paga na bancada (seção 14):
 
 - um grupo é formado nomeando um MESTRE, e só caixas do mesmo tipo são convidadas: um grupo
   misto nunca é oferecido, então uma caixa de outro tipo nem chega a ser chamada;
-- um play num escravo desmonta o grupo, então o transporte de uma zona que é escrava vai para
+- um play num escravo desmonta o grupo, então o transporte de um bloco que é escravo vai para
   o mestre;
 - o volume de um escravo passa pelo mestre, nunca pelo próprio escravo;
 - um escravo responde stop mesmo com o grupo tocando, então o que o mestre toca é espelhado
@@ -55,12 +60,14 @@ foi paga na bancada (seção 14):
 - um grupo zumbi de uma execução anterior, ou de um endereço que mudou por baixo, é saneado
   no boot antes de qualquer publicação;
 - formar, sanear e reconciliar correm uns sobre os outros, então UMA trava serializa tudo, e
-  um comando de zona toma a mesma trava porque a decisão de rota que ele faz (esta zona é
-  escrava, e quem a lidera) precisa ser a mesma que a lógica de grupo está segurando.
+  um comando de bloco toma a mesma trava porque a decisão de rota que ele faz (este bloco é
+  escravo, e quem o lidera) precisa ser a mesma que a lógica de grupo está segurando.
 
-O grupoN do DP 132 é o grupo liderado pela caixa da ZONA N, que é o que mantém o enum
-estável: um grupo definido como entrada de uma lista se renumeraria no dia em que uma zona
-fosse acrescentada, que é a mesma mudança silenciosa que a vaga vazia existe para impedir.
+O grupoN do DP 132 é o grupo liderado pela caixa do BLOCO N, que é o que mantém o enum
+estável: um grupo definido como entrada de uma lista se renumeraria no dia em que um bloco
+fosse acrescentado, que é a mesma mudança silenciosa que a vaga vazia existe para impedir.
+Multiroom é capacidade do equipamento (seção 6), então só um bloco cujo manifesto a declara
+pode liderar ou entrar num grupo.
 """
 
 import asyncio
@@ -74,7 +81,7 @@ from iphub.drivers.base import NAO_SUPORTADO, Driver
 from iphub.drivers.gestor import EQ_NAO_ENCONTRADO, EQ_OFFLINE, ERRO_APARELHO, Gestor
 from iphub.drivers.manifesto import CAPACIDADE_DE_GRUPO, CATEGORIA_DE_GRUPO, Estado
 
-log = logging.getLogger("iphub.dpbus.zonas")
+log = logging.getLogger("iphub.dpbus.blocos")
 
 VAZIA = ""
 SOLO = mapa.SOLO
@@ -89,8 +96,10 @@ PREFIXO_PRESET = "cmd"
 # grupo da instalação inteira.
 LIMITE_S = 5.0
 
-# The actions of section 6 a data point of a zone turns into.
-# As ações da seção 6 em que um data point de zona se transforma.
+# The actions of section 6 a data point of a block turns into.
+# As ações da seção 6 em que um data point de bloco se transforma.
+ACAO_LIGAR = "ligar"
+ACAO_DESLIGAR = "desligar"
 ACAO_VOLUME = "volume"
 ACAO_FONTE = "fonte"
 ACAO_TOCAR = "tocar"
@@ -99,15 +108,13 @@ ACAO_PRESET = "comando_extra"
 
 # The stable codes an order refuses with; the panel translates them, section 11.
 # Os códigos estáveis com que uma ordem recusa; o painel os traduz, seção 11.
-ZONAS_DEMAIS = "zonas_demais"
-ZONA_REPETIDA = "zona_repetida"
-EQ_NAO_MULTIROOM = "eq_nao_multiroom"
+BLOCOS_DEMAIS = "blocos_demais"
+BLOCO_REPETIDA = "bloco_repetida"
 IDENTIDADE_INVALIDA = "identidade_invalida"
 CODIGOS_DE_ORDEM = (
-    ZONAS_DEMAIS,
-    ZONA_REPETIDA,
+    BLOCOS_DEMAIS,
+    BLOCO_REPETIDA,
     EQ_NAO_ENCONTRADO,
-    EQ_NAO_MULTIROOM,
     IDENTIDADE_INVALIDA,
 )
 
@@ -119,7 +126,7 @@ CODIGOS = (
     protocolo.DP_DESCONHECIDO,
     protocolo.DP_SOMENTE_LEITURA,
     protocolo.VALOR_INVALIDO,
-    protocolo.ZONA_OFFLINE,
+    protocolo.BLOCO_OFFLINE,
     NAO_SUPORTADO,
     "auth_pendente",
     ERRO_APARELHO,
@@ -161,29 +168,29 @@ class _Alvo:
     Um bloco ocupado: o bloco, o cadastro dele e o driver montado para ele.
     """
 
-    zona: int
+    bloco: int
     cadastro: Cadastro
     driver: Driver
 
 
-def valor_do_grupo(zona: int) -> str:
-    """The DP 132 value of the group led by one zone, or solo for no group at all.
+def valor_do_grupo(bloco: int) -> str:
+    """The DP 132 value of the group led by one block, or solo for no group at all.
 
-    O valor do DP 132 do grupo liderado por uma zona, ou solo para grupo nenhum.
+    O valor do DP 132 do grupo liderado por um bloco, ou solo para grupo nenhum.
     """
-    return SOLO if zona == 0 else f"{PREFIXO_GRUPO}{zona}"
+    return SOLO if bloco == 0 else f"{PREFIXO_GRUPO}{bloco}"
 
 
-def zona_do_grupo(valor: object) -> int | None:
-    """The zone leading the group named on the wire, 0 for solo, None for anything else.
+def bloco_do_grupo(valor: object) -> int | None:
+    """The block leading the group named on the wire, 0 for solo, None for anything else.
 
-    A zona que lidera o grupo nomeado no fio, 0 para solo, None para qualquer outra coisa.
+    O bloco que lidera o grupo nomeado no fio, 0 para solo, None para qualquer outra coisa.
     """
     if valor == SOLO:
         return 0
-    for zona in range(1, mapa.ZONAS + 1):
-        if valor == valor_do_grupo(zona):
-            return zona
+    for bloco in range(1, mapa.BLOCOS + 1):
+        if valor == valor_do_grupo(bloco):
+            return bloco
     return None
 
 
@@ -193,28 +200,28 @@ def sem(ordem: Sequence[str], identidade: str) -> tuple[str, ...]:
     A mesma ordem sem aquela identidade e com o BLOCO dela ainda ali, vazio.
     """
     # Why: section 8 numbers the block by position, so closing the hole would move every
-    # speaker below it one zone up, in silence, on a bus a customer already automated.
+    # speaker below it one block up, in silence, on a bus a customer already automated.
     # Por que: a seção 8 numera o bloco pela posição, então fechar o buraco moveria toda caixa
-    # abaixo dele uma zona para cima, em silêncio, num barramento que um cliente já automatizou.
+    # abaixo dele um bloco para cima, em silêncio, num barramento que um cliente já automatizou.
     return tuple(VAZIA if atual == identidade else atual for atual in ordem)
 
 
-def _identidade_em(ordem: tuple[str, ...], zona: int) -> str:
+def _identidade_em(ordem: tuple[str, ...], bloco: int) -> str:
     """The identity a given order puts in one block, which is how a change is judged before
     it is written.
 
     A identidade que uma dada ordem põe num bloco, que é como uma mudança é julgada antes de
     ser gravada.
     """
-    if not 1 <= zona <= mapa.ZONAS or zona > len(ordem):
+    if not 1 <= bloco <= mapa.BLOCOS or bloco > len(ordem):
         return VAZIA
-    return ordem[zona - 1]
+    return ordem[bloco - 1]
 
 
-class Zonas:
-    """The order of the zones, the data points they publish and the group they may form.
+class Blocos:
+    """The order of the blocks, the data points they publish and the group they may form.
 
-    A ordem das zonas, os data points que elas publicam e o grupo que elas podem formar.
+    A ordem dos blocos, os data points que elas publicam e o grupo que elas podem formar.
     """
 
     def __init__(
@@ -225,10 +232,10 @@ class Zonas:
         self._limite_s = limite_s
         # Why: forming a group, sanitizing a zombie one on boot and reconciling one that
         # dissolved by itself all rewrite who leads whom, and the bench showed them landing on
-        # top of each other; a command of a zone reads the same book to decide its route.
+        # top of each other; a command of a block reads the same book to decide its route.
         # Por que: formar um grupo, sanear um zumbi no boot e reconciliar um que se desfez
         # sozinho reescrevem todos quem lidera quem, e a bancada os viu caindo um sobre o
-        # outro; um comando de zona lê o mesmo livro para decidir a rota dele.
+        # outro; um comando de bloco lê o mesmo livro para decidir a rota dele.
         self._trava = asyncio.Lock()
         self._mestre = 0
         self._escravos: tuple[int, ...] = ()
@@ -237,14 +244,14 @@ class Zonas:
     def ordem(self) -> tuple[str, ...]:
         return self._ordem
 
-    def identidade(self, zona: int) -> str:
+    def identidade(self, bloco: int) -> str:
         """The identity occupying one block, or the empty string when nobody occupies it.
 
         A identidade que ocupa um bloco, ou a string vazia quando ninguém o ocupa.
         """
-        if not 1 <= zona <= mapa.ZONAS or zona > len(self._ordem):
+        if not 1 <= bloco <= mapa.BLOCOS or bloco > len(self._ordem):
             return VAZIA
-        return self._ordem[zona - 1]
+        return self._ordem[bloco - 1]
 
     def bloco(self, identidade: str) -> int:
         """The block one identity occupies, or 0 for an identity that occupies none.
@@ -280,38 +287,30 @@ class Zonas:
             if not isinstance(bruto, str):
                 raise OrdemInvalida(IDENTIDADE_INVALIDA, f"an identity is text, found {bruto!r}")
             lista.append(bruto.strip())
-        if len(lista) > mapa.ZONAS:
+        if len(lista) > mapa.BLOCOS:
             raise OrdemInvalida(
-                ZONAS_DEMAIS, f"section 8 numbers {mapa.ZONAS} blocks, found {len(lista)}"
+                BLOCOS_DEMAIS, f"section 8 numbers {mapa.BLOCOS} blocks, found {len(lista)}"
             )
         ocupadas = [identidade for identidade in lista if identidade]
         repetidas = sorted({i for i in ocupadas if ocupadas.count(i) > 1})
         if repetidas:
-            # Why: one speaker in two blocks answers the volume of two zones on the bus, and
+            # Why: one speaker in two blocks answers the volume of two blocks on the bus, and
             # the bridge reads a device that contradicts itself.
-            # Por que: uma caixa em dois blocos responde o volume de duas zonas no barramento,
+            # Por que: uma caixa em dois blocos responde o volume de dois blocos no barramento,
             # e a ponte lê um aparelho que se contradiz.
-            raise OrdemInvalida(ZONA_REPETIDA, f"the identidade {repetidas} occupies two blocks")
+            raise OrdemInvalida(BLOCO_REPETIDA, f"the identidade {repetidas} occupies two blocks")
         cadastros = self._cadastros()
         for identidade in ocupadas:
             if identidade not in cadastros:
                 raise OrdemInvalida(
                     EQ_NAO_ENCONTRADO, f"{identidade!r} is not a registered equipment"
                 )
-            if not self._e_multiroom(identidade):
-                # Why: section 6, a zone IS a multiroom equipment; a projector in a block
-                # would take a volume and a transport the manifest never declared.
-                # Por que: seção 6, uma zona É um equipamento multiroom; um projetor num bloco
-                # receberia um volume e um transporte que o manifesto nunca declarou.
-                raise OrdemInvalida(
-                    EQ_NAO_MULTIROOM, f"{identidade!r} is not a multiroom equipment"
-                )
         return tuple(lista)
 
     async def definir_ordem(self, ordem: object) -> tuple[str, ...]:
-        """Saves the order after validating it, and drops a group a zone just left.
+        """Saves the order after validating it, and drops a group a block just left.
 
-        Grava a ordem depois de validá-la, e desfaz um grupo que uma zona acabou de deixar.
+        Grava a ordem depois de validá-la, e desfaz um grupo que um bloco acabou de deixar.
         """
         nova = self.validar(ordem)
         async with self._trava:
@@ -346,15 +345,15 @@ class Zonas:
         """
         if dp.valores or dp.funcao != mapa.FUNCAO_ENTRADA:
             return dp.valores
-        estado = self._estado(self.identidade(dp.zona))
+        estado = self._estado(self.identidade(dp.bloco))
         if estado is None:
             return ()
         # Why: section 14, only the inputs the hardware declares are offered, and the ceiling
         # of ten of section 8 is what keeps an enum the platform refuses whole from taking the
-        # input of that zone off the bus entirely.
+        # input of that block off the bus entirely.
         # Por que: seção 14, só as entradas que o hardware declara são oferecidas, e o teto de
         # dez da seção 8 é o que impede um enum que a plataforma recusa inteiro de tirar a
-        # entrada daquela zona do barramento de vez.
+        # entrada daquele bloco do barramento de vez.
         return mapa.valores_de_enum(estado.fontes)
 
     def valores(self) -> dict[int, object]:
@@ -364,22 +363,22 @@ class Zonas:
         """
         estados = self._gestor.estados()
         valores: dict[int, object] = {}
-        for zona in range(1, mapa.ZONAS + 1):
-            identidade = self.identidade(zona)
+        for bloco in range(1, mapa.BLOCOS + 1):
+            identidade = self.identidade(bloco)
             estado = estados.get(identidade) if identidade else None
             # Why: a block nobody occupies publishes nothing at all, because a bridge that
-            # read a false online would show an empty zone as a speaker that is switched off.
+            # read a false online would show an empty block as a speaker that is switched off.
             # Por que: um bloco que ninguém ocupa não publica nada, porque uma ponte que lesse
-            # um online falso mostraria uma zona vazia como uma caixa desligada.
+            # um online falso mostraria um bloco vazio como uma caixa desligada.
             if estado is None:
                 continue
-            valores.update(self._do_bloco(zona, estado))
+            valores.update(self._do_bloco(bloco, estado))
         valores[mapa.GRUPO] = self.grupo()
         self._com_nomes(valores)
         return valores
 
     def escravos_alheios(self) -> tuple[int, ...]:
-        """The zones whose speaker is in multiroom slave mode of a group this hub does NOT
+        """The blocks whose speaker is in multiroom slave mode of a group this hub does NOT
         lead, which is a state the customer can reach with the app of the manufacturer, or a
         lost reply to a join, or a restart while a group was up.
 
@@ -387,7 +386,7 @@ class Zonas:
         here ever put it there, so reporting it as solo drew a panel full of controls that
         only ever answer no, with nothing anywhere saying why.
 
-        As zonas cuja caixa está em modo escravo de multiroom de um grupo que este hub NÃO
+        Os blocos cuja caixa está em modo escravo de multiroom de um grupo que este hub NÃO
         lidera, que é um estado que o cliente alcança com o app do fabricante, ou uma resposta
         perdida a um convite, ou um reinício com um grupo de pé.
 
@@ -398,42 +397,42 @@ class Zonas:
         nossos = {self._mestre, *self._escravos}
         alheios = []
         for alvo in self._multirooms():
-            if alvo.zona in nossos:
+            if alvo.bloco in nossos:
                 continue
             if alvo.driver.e_escravo():
-                alheios.append(alvo.zona)
+                alheios.append(alvo.bloco)
         return tuple(alheios)
 
     async def _recuperar_alheios(self) -> None:
         """Asks a speaker held in someone else's group to leave it, and says so when it stays.
 
         Why: a speaker in that mode refuses volume, transport, preset and input, so leaving it
-        there is leaving the zone dead. Section 14 records Ungroup as a command of the master,
+        there is leaving the block dead. Section 14 records Ungroup as a command of the master,
         so it is not certain a slave obeys it, and the honest behaviour when it does not is to
-        keep the zone flagged instead of publishing it as an ordinary zone.
+        keep the block flagged instead of publishing it as an ordinary block.
 
         Pede a uma caixa presa no grupo de outro que saia dele, e diz quando ela fica.
 
         Por que: uma caixa nesse modo recusa volume, transporte, preset e entrada, então
-        deixá-la ali é deixar a zona morta. A seção 14 registra o Ungroup como comando do
+        deixá-la ali é deixar o bloco morto. A seção 14 registra o Ungroup como comando do
         mestre, então não é certo que um escravo obedeça, e o comportamento honesto quando ele
-        não obedece é manter a zona sinalizada em vez de publicá-la como zona comum.
+        não obedece é manter o bloco sinalizado em vez de publicá-lo como bloco comum.
         """
-        for zona in self.escravos_alheios():
-            alvo = self._multiroom(zona)
+        for bloco in self.escravos_alheios():
+            alvo = self._multiroom(bloco)
             if alvo is None:
                 continue
             log.warning(
-                "zone %d is a multiroom slave of a group this hub does not lead, "
+                "block %d is a multiroom slave of a group this hub does not lead, "
                 "asking it to leave",
-                zona,
+                bloco,
             )
             codigo = await self._chamar(alvo.driver.desfazer_grupo())
             if codigo is not None:
                 log.warning(
-                    "zone %d would not leave the group it is held in: %s, so it refuses "
+                    "block %d would not leave the group it is held in: %s, so it refuses "
                     "every command until it does",
-                    zona,
+                    bloco,
                     codigo,
                 )
 
@@ -454,9 +453,9 @@ class Zonas:
         seguinte.
         """
         dp = mapa.de_dp(dpid)
-        if dp is None or not dp.zona:
+        if dp is None or not dp.bloco:
             return
-        identidade = self.identidade(dp.zona)
+        identidade = self.identidade(dp.bloco)
         if identidade:
             await self._gestor.visitar_e_esperar(identidade)
 
@@ -500,7 +499,7 @@ class Zonas:
                 # troca de endereço deixou para trás, responde a comandos que ninguém desta
                 # execução pediu; o hub só publica estado que conhece, então o grupo físico
                 # cai primeiro.
-                log.warning("zone %d led a group nobody asked for, taking it down", alvo.zona)
+                log.warning("block %d led a group nobody asked for, taking it down", alvo.bloco)
             await asyncio.gather(
                 *(self._chamar(alvo.driver.desfazer_grupo()) for alvo in lideres),
                 return_exceptions=True,
@@ -528,8 +527,8 @@ class Zonas:
                 self._soltar()
                 return
             restantes = []
-            for zona in self._escravos:
-                escravo = self._multiroom(zona)
+            for bloco in self._escravos:
+                escravo = self._multiroom(bloco)
                 if escravo is None:
                     continue
                 # Why: section 14, a slave out of the multiroom mode for two polls in a row
@@ -541,10 +540,10 @@ class Zonas:
                 # mantê-lo nos nossos livros mandaria o volume dele por um mestre que não o
                 # comanda mais.
                 if escravo.driver.saiu_do_grupo():
-                    log.warning("zone %d left the group of zone %d", zona, self._mestre)
+                    log.warning("block %d left the group of block %d", bloco, self._mestre)
                     escravo.driver.marcar_grupo(False)
                     continue
-                restantes.append(zona)
+                restantes.append(bloco)
             self._escravos = tuple(restantes)
             if not restantes:
                 await self._desfazer()
@@ -561,10 +560,10 @@ class Zonas:
             return protocolo.DP_DESCONHECIDO
         if not dp.ajustavel:
             return protocolo.DP_SOMENTE_LEITURA
-        if dp.zona == 0 and dp.dpid != mapa.GRUPO:
+        if dp.bloco == 0 and dp.dpid != mapa.GRUPO:
             # Why: DP 131 is the scene, which belongs to the module that owns the scenes; a
-            # zone module that answered for it would run a scene from the wrong book.
-            # Por que: o DP 131 é a cena, que é do módulo dono das cenas; um módulo de zonas
+            # block module that answered for it would run a scene from the wrong book.
+            # Por que: o DP 131 é a cena, que é do módulo dono das cenas; um módulo de blocos
             # que respondesse por ela rodaria uma cena do livro errado.
             return protocolo.DP_DESCONHECIDO
         if not protocolo.valor_valido(dp, valor, self.valores_de(dp)):
@@ -572,16 +571,16 @@ class Zonas:
         async with self._trava:
             if dp.dpid == mapa.GRUPO:
                 return await self._ativar(valor)
-            return await self._na_zona(dp, valor)
+            return await self._na_bloco(dp, valor)
 
-    def _do_bloco(self, zona: int, estado: Estado) -> dict[int, object]:
+    def _do_bloco(self, bloco: int, estado: Estado) -> dict[int, object]:
         """The five data points of one block, read from the typed state of section 6.
 
         Os cinco data points de um bloco, lidos do estado tipado da seção 6.
         """
-        valores: dict[int, object] = {mapa.dp_de(zona, "online"): estado.online}
+        valores: dict[int, object] = {mapa.dp_de(bloco, "online"): estado.online}
         if estado.volume is not None:
-            valores[mapa.dp_de(zona, "volume")] = estado.volume
+            valores[mapa.dp_de(bloco, "volume")] = estado.volume
         # Why: section 6 publishes the transport and the title as different facts, because
         # reading DP 102 from the title reported a speaker playing over bluetooth, over a line
         # input, or a radio with no metadata, as paused. A driver that cannot tell leaves
@@ -590,12 +589,39 @@ class Zonas:
         # o DP 102 do título reportava como pausada uma caixa tocando por bluetooth, por
         # entrada de linha, ou um rádio sem metadado. Um driver que não sabe dizer deixa o
         # reproduzindo em None, e um data point da seção 8 nunca é reportado por palpite.
-        if estado.reproduzindo is not None:
-            valores[mapa.dp_de(zona, "play")] = estado.reproduzindo
-        valores[mapa.dp_de(zona, "tocando")] = mapa.texto_de_dp(estado.tocando or "")
+        play = self._play_de(bloco, estado)
+        if play is not None:
+            valores[mapa.dp_de(bloco, "play")] = play
+        valores[mapa.dp_de(bloco, "tocando")] = mapa.texto_de_dp(estado.tocando or "")
         if estado.fonte and estado.fonte in mapa.valores_de_enum(estado.fontes):
-            valores[mapa.dp_de(zona, mapa.FUNCAO_ENTRADA)] = estado.fonte
+            valores[mapa.dp_de(bloco, mapa.FUNCAO_ENTRADA)] = estado.fonte
         return valores
+
+    def _play_de(self, bloco: int, estado: Estado) -> bool | None:
+        """DP 102 of one block: the transport of a driver that has one, the power of any other.
+
+        O DP 102 de um bloco: o transporte de um driver que o tem, o liga/desliga de qualquer
+        outro.
+        """
+        if self._com_transporte(self.identidade(bloco)):
+            return estado.reproduzindo
+        return estado.ligado
+
+    def _com_transporte(self, identidade: str) -> bool:
+        """Section 8: DP 102 is play/pause for a driver that declares both transport
+        capabilities and power for every other equipment in a block; the manifest decides,
+        never the category, so a receiver in a block gets a power switch on the app and a
+        speaker gets play/pause.
+
+        Seção 8: o DP 102 é play/pause para um driver que declara as duas capacidades de
+        transporte e liga/desliga para todo outro equipamento num bloco; o manifesto decide,
+        nunca a categoria, então um receiver num bloco ganha uma chave de ligar no app e uma
+        caixa ganha play/pause.
+        """
+        manifesto = self._gestor.manifesto(identidade)
+        if manifesto is None:
+            return False
+        return ACAO_TOCAR in manifesto.capacidades and ACAO_PAUSAR in manifesto.capacidades
 
     def _com_nomes(self, valores: dict[int, object]) -> None:
         """DP 133 and DP 135, in the compact JSON of section 8 and inside its 255 bytes.
@@ -603,18 +629,19 @@ class Zonas:
         O DP 133 e o DP 135, no JSON compacto da seção 8 e dentro dos 255 bytes dele.
         """
         cadastros = self._cadastros()
-        ocupadas = [self.identidade(zona) for zona in range(1, self._quantas() + 1)]
+        ocupadas = [self.identidade(bloco) for bloco in range(1, self._quantas() + 1)]
         nomes = [self._nome(cadastros.get(identidade)) for identidade in ocupadas]
-        # Why: grupoN is the group led by zone N, so the name of a group is the name of the
-        # zone that leads it and the list stays positional; a zone that has nobody of its own
+        # Why: grupoN is the group led by block N, so the name of a group is the name of the
+        # block that leads it and the list stays positional; a block that has nobody of its own
         # kind to group with leads no group and carries no name.
-        # Por que: o grupoN é o grupo liderado pela zona N, então o nome de um grupo é o nome
-        # da zona que o lidera e a lista continua posicional; uma zona que não tem ninguém do
+        # Por que: o grupoN é o grupo liderado pelo bloco N, então o nome de um grupo é o nome
+        # do bloco que o lidera e a lista continua posicional; um bloco que não tem ninguém do
         # tipo dela para agrupar não lidera grupo e não carrega nome.
         grupos = [
-            nome if self._pode_liderar(zona) else VAZIA for zona, nome in enumerate(nomes, start=1)
+            nome if self._pode_liderar(bloco) else VAZIA
+            for bloco, nome in enumerate(nomes, start=1)
         ]
-        for dpid, lista in ((mapa.NOMES_ZONAS, nomes), (mapa.NOMES_GRUPOS, grupos)):
+        for dpid, lista in ((mapa.NOMES_BLOCOS, nomes), (mapa.NOMES_GRUPOS, grupos)):
             texto = _nomes_json(dpid, lista)
             if texto is not None:
                 valores[dpid] = texto
@@ -624,30 +651,30 @@ class Zonas:
 
         Quantos blocos os nomes carregam: até o último que alguém ocupa.
         """
-        ocupados = [zona for zona in range(1, mapa.ZONAS + 1) if self.identidade(zona)]
+        ocupados = [bloco for bloco in range(1, mapa.BLOCOS + 1) if self.identidade(bloco)]
         return max(ocupados) if ocupados else 0
 
     def _nome(self, cadastro: Cadastro | None) -> str:
         return cadastro.nome if cadastro is not None and cadastro.nome else VAZIA
 
-    def _pode_liderar(self, zona: int) -> bool:
-        """A zone leads a group when there is another speaker of its own tipo to lead.
+    def _pode_liderar(self, bloco: int) -> bool:
+        """A block leads a group when there is another speaker of its own tipo to lead.
 
-        Uma zona lidera um grupo quando existe outra caixa do tipo dela para liderar.
+        Um bloco lidera um grupo quando existe outra caixa do tipo dele para liderar.
         """
-        return bool(self.identidade(zona)) and bool(self._companheiras(zona))
+        return bool(self.identidade(bloco)) and bool(self._companheiras(bloco))
 
-    def _companheiras(self, zona: int) -> tuple[int, ...]:
+    def _companheiras(self, bloco: int) -> tuple[int, ...]:
         """The blocks a group led by this one may hold: same tipo, and never a mixed one.
 
         Os blocos que um grupo liderado por esta pode ter: mesmo tipo, e nunca um misto.
         """
         cadastros = self._cadastros()
-        mestre = cadastros.get(self.identidade(zona))
+        mestre = cadastros.get(self.identidade(bloco))
         if mestre is None or not self._e_multiroom(mestre.identidade):
             return ()
         companheiras = []
-        for outra in range(1, mapa.ZONAS + 1):
+        for outra in range(1, mapa.BLOCOS + 1):
             cadastro = cadastros.get(self.identidade(outra))
             # Why: section 14, a group only ever exists between speakers of the same domain,
             # so a speaker of another kind is never even invited; offering a mixed group is
@@ -655,29 +682,29 @@ class Zonas:
             # Por que: seção 14, um grupo só existe entre caixas do mesmo domínio, então uma
             # caixa de outro tipo nunca é convidada; oferecer grupo misto é o que deixa metade
             # dele tocando e a outra metade calada.
-            if outra != zona and cadastro is not None and cadastro.tipo == mestre.tipo:
+            if outra != bloco and cadastro is not None and cadastro.tipo == mestre.tipo:
                 companheiras.append(outra)
         return tuple(companheiras)
 
     async def _ativar(self, valor: object) -> str | None:
-        zona = zona_do_grupo(valor)
-        if zona is None:
+        bloco = bloco_do_grupo(valor)
+        if bloco is None:
             return protocolo.VALOR_INVALIDO
-        if zona == 0:
+        if bloco == 0:
             return await self._desfazer()
-        return await self._formar(zona)
+        return await self._formar(bloco)
 
-    async def _formar(self, zona: int) -> str | None:
-        """Forms the group led by one zone: every speaker of its tipo joins that master.
+    async def _formar(self, bloco: int) -> str | None:
+        """Forms the group led by one block: every speaker of its tipo joins that master.
 
-        Forma o grupo liderado por uma zona: toda caixa do tipo dela entra naquele mestre.
+        Forma o grupo liderado por um bloco: toda caixa do tipo dela entra naquele mestre.
         """
-        mestre = self._multiroom(zona)
+        mestre = self._multiroom(bloco)
         if mestre is None:
-            return protocolo.ZONA_OFFLINE
+            return protocolo.BLOCO_OFFLINE
         if not mestre.cadastro.ip:
-            return protocolo.ZONA_OFFLINE
-        companheiras = self._companheiras(zona)
+            return protocolo.BLOCO_OFFLINE
+        companheiras = self._companheiras(bloco)
         if not companheiras:
             # Why: a group of one is not a group, and a bus that answered ok for it would
             # publish a group the customer cannot hear.
@@ -686,8 +713,8 @@ class Zonas:
             return NAO_SUPORTADO
         presentes = [alvo for alvo in map(self._multiroom, companheiras) if alvo is not None]
         if not presentes:
-            return protocolo.ZONA_OFFLINE
-        if self._mestre and self._mestre != zona:
+            return protocolo.BLOCO_OFFLINE
+        if self._mestre and self._mestre != bloco:
             await self._desfazer()
         entraram: list[int] = []
         recusa: str | None = None
@@ -695,14 +722,14 @@ class Zonas:
             codigo = await self._chamar(alvo.driver.entrar_no_grupo(mestre.cadastro.ip))
             if codigo is None:
                 alvo.driver.marcar_grupo(True)
-                entraram.append(alvo.zona)
+                entraram.append(alvo.bloco)
             else:
-                log.warning("zone %d did not join the group of zone %d", alvo.zona, zona)
+                log.warning("block %d did not join the group of block %d", alvo.bloco, bloco)
                 recusa = recusa or codigo
         if not entraram:
             return recusa
         mestre.driver.marcar_grupo(True)
-        self._mestre = zona
+        self._mestre = bloco
         self._escravos = tuple(entraram)
         self._espelhar(mestre)
         return None
@@ -730,24 +757,24 @@ class Zonas:
         mestre = self._multiroom(self._mestre)
         codigo = None if mestre is None else await self._chamar(mestre.driver.desfazer_grupo())
         if codigo is not None and not forcar:
-            log.warning("zone %d refused to dismantle its group: %s", self._mestre, codigo)
+            log.warning("block %d refused to dismantle its group: %s", self._mestre, codigo)
             return codigo
         self._soltar()
         return codigo
 
-    def _largar(self, zonas: Iterable[int]) -> None:
-        """Takes zones out of the group in our books, clearing the mark on each speaker.
+    def _largar(self, blocos: Iterable[int]) -> None:
+        """Takes blocks out of the group in our books, clearing the mark on each speaker.
 
-        Why: a zone dropped from the books while its driver still believes it is in a group
+        Why: a block dropped from the books while its driver still believes it is in a group
         refuses transport and input forever, for a group nobody is in any more.
 
-        Tira zonas do grupo nos nossos livros, limpando a marca em cada caixa.
+        Tira blocos do grupo nos nossos livros, limpando a marca em cada caixa.
 
-        Por que: uma zona largada dos livros com o driver dela ainda achando que está num
+        Por que: um bloco largado dos livros com o driver dele ainda achando que está num
         grupo recusa transporte e entrada para sempre, por um grupo em que ninguém mais está.
         """
-        for zona in zonas:
-            alvo = self._multiroom(zona)
+        for bloco in blocos:
+            alvo = self._multiroom(bloco)
             if alvo is not None:
                 alvo.driver.marcar_grupo(False)
 
@@ -772,8 +799,8 @@ class Zonas:
         if not _identidade_em(nova, self._mestre):
             await self._desfazer(forcar=True)
             return
-        ficam = tuple(zona for zona in self._escravos if _identidade_em(nova, zona))
-        self._largar(zona for zona in self._escravos if zona not in ficam)
+        ficam = tuple(bloco for bloco in self._escravos if _identidade_em(nova, bloco))
+        self._largar(bloco for bloco in self._escravos if bloco not in ficam)
         self._escravos = ficam
         if not self._escravos:
             await self._desfazer(forcar=True)
@@ -788,19 +815,22 @@ class Zonas:
         estado = self._estado(mestre.cadastro.identidade)
         tocando = None if estado is None else estado.tocando
         reproduzindo = None if estado is None else estado.reproduzindo
-        for zona in self._escravos:
-            alvo = self._multiroom(zona)
+        for bloco in self._escravos:
+            alvo = self._multiroom(bloco)
             if alvo is not None:
                 alvo.driver.espelhar(tocando, reproduzindo)
 
-    async def _na_zona(self, dp: mapa.Dp, valor: object) -> str | None:
-        alvo = self._alvo(dp.zona)
+    async def _na_bloco(self, dp: mapa.Dp, valor: object) -> str | None:
+        alvo = self._alvo(dp.bloco)
         if alvo is None:
-            return protocolo.ZONA_OFFLINE
+            return protocolo.BLOCO_OFFLINE
         if dp.funcao == "volume":
             return await self._volume(alvo, valor)
         if dp.funcao == "play":
-            return await self._transporte(alvo, ACAO_TOCAR if valor else ACAO_PAUSAR, None)
+            if self._com_transporte(alvo.cadastro.identidade):
+                return await self._transporte(alvo, ACAO_TOCAR if valor else ACAO_PAUSAR, None)
+            acao = ACAO_LIGAR if valor else ACAO_DESLIGAR
+            return await self._executar(alvo.cadastro.identidade, acao, None)
         if dp.funcao == "preset":
             return await self._transporte(alvo, ACAO_PRESET, _preset(valor))
         # Why: the input of a speaker is its own even inside a group, and the driver is the
@@ -816,7 +846,7 @@ class Zonas:
 
         Seção 14: o volume de um escravo passa pelo mestre, nunca vai para o escravo.
         """
-        mestre = self._mestre_de(alvo.zona)
+        mestre = self._mestre_de(alvo.bloco)
         if mestre is None:
             return await self._executar(alvo.cadastro.identidade, ACAO_VOLUME, valor)
         return await self._chamar(mestre.driver.volume_de_escravo(alvo.cadastro.ip, valor))
@@ -826,16 +856,16 @@ class Zonas:
 
         Seção 14: um play num escravo desmonta o grupo, então o transporte vai para o mestre.
         """
-        mestre = self._mestre_de(alvo.zona)
+        mestre = self._mestre_de(alvo.bloco)
         destino = alvo if mestre is None else mestre
         return await self._executar(destino.cadastro.identidade, acao, valor)
 
-    def _mestre_de(self, zona: int) -> _Alvo | None:
-        """The master of a zone that is a slave right now, or None when it answers for itself.
+    def _mestre_de(self, bloco: int) -> _Alvo | None:
+        """The master of a block that is a slave right now, or None when it answers for itself.
 
-        O mestre de uma zona que é escrava agora, ou None quando ela responde por si.
+        O mestre de um bloco que é escravo agora, ou None quando ela responde por si.
         """
-        if zona not in self._escravos:
+        if bloco not in self._escravos:
             return None
         return self._multiroom(self._mestre)
 
@@ -883,12 +913,12 @@ class Zonas:
             and CAPACIDADE_DE_GRUPO in manifesto.capacidades
         )
 
-    def _alvo(self, zona: int) -> _Alvo | None:
+    def _alvo(self, bloco: int) -> _Alvo | None:
         """The block as something that can be commanded, or None when nothing answers for it.
 
         O bloco como algo que se pode comandar, ou None quando nada responde por ele.
         """
-        identidade = self.identidade(zona)
+        identidade = self.identidade(bloco)
         cadastro = self._cadastros().get(identidade)
         driver = self._gestor.driver(identidade) if identidade else None
         if cadastro is None or driver is None:
@@ -897,23 +927,23 @@ class Zonas:
             # Por que: uma identidade que não está mais cadastrada é um bloco vazio e não um
             # erro do barramento, porque o arquivo pode ter sido editado na mão.
             return None
-        return _Alvo(zona=zona, cadastro=cadastro, driver=driver)
+        return _Alvo(bloco=bloco, cadastro=cadastro, driver=driver)
 
-    def _multiroom(self, zona: int) -> _Alvo | None:
+    def _multiroom(self, bloco: int) -> _Alvo | None:
         """The block only when a group can really be made of what is mounted for it.
 
         O bloco só quando um grupo pode mesmo ser feito do que está montado nele.
         """
-        alvo = self._alvo(zona)
+        alvo = self._alvo(bloco)
         if alvo is None or not self._e_multiroom(alvo.cadastro.identidade):
             return None
         if not all(hasattr(alvo.driver, movimento) for movimento in MOVIMENTOS):
-            log.error("driver of zone %d declares agrupar and offers no group move", zona)
+            log.error("driver of block %d declares agrupar and offers no group move", bloco)
             return None
         return alvo
 
     def _multirooms(self) -> tuple[_Alvo, ...]:
-        alvos = (self._multiroom(zona) for zona in range(1, mapa.ZONAS + 1))
+        alvos = (self._multiroom(bloco) for bloco in range(1, mapa.BLOCOS + 1))
         return tuple(alvo for alvo in alvos if alvo is not None)
 
 
@@ -935,10 +965,10 @@ def _traduzir(codigo: str | None) -> str | None:
         return None
     if codigo in (EQ_OFFLINE, EQ_NAO_ENCONTRADO):
         # Why: on the bus a speaker that did not answer and a block whose equipment is gone
-        # are the same thing to the bridge, which asked a zone and got no zone.
+        # are the same thing to the bridge, which asked a block and got no block.
         # Por que: no barramento uma caixa que não respondeu e um bloco cujo equipamento sumiu
-        # são a mesma coisa para a ponte, que perguntou por uma zona e não achou zona.
-        return protocolo.ZONA_OFFLINE
+        # são a mesma coisa para a ponte, que perguntou por um bloco e não achou bloco.
+        return protocolo.BLOCO_OFFLINE
     if codigo == INVALID_VALUE:
         return protocolo.VALOR_INVALIDO
     if codigo in CODIGOS:
@@ -956,21 +986,21 @@ def _nomes_json(dpid: int, nomes: Sequence[str]) -> str | None:
         return mapa.nomes_json(dpid, nomes)
     except mapa.NomesInvalidos:
         pass
-    # Why: the names of the zones are the names of the equipment, which the registration takes
-    # long and in any alphabet; refusing the whole DP would take the names of SIX zones off
+    # Why: the names of the blocks are the names of the equipment, which the registration takes
+    # long and in any alphabet; refusing the whole DP would take the names of SIX blocks off
     # the bus because one of them is long, so each name is shortened to its fair share of the
     # budget instead, on a character boundary, and the JSON always reaches the bridge whole.
-    # Por que: os nomes das zonas são os nomes dos equipamentos, que o cadastro aceita longos e
-    # em qualquer alfabeto; recusar o DP inteiro tiraria do barramento os nomes de SEIS zonas
+    # Por que: os nomes dos blocos são os nomes dos equipamentos, que o cadastro aceita longos e
+    # em qualquer alfabeto; recusar o DP inteiro tiraria do barramento os nomes de SEIS blocos
     # porque um deles é longo, então cada nome é encurtado para a parte justa do orçamento, em
     # fronteira de caractere, e o JSON sempre chega inteiro à ponte.
     # Why: json escapes a quote as \" and a backslash as \\, so a budget measured in raw
     # bytes lies for a name that carries them and the shortened list overflows again, which
-    # dropped the names of all six zones off the bus. The budget is squeezed until the encoded
+    # dropped the names of all six blocks off the bus. The budget is squeezed until the encoded
     # JSON really fits, because a fallback that can fail is the failure it was written against.
     # Por que: o json escapa uma aspa como \" e uma barra como \\, então um orçamento medido
     # em bytes crus mente para um nome que as carrega e a lista encurtada estoura de novo, o
-    # que tirava do barramento os nomes das seis zonas. O orçamento é apertado até o JSON
+    # que tirava do barramento os nomes das seis blocos. O orçamento é apertado até o JSON
     # codificado caber de verdade, porque um plano B que pode falhar é a falha que ele evita.
     try:
         moldura = len(mapa.nomes_json(dpid, [VAZIA] * len(nomes)).encode("utf-8"))

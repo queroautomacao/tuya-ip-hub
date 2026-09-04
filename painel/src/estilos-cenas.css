@@ -3,11 +3,11 @@
 
 /* Why: the eight slots are always on the screen, empty ones included, because the number of a
    scene is its position and a slot with no step is a number held open for the automations
-   already built on it. A step reads left to right in the order it happens: which zone, what to
+   already built on it. A step reads left to right in the order it happens: which block, what to
    do, which value, how long to wait after; on a phone the line folds and keeps that order.
    Por que: as oito vagas estão sempre na tela, inclusive as vazias, porque o número de uma
    cena é a posição dela e uma vaga sem passo é um número guardado para as automações já
-   montadas nela. Um passo se lê da esquerda para a direita na ordem em que acontece: que zona,
+   montadas nela. Um passo se lê da esquerda para a direita na ordem em que acontece: que bloco,
    o que fazer, que valor, quanto esperar depois; no celular a linha dobra e mantém essa ordem. */
 .cenas {
   list-style: none;
@@ -77,6 +77,22 @@
   font-size: 0.9rem;
 }
 
+/* Why: the interval is one fact about the whole scene, so it sits once above the steps and
+   every step without a wait of its own shows it greyed as its placeholder.
+   Por que: o intervalo é um fato sobre a cena inteira, então fica uma vez acima dos passos e
+   todo passo sem espera própria o mostra em cinza como placeholder. */
+.cena-intervalo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.cena-intervalo-ajuda {
+  flex-basis: 100%;
+}
+
 .passos {
   list-style: none;
   margin: 0;
@@ -121,6 +137,14 @@
 .passo-alvo select {
   flex: 1 1 8rem;
   min-width: 0;
+}
+
+/* Why: the name of the equipment is the longest text of a step and a select clips it, so the
+   equipment takes the whole first line and what to do with it comes on the next.
+   Por que: o nome do equipamento é o texto mais longo de um passo e um select o corta, então o
+   equipamento toma a primeira linha inteira e o que fazer com ele vem na seguinte. */
+.passo-alvo select:first-child {
+  flex-basis: 100%;
 }
 
 .passo select,

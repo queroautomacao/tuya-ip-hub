@@ -6,26 +6,27 @@ import { test } from "node:test";
 
 import type { ItemCatalogo } from "./equipamentos.ts";
 import {
-  CODIGOS_ZONAS,
+  CODIGOS_BLOCOS,
   comIdentidade,
-  controlesDaZona,
+  controlesDaBloco,
   gruposPossiveis,
-  lerLeituraDeZonas,
-  lerZona,
+  lerLeituraDeBlocos,
+  lerBloco,
   ordemDe,
+  podeAgrupar,
   podeOcuparBloco,
   prepararVolume,
   tocando,
-  type Zona,
-} from "./zonas.ts";
+  type Bloco,
+} from "./blocos.ts";
 
 const DPS = { volume: 101, play: 102, preset: 103, online: 104, tocando: 105, entrada: 141 };
 
 const CAPACIDADES = ["volume", "mudo", "fonte", "tocar", "pausar", "agrupar", "comando_extra"];
 
-function zonaDe(parcial: Partial<Zona> = {}): Zona {
+function blocoDe(parcial: Partial<Bloco> = {}): Bloco {
   return {
-    zona: 1,
+    bloco: 1,
     identidade: "uuid-1",
     nome: "Sala",
     tipo: "multiroom_linkplay",
@@ -46,15 +47,15 @@ function zonaDe(parcial: Partial<Zona> = {}): Zona {
   };
 }
 
-function vazia(zona: number): Zona {
-  return zonaDe({
-    zona,
+function vazia(bloco: number): Bloco {
+  return blocoDe({
+    bloco,
     identidade: "",
     nome: "",
     tipo: "",
     entradas: [],
     estado: null,
-    dps: { ...DPS, volume: 101 + 5 * (zona - 1) },
+    dps: { ...DPS, volume: 101 + 5 * (bloco - 1) },
   });
 }
 
@@ -72,9 +73,9 @@ function itemDe(parcial: Partial<ItemCatalogo> = {}): ItemCatalogo {
   };
 }
 
-test("lerZona takes a block and refuses an answer outside the contract (aceita um bloco e recusa resposta fora do contrato)", () => {
+test("lerBloco takes a block and refuses an answer outside the contract (aceita um bloco e recusa resposta fora do contrato)", () => {
   const bruto = {
-    zona: 2,
+    bloco: 2,
     identidade: "uuid-2",
     nome: "Cozinha",
     tipo: "multiroom_linkplay",
@@ -83,9 +84,9 @@ test("lerZona takes a block and refuses an answer outside the contract (aceita u
     dps: { volume: 106, play: 107, preset: 108, online: 109, tocando: 110, entrada: 142 },
     estado: null,
   };
-  const lida = lerZona(bruto);
+  const lida = lerBloco(bruto);
   assert.ok(lida !== null);
-  assert.equal(lida.zona, 2);
+  assert.equal(lida.bloco, 2);
   assert.equal(lida.papel, "escravo");
   assert.equal(lida.estado, null);
   assert.equal(lida.dps.entrada, 142);
@@ -93,46 +94,68 @@ test("lerZona takes a block and refuses an answer outside the contract (aceita u
   // to, and the panel would send a set to undefined.
   // Por que: um data point que a resposta não traz deixaria um botão sem número para escrever,
   // e o painel mandaria um set para undefined.
-  assert.equal(lerZona({ ...bruto, dps: { ...bruto.dps, entrada: undefined } }), null);
-  assert.equal(lerZona({ ...bruto, papel: "dono" }), null);
-  assert.equal(lerZona({ ...bruto, entradas: [1] }), null);
-  assert.equal(lerZona({ ...bruto, zona: "2" }), null);
+  assert.equal(lerBloco({ ...bruto, dps: { ...bruto.dps, entrada: undefined } }), null);
+  assert.equal(lerBloco({ ...bruto, papel: "dono" }), null);
+  assert.equal(lerBloco({ ...bruto, entradas: [1] }), null);
+  assert.equal(lerBloco({ ...bruto, bloco: "2" }), null);
 });
 
-test("lerLeituraDeZonas needs the group and the data point of it (precisa do grupo e do data point dele)", () => {
-  const zonas = [zonaDe()];
-  assert.equal(lerLeituraDeZonas({ zonas, grupo: "solo", dp_grupo: 132 })?.dp_grupo, 132);
-  assert.equal(lerLeituraDeZonas({ zonas, grupo: "solo" }), null);
-  assert.equal(lerLeituraDeZonas({ zonas, grupo: 132, dp_grupo: 132 }), null);
-  assert.equal(lerLeituraDeZonas({ grupo: "solo", dp_grupo: 132 }), null);
+test("lerLeituraDeBlocos needs the group and the data point of it (precisa do grupo e do data point dele)", () => {
+  const blocos = [blocoDe()];
+  assert.equal(lerLeituraDeBlocos({ blocos, grupo: "solo", dp_grupo: 132 })?.dp_grupo, 132);
+  assert.equal(lerLeituraDeBlocos({ blocos, grupo: "solo" }), null);
+  assert.equal(lerLeituraDeBlocos({ blocos, grupo: 132, dp_grupo: 132 }), null);
+  assert.equal(lerLeituraDeBlocos({ grupo: "solo", dp_grupo: 132 }), null);
 });
 
-// Why: a shift would move the speaker of zone 2 into zone 1 in every automation the customer
+// Why: a shift would move the speaker of block 2 into block 1 in every automation the customer
 // already built on the platform, and nothing on the bus would say it happened.
-// Por que: um empurrão moveria a caixa da zona 2 para a zona 1 em toda automação que o cliente
+// Por que: um empurrão moveria a caixa do bloco 2 para o bloco 1 em toda automação que o cliente
 // já montou na plataforma, e nada no barramento diria que isso aconteceu.
 test("comIdentidade empties a block in place and never shifts the rest (esvazia o bloco no lugar e nunca empurra o resto)", () => {
   const ordem = ["uuid-1", "uuid-2", "uuid-3"];
   assert.deepEqual(comIdentidade(ordem, 1, ""), ["", "uuid-2", "uuid-3"]);
   assert.deepEqual(comIdentidade(ordem, 2, ""), ["uuid-1", "", "uuid-3"]);
-  // Why: one speaker in two blocks answers the volume of two zones on the bus, so moving it
+  // Why: one speaker in two blocks answers the volume of two blocks on the bus, so moving it
   // takes it off the block it used to occupy.
-  // Por que: uma caixa em dois blocos responde o volume de duas zonas no barramento, então
+  // Por que: uma caixa em dois blocos responde o volume de dois blocos no barramento, então
   // movê-la a tira do bloco que ela ocupava.
   assert.deepEqual(comIdentidade(ordem, 1, "uuid-3"), ["uuid-3", "uuid-2", ""]);
   assert.deepEqual(comIdentidade(["", "", ""], 3, "uuid-9"), ["", "", "uuid-9"]);
 });
 
 test("ordemDe reads the identities in the order of the blocks (lê as identidades na ordem dos blocos)", () => {
-  const zonas = [zonaDe(), vazia(2), zonaDe({ zona: 3, identidade: "uuid-3" })];
-  assert.deepEqual(ordemDe(zonas), ["uuid-1", "", "uuid-3"]);
+  const blocos = [blocoDe(), vazia(2), blocoDe({ bloco: 3, identidade: "uuid-3" })];
+  assert.deepEqual(ordemDe(blocos), ["uuid-1", "", "uuid-3"]);
 });
 
-test("podeOcuparBloco takes only what section 6 calls a zone (só aceita o que a seção 6 chama de zona)", () => {
+test("podeOcuparBloco takes any equipment whose driver exists (aceita qualquer equipamento cujo driver existe)", () => {
   assert.equal(podeOcuparBloco(itemDe()), true);
-  assert.equal(podeOcuparBloco(itemDe({ categoria: "projetor" })), false);
-  assert.equal(podeOcuparBloco(itemDe({ capacidades: ["volume", "fonte"] })), false);
+  assert.equal(podeOcuparBloco(itemDe({ categoria: "projetor" })), true);
+  assert.equal(podeOcuparBloco(itemDe({ capacidades: ["volume", "fonte"] })), true);
   assert.equal(podeOcuparBloco(undefined), false);
+});
+
+test("podeAgrupar reads multiroom from the manifest alone (lê multiroom só do manifesto)", () => {
+  assert.equal(podeAgrupar(itemDe()), true);
+  assert.equal(podeAgrupar(itemDe({ categoria: "projetor" })), false);
+  assert.equal(podeAgrupar(itemDe({ capacidades: ["volume", "fonte"] })), false);
+  assert.equal(podeAgrupar(undefined), false);
+});
+
+// Why: section 8, DP 102 is play/pause for a driver with transport and the power switch for
+// any other equipment on the app, so a projector in a block gets a power key and a driver with
+// only half of either pair gets nothing.
+// Por que: seção 8, o DP 102 é play/pause para um driver com transporte e a chave de ligar para
+// qualquer outro equipamento no app, então um projetor num bloco ganha uma tecla de energia e um
+// driver com só metade de qualquer par não ganha nada.
+test("controlesDaBloco gives DP 102 to power when there is no transport (dá o DP 102 ao ligar quando não há transporte)", () => {
+  const play = (capacidades: string[]) =>
+    controlesDaBloco(blocoDe(), itemDe({ capacidades })).find((controle) => controle.funcao === "play")?.especie;
+  assert.equal(play(["tocar", "pausar", "ligar", "desligar"]), "alternar");
+  assert.equal(play(["ligar", "desligar", "fonte"]), "ligar");
+  assert.equal(play(["ligar", "fonte"]), undefined);
+  assert.equal(play(["tocar"]), undefined);
 });
 
 // Why: section 14, a group only ever exists between speakers of the same domain; offering a
@@ -141,15 +164,15 @@ test("podeOcuparBloco takes only what section 6 calls a zone (só aceita o que a
 // que deixa metade dele tocando e a outra metade calada.
 test("gruposPossiveis never offers a mixed group (nunca oferece um grupo misto)", () => {
   const catalogo = [itemDe(), itemDe({ tipo: "multiroom_de_outra_marca" })];
-  const iguais = [zonaDe(), zonaDe({ zona: 2, identidade: "uuid-2" })];
+  const iguais = [blocoDe(), blocoDe({ bloco: 2, identidade: "uuid-2" })];
   assert.deepEqual(gruposPossiveis(iguais, catalogo), ["solo", "grupo1", "grupo2"]);
-  const mistas = [zonaDe(), zonaDe({ zona: 2, identidade: "uuid-2", tipo: "multiroom_de_outra_marca" })];
+  const mistas = [blocoDe(), blocoDe({ bloco: 2, identidade: "uuid-2", tipo: "multiroom_de_outra_marca" })];
   assert.deepEqual(gruposPossiveis(mistas, catalogo), ["solo"]);
   // Why: a group of one is not a group, and a screen that offered it would publish a group
   // the customer cannot hear.
   // Por que: um grupo de um não é grupo, e uma tela que o oferecesse publicaria um grupo que o
   // cliente não escuta.
-  assert.deepEqual(gruposPossiveis([zonaDe(), vazia(2)], catalogo), ["solo"]);
+  assert.deepEqual(gruposPossiveis([blocoDe(), vazia(2)], catalogo), ["solo"]);
   assert.deepEqual(gruposPossiveis(iguais, []), ["solo"]);
 });
 
@@ -157,8 +180,8 @@ test("gruposPossiveis never offers a mixed group (nunca oferece um grupo misto)"
 // daemon answers nao_suportado before the driver is touched.
 // Por que: seção 6, uma capacidade que o manifesto não declara não ganha botão, porque o
 // daemon responde nao_suportado antes de tocar no driver.
-test("controlesDaZona offers only what the manifest declares (oferece só o que o manifesto declara)", () => {
-  const todos = controlesDaZona(zonaDe(), itemDe());
+test("controlesDaBloco offers only what the manifest declares (oferece só o que o manifesto declara)", () => {
+  const todos = controlesDaBloco(blocoDe(), itemDe());
   assert.deepEqual(
     todos.map((controle) => [controle.funcao, controle.dpid, controle.especie]),
     [
@@ -168,15 +191,15 @@ test("controlesDaZona offers only what the manifest declares (oferece só o que 
       ["entrada", 141, "escolha"],
     ],
   );
-  const semTransporte = controlesDaZona(zonaDe(), itemDe({ capacidades: ["volume", "tocar"] }));
+  const semTransporte = controlesDaBloco(blocoDe(), itemDe({ capacidades: ["volume", "tocar"] }));
   assert.deepEqual(
     semTransporte.map((controle) => controle.funcao),
     ["volume"],
   );
-  const semEntradas = controlesDaZona(zonaDe({ entradas: [] }), itemDe());
+  const semEntradas = controlesDaBloco(blocoDe({ entradas: [] }), itemDe());
   assert.ok(!semEntradas.some((controle) => controle.funcao === "entrada"));
-  assert.deepEqual(controlesDaZona(vazia(2), itemDe()), []);
-  assert.deepEqual(controlesDaZona(zonaDe(), undefined), []);
+  assert.deepEqual(controlesDaBloco(vazia(2), itemDe()), []);
+  assert.deepEqual(controlesDaBloco(blocoDe(), undefined), []);
 });
 
 test("prepararVolume refuses what the data point does not take (recusa o que o data point não aceita)", () => {
@@ -192,35 +215,21 @@ test("prepararVolume refuses what the data point does not take (recusa o que o d
 // Por que: seção 14, um escravo responde stop mesmo com o grupo tocando, então o daemon
 // espelha nele o que o mestre toca e a tela lê isso.
 test("tocando reads the mirrored state of a slave (lê o estado espelhado de um escravo)", () => {
-  const escravo = zonaDe({ papel: "escravo" });
+  const escravo = blocoDe({ papel: "escravo" });
   assert.equal(tocando(escravo), false);
-  assert.equal(tocando(zonaDe({ estado: { ...escravo.estado!, tocando: "Musica 1" } })), true);
-  assert.equal(tocando(zonaDe({ estado: { ...escravo.estado!, tocando: "" } })), false);
+  assert.equal(tocando(blocoDe({ estado: { ...escravo.estado!, tocando: "Musica 1" } })), true);
+  assert.equal(tocando(blocoDe({ estado: { ...escravo.estado!, tocando: "" } })), false);
   assert.equal(tocando(vazia(3)), false);
 });
 
-test("every code of a zone has a phrase in both dictionaries (todo código de zona tem frase nos dois dicionários)", () => {
+test("every code of a block has a phrase in both dictionaries (todo código de bloco tem frase nos dois dicionários)", () => {
   for (const idioma of ["pt", "en"]) {
     const caminho = new URL(`./i18n/${idioma}.json`, import.meta.url);
     const textos = JSON.parse(readFileSync(caminho, "utf-8")) as Record<string, string>;
-    for (const codigo of CODIGOS_ZONAS) {
+    for (const codigo of CODIGOS_BLOCOS) {
       const frase = textos[`erro_${codigo}`];
       assert.equal(typeof frase, "string", `${idioma}.erro_${codigo}`);
       assert.ok(frase.trim().length > 0, `${idioma}.erro_${codigo}`);
     }
   }
-});
-
-// Why: the name of a zone is the name of an equipment, which the registration takes long and
-// in any alphabet, so the stylesheet has to wrap it instead of letting it stretch the card
-// past the edge of the screen.
-// Por que: o nome de uma zona é o nome de um equipamento, que o cadastro aceita longo e em
-// qualquer alfabeto, então a folha de estilo precisa quebrá-lo em vez de deixá-lo esticar o
-// cartão para fora da tela.
-test("zone text has a wrapping rule (texto de zona tem regra de quebra)", () => {
-  const css = readFileSync(new URL("./estilos-zonas.css", import.meta.url), "utf-8");
-  const inicio = css.indexOf(".zona h3,");
-  assert.ok(inicio > 0, "no wrapping rule for zone text");
-  const bloco = css.slice(inicio, css.indexOf("}", inicio));
-  assert.ok(bloco.includes("overflow-wrap: anywhere"), "overflow-wrap");
 });

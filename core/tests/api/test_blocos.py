@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Quero Automação Ltda
-"""The contract of the zone routes: the order of the blocks, the data points and the group.
+"""The contract of the block routes: the order of the blocks, the data points and the group.
 
 The numbers of section 8 are written by hand in this file. A test that asked the map for
 them would agree with any change the map made to the contract, which is exactly what a
 contract test exists to catch, and the panel reads these numbers out of these answers.
 
-O contrato das rotas de zona: a ordem dos blocos, os data points e o grupo.
+O contrato das rotas de bloco: a ordem dos blocos, os data points e o grupo.
 
 Os números da seção 8 estão escritos na mão neste arquivo. Um teste que os pedisse ao mapa
 concordaria com qualquer mudança que o mapa fizesse no contrato, que é exatamente o que um
@@ -35,7 +35,7 @@ VOLUME_1, PLAY_1, PRESET_1, ONLINE_1, TOCANDO_1, ENTRADA_1 = 101, 102, 103, 104,
 VOLUME_2, PLAY_2, PRESET_2, ONLINE_2, TOCANDO_2, ENTRADA_2 = 106, 107, 108, 109, 110, 142
 CENA = 131
 GRUPO = 132
-NOMES_ZONAS = 133
+NOMES_BLOCOS = 133
 NOMES_CENAS = 134
 NOMES_GRUPOS = 135
 
@@ -138,10 +138,10 @@ def abrir(fabrica_cliente, posse, bearer):
     Um hub com o catálogo, os cadastros e a ordem que o teste quiser.
     """
 
-    async def criar(catalogo: dict, *, equipamentos=(), zonas=(), cenas=()):
+    async def criar(catalogo: dict, *, equipamentos=(), blocos=(), cenas=()):
         cliente = await fabrica_cliente(
             catalogo=catalogo,
-            config=Config(equipamentos=equipamentos, zonas=zonas, cenas=cenas),
+            config=Config(equipamentos=equipamentos, blocos=blocos, cenas=cenas),
         )
         return cliente, bearer(await posse(cliente))
 
@@ -161,7 +161,7 @@ async def duas(abrir):
             _cadastro("uuid-1", ip=IP_1, nome="Sala"),
             _cadastro("uuid-2", ip=IP_2, nome="Cozinha"),
         ),
-        zonas=("uuid-1", "uuid-2"),
+        blocos=("uuid-1", "uuid-2"),
     )
     return cliente, auth, classe
 
@@ -180,10 +180,10 @@ async def test_a_ordem_vazia_ainda_lista_os_seis_blocos(abrir):
     Seção 6: zero equipamento é estado normal, e a POSIÇÃO é o contrato.
     """
     cliente, auth = await abrir({TIPO: _fabrica()})
-    corpo = await _json(await cliente.get("/api/zonas", headers=auth))
+    corpo = await _json(await cliente.get("/api/blocos", headers=auth))
     assert corpo["ok"] is True
-    assert [bloco["zona"] for bloco in corpo["zonas"]] == [1, 2, 3, 4, 5, 6]
-    assert all(bloco["identidade"] == "" and bloco["estado"] is None for bloco in corpo["zonas"])
+    assert [bloco["bloco"] for bloco in corpo["blocos"]] == [1, 2, 3, 4, 5, 6]
+    assert all(bloco["identidade"] == "" and bloco["estado"] is None for bloco in corpo["blocos"])
     assert corpo["grupo"] == "solo"
     assert corpo["dp_grupo"] == GRUPO
 
@@ -194,8 +194,8 @@ async def test_cada_bloco_carrega_os_data_points_da_secao_8(abrir):
     O painel lê a numeração daqui, então ele nunca carrega uma cópia da seção 8.
     """
     cliente, auth = await abrir({TIPO: _fabrica()})
-    corpo = await _json(await cliente.get("/api/zonas", headers=auth))
-    primeiro, segundo = corpo["zonas"][0], corpo["zonas"][1]
+    corpo = await _json(await cliente.get("/api/blocos", headers=auth))
+    primeiro, segundo = corpo["blocos"][0], corpo["blocos"][1]
     assert primeiro["dps"] == {
         "volume": VOLUME_1,
         "play": PLAY_1,
@@ -212,7 +212,7 @@ async def test_cada_bloco_carrega_os_data_points_da_secao_8(abrir):
         "tocando": TOCANDO_2,
         "entrada": ENTRADA_2,
     }
-    assert corpo["zonas"][5]["dps"]["volume"] == 126
+    assert corpo["blocos"][5]["dps"]["volume"] == 126
 
 
 async def test_a_ordem_salva_chega_ao_arquivo_e_a_leitura(abrir, amb):
@@ -225,19 +225,26 @@ async def test_a_ordem_salva_chega_ao_arquivo_e_a_leitura(abrir, amb):
         equipamentos=(_cadastro("uuid-1"), _cadastro("uuid-2", ip=IP_2, nome="Cozinha")),
     )
     resposta = await cliente.post(
-        "/api/zonas", json={"zonas": ["uuid-2", "", "uuid-1"]}, headers=auth
+        "/api/blocos", json={"blocos": ["uuid-2", "", "uuid-1"]}, headers=auth
     )
     assert resposta.status == 200, await resposta.text()
-    assert (await _json(resposta))["zonas"] == ["uuid-2", "", "uuid-1"]
+    assert (await _json(resposta))["blocos"] == ["uuid-2", "", "uuid-1"]
     em_disco = json.loads((amb.dir_data / ARQUIVO_CONFIG).read_text(encoding="utf-8"))
-    assert em_disco["zonas"] == ["uuid-2", "", "uuid-1"]
-    corpo = await _json(await cliente.get("/api/zonas", headers=auth))
-    assert [bloco["identidade"] for bloco in corpo["zonas"]] == ["uuid-2", "", "uuid-1", "", "", ""]
-    assert corpo["zonas"][0]["nome"] == "Cozinha"
-    assert corpo["zonas"][0]["tipo"] == TIPO
-    assert corpo["zonas"][0]["estado"]["online"] is True
-    assert corpo["zonas"][0]["entradas"] == list(FONTES)
-    assert corpo["zonas"][1]["estado"] is None
+    assert em_disco["blocos"] == ["uuid-2", "", "uuid-1"]
+    corpo = await _json(await cliente.get("/api/blocos", headers=auth))
+    assert [bloco["identidade"] for bloco in corpo["blocos"]] == [
+        "uuid-2",
+        "",
+        "uuid-1",
+        "",
+        "",
+        "",
+    ]
+    assert corpo["blocos"][0]["nome"] == "Cozinha"
+    assert corpo["blocos"][0]["tipo"] == TIPO
+    assert corpo["blocos"][0]["estado"]["online"] is True
+    assert corpo["blocos"][0]["entradas"] == list(FONTES)
+    assert corpo["blocos"][1]["estado"] is None
 
 
 async def test_uma_ordem_maior_que_o_contrato_e_recusada(abrir):
@@ -246,27 +253,29 @@ async def test_uma_ordem_maior_que_o_contrato_e_recusada(abrir):
     A seção 8 numera seis blocos e não existe um sétimo.
     """
     cliente, auth = await abrir({TIPO: _fabrica()}, equipamentos=(_cadastro("uuid-1"),))
-    resposta = await cliente.post("/api/zonas", json={"zonas": [""] * 7}, headers=auth)
+    resposta = await cliente.post("/api/blocos", json={"blocos": [""] * 7}, headers=auth)
     assert resposta.status == 400
-    assert (await _json(resposta))["code"] == "zonas_demais"
+    assert (await _json(resposta))["code"] == "blocos_demais"
 
 
 async def test_uma_identidade_que_ninguem_cadastrou_nao_ocupa_um_bloco(abrir):
     cliente, auth = await abrir({TIPO: _fabrica()}, equipamentos=(_cadastro("uuid-1"),))
-    resposta = await cliente.post("/api/zonas", json={"zonas": ["uuid-9"]}, headers=auth)
+    resposta = await cliente.post("/api/blocos", json={"blocos": ["uuid-9"]}, headers=auth)
     assert resposta.status == 404
     assert (await _json(resposta))["code"] == "eq_nao_encontrado"
 
 
 async def test_a_mesma_caixa_nao_ocupa_dois_blocos(abrir):
-    """One speaker in two blocks answers the volume of two zones on the bus.
+    """One speaker in two blocks answers the volume of two blocks on the bus.
 
-    Uma caixa em dois blocos responde o volume de duas zonas no barramento.
+    Uma caixa em dois blocos responde o volume de dois blocos no barramento.
     """
     cliente, auth = await abrir({TIPO: _fabrica()}, equipamentos=(_cadastro("uuid-1"),))
-    resposta = await cliente.post("/api/zonas", json={"zonas": ["uuid-1", "uuid-1"]}, headers=auth)
+    resposta = await cliente.post(
+        "/api/blocos", json={"blocos": ["uuid-1", "uuid-1"]}, headers=auth
+    )
     assert resposta.status == 400
-    assert (await _json(resposta))["code"] == "zona_repetida"
+    assert (await _json(resposta))["code"] == "bloco_repetida"
 
 
 async def test_o_snapshot_traz_o_reportavel_e_nunca_o_que_e_so_envio(duas):
@@ -280,7 +289,7 @@ async def test_o_snapshot_traz_o_reportavel_e_nunca_o_que_e_so_envio(duas):
     assert dps[str(ONLINE_1)] is True
     assert dps[str(VOLUME_1)] == 20
     assert dps[str(GRUPO)] == "solo"
-    assert json.loads(dps[str(NOMES_ZONAS)]) == {"z": ["Sala", "Cozinha"]}
+    assert json.loads(dps[str(NOMES_BLOCOS)]) == {"z": ["Sala", "Cozinha"]}
     assert str(PRESET_1) not in dps
     assert str(CENA) not in dps
 
@@ -295,7 +304,7 @@ async def test_o_snapshot_descreve_a_tabela_da_secao_8(duas):
     tabela = {item["dpid"]: item for item in corpo["mapa"]}
     assert tabela[VOLUME_1] == {
         "dpid": VOLUME_1,
-        "zona": 1,
+        "bloco": 1,
         "funcao": "volume",
         "tipo": "value",
         "sentido": "rw",
@@ -361,11 +370,11 @@ async def test_um_valor_fora_do_tipo_do_data_point_e_recusado(duas, valor):
     assert _caixa(classe, "uuid-1").chamadas == []
 
 
-async def test_um_set_num_bloco_vazio_responde_zona_offline(abrir):
+async def test_um_set_num_bloco_vazio_responde_bloco_offline(abrir):
     cliente, auth = await abrir({TIPO: _fabrica()})
     resposta = await cliente.post(f"/api/dp/{VOLUME_1}", json={"v": 40}, headers=auth)
     assert resposta.status == 503
-    assert (await _json(resposta))["code"] == "zona_offline"
+    assert (await _json(resposta))["code"] == "bloco_offline"
 
 
 async def test_o_grupo_se_forma_pelo_mestre_e_cai_pelo_mestre(duas):
@@ -378,8 +387,8 @@ async def test_o_grupo_se_forma_pelo_mestre_e_cai_pelo_mestre(duas):
     assert resposta.status == 200, await resposta.text()
     assert (await _json(resposta))["grupo"] == "grupo1"
     assert _caixa(classe, "uuid-2").chamadas == [("entrar_no_grupo", IP_1)]
-    corpo = await _json(await cliente.get("/api/zonas", headers=auth))
-    assert [bloco["papel"] for bloco in corpo["zonas"][:2]] == ["mestre", "escravo"]
+    corpo = await _json(await cliente.get("/api/blocos", headers=auth))
+    assert [bloco["papel"] for bloco in corpo["blocos"][:2]] == ["mestre", "escravo"]
     resposta = await cliente.post("/api/grupo", json={"v": "solo"}, headers=auth)
     assert (await _json(resposta))["grupo"] == "solo"
     assert ("desfazer_grupo", None) in _caixa(classe, "uuid-1").chamadas
@@ -388,7 +397,7 @@ async def test_o_grupo_se_forma_pelo_mestre_e_cai_pelo_mestre(duas):
 
 async def test_um_grupo_de_uma_caixa_so_nao_e_grupo(abrir):
     cliente, auth = await abrir(
-        {TIPO: _fabrica()}, equipamentos=(_cadastro("uuid-1"),), zonas=("uuid-1",)
+        {TIPO: _fabrica()}, equipamentos=(_cadastro("uuid-1"),), blocos=("uuid-1",)
     )
     resposta = await cliente.post("/api/grupo", json={"v": "grupo1"}, headers=auth)
     assert resposta.status == 400
@@ -418,7 +427,7 @@ async def test_um_grupo_misto_nunca_e_oferecido(abrir):
             _cadastro("uuid-1"),
             _cadastro("uuid-outra", tipo=OUTRO_TIPO, ip=IP_2, nome="Quarto"),
         ),
-        zonas=("uuid-1", "uuid-outra"),
+        blocos=("uuid-1", "uuid-outra"),
     )
     resposta = await cliente.post("/api/grupo", json={"v": "grupo1"}, headers=auth)
     assert resposta.status == 400
@@ -426,17 +435,17 @@ async def test_um_grupo_misto_nunca_e_oferecido(abrir):
 
 
 async def test_remover_um_equipamento_esvazia_o_bloco_e_nao_empurra_o_resto(duas, amb):
-    """A shift would move the speaker of zone 2 into zone 1 in every automation.
+    """A shift would move the speaker of block 2 into block 1 in every automation.
 
-    Um empurrão moveria a caixa da zona 2 para a zona 1 em toda automação.
+    Um empurrão moveria a caixa do bloco 2 para o bloco 1 em toda automação.
     """
     cliente, auth, _classe = duas
     resposta = await cliente.delete("/api/equipamentos/uuid-1", headers=auth)
     assert resposta.status == 200, await resposta.text()
-    corpo = await _json(await cliente.get("/api/zonas", headers=auth))
-    assert [bloco["identidade"] for bloco in corpo["zonas"][:2]] == ["", "uuid-2"]
+    corpo = await _json(await cliente.get("/api/blocos", headers=auth))
+    assert [bloco["identidade"] for bloco in corpo["blocos"][:2]] == ["", "uuid-2"]
     em_disco = json.loads((amb.dir_data / ARQUIVO_CONFIG).read_text(encoding="utf-8"))
-    assert em_disco["zonas"] == ["", "uuid-2"]
+    assert em_disco["blocos"] == ["", "uuid-2"]
 
 
 async def test_remover_o_mestre_derruba_o_grupo(duas):
@@ -447,22 +456,22 @@ async def test_remover_o_mestre_derruba_o_grupo(duas):
     cliente, auth, _classe = duas
     assert (await cliente.post("/api/grupo", json={"v": "grupo1"}, headers=auth)).status == 200
     assert (await cliente.delete("/api/equipamentos/uuid-1", headers=auth)).status == 200
-    corpo = await _json(await cliente.get("/api/zonas", headers=auth))
+    corpo = await _json(await cliente.get("/api/blocos", headers=auth))
     assert corpo["grupo"] == "solo"
-    assert [bloco["papel"] for bloco in corpo["zonas"][:2]] == ["", ""]
+    assert [bloco["papel"] for bloco in corpo["blocos"][:2]] == ["", ""]
 
 
-async def test_uma_zona_escrava_de_grupo_alheio_nao_e_desenhada_como_solo(duas):
-    """The panel draws no role badge for a solo zone, so calling this one solo left the
+async def test_uma_bloco_escrava_de_grupo_alheio_nao_e_desenhada_como_solo(duas):
+    """The panel draws no role badge for a solo block, so calling this one solo left the
     operator with volume, transport and input controls that only ever answer no.
 
-    O painel não desenha selo de papel para uma zona solo, então chamar esta de solo deixava o
+    O painel não desenha selo de papel para um bloco solo, então chamar esta de solo deixava o
     operador com controles de volume, transporte e entrada que só respondem não.
     """
     cliente, auth, classe = duas
     _caixa(classe, "uuid-1").escravo_alheio = True
-    corpo = await _json(await cliente.get("/api/zonas", headers=auth))
-    assert [bloco["papel"] for bloco in corpo["zonas"][:2]] == ["escravo", ""]
+    corpo = await _json(await cliente.get("/api/blocos", headers=auth))
+    assert [bloco["papel"] for bloco in corpo["blocos"][:2]] == ["escravo", ""]
 
 
 async def test_o_dp_de_cena_responde_o_mesmo_que_a_rota_de_cenas(duas):
@@ -486,18 +495,18 @@ def test_todo_codigo_do_executor_de_cenas_tem_status_no_dp_de_cena():
     500 com erro_interno para algo que a rota de cenas responde honestamente.
     """
     from iphub import cenas as modulo_cenas
-    from iphub.api.zonas import STATUS_POR_CODIGO
+    from iphub.api.blocos import STATUS_POR_CODIGO
 
     assert STATUS_POR_CODIGO[modulo_cenas.CENA_NAO_ENCONTRADA] == 404
     assert STATUS_POR_CODIGO[modulo_cenas.CENA_EM_CURSO] == 409
 
 
-async def test_uma_ordem_salva_com_bloco_que_nao_e_multiroom_sobe_com_ele_vazio(abrir):
-    """The route validates an order and config.json does not, so a file edited by hand, or
-    left behind by an equipment that changed tipo, must not boot a zone nothing can command.
+async def test_uma_ordem_salva_com_um_projetor_sobe_com_ele_no_bloco(abrir):
+    """Section 6: any registered equipment occupies a block, so a projector saved in block 2
+    boots in block 2.
 
-    A rota valida uma ordem e o config.json não, então um arquivo editado na mão, ou deixado
-    por um equipamento que trocou de tipo, não pode subir uma zona que ninguém comanda.
+    Seção 6: qualquer equipamento cadastrado ocupa um bloco, então um projetor salvo no bloco
+    2 sobe no bloco 2.
     """
     projetor = "projetor_falso"
     cliente, auth = await abrir(
@@ -506,15 +515,11 @@ async def test_uma_ordem_salva_com_bloco_que_nao_e_multiroom_sobe_com_ele_vazio(
             _cadastro("uuid-1", ip=IP_1, nome="Sala"),
             _cadastro("uuid-2", tipo=projetor, ip=IP_2, nome="Projetor"),
         ),
-        zonas=("uuid-1", "uuid-2"),
+        blocos=("uuid-1", "uuid-2"),
     )
-    corpo = await _json(await cliente.get("/api/zonas", headers=auth))
-    assert corpo["zonas"][0]["identidade"] == "uuid-1"
-    # The route refuses a block that is not a multiroom equipment, and the saved order has to
-    # meet the same rule: a projector in a zone block publishes a zone nothing can command.
-    # A rota recusa um bloco que não é equipamento multiroom, e a ordem salva precisa cumprir
-    # a mesma regra: um projetor num bloco de zona publica uma zona que ninguém comanda.
-    assert corpo["zonas"][1]["identidade"] == ""
+    corpo = await _json(await cliente.get("/api/blocos", headers=auth))
+    assert corpo["blocos"][0]["identidade"] == "uuid-1"
+    assert corpo["blocos"][1]["identidade"] == "uuid-2"
 
 
 async def test_um_corpo_json_fundo_demais_e_corpo_invalido_e_nunca_erro_interno(duas):

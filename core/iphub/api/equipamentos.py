@@ -25,17 +25,17 @@ from iphub.api.comum import (
     CATALOGO,
     GESTOR,
     VARREDURA,
+    blocos_de,
     com_sessao,
     config_de,
     drivers_de,
     ler_corpo,
     resposta_ok,
     trocar_config,
-    zonas_de,
 )
 from iphub.api.formato import achado_json, equipamento_json, manifesto_json
 from iphub.config import Cadastro, ip_literal
-from iphub.dpbus import zonas as modulo_zonas
+from iphub.dpbus import blocos as modulo_blocos
 from iphub.drivers import descoberta
 from iphub.drivers.gestor import ErroDeCadastro, Gestor
 from iphub.drivers.manifesto import Manifesto, TipoCampo
@@ -207,7 +207,7 @@ def _identidade_do_corpo(dados: dict, identidade: str | None) -> str:
 
 
 def _persistir(
-    app: web.Application, cadastros: tuple[Cadastro, ...], zonas: tuple[str, ...] | None = None
+    app: web.Application, cadastros: tuple[Cadastro, ...], blocos: tuple[str, ...] | None = None
 ) -> bool:
     # Why: the route writes the set (section 6) and answers whether it could, because a gestor
     # changed first left the daemon polling an equipment that never reached the disk, listed by
@@ -217,8 +217,8 @@ def _persistir(
     # pelo painel até um reinício o sumir.
     atual = config_de(app)
     mudanca = {"equipamentos": cadastros}
-    if zonas is not None:
-        mudanca["zonas"] = zonas
+    if blocos is not None:
+        mudanca["blocos"] = blocos
     try:
         trocar_config(app, replace(atual, **mudanca))
     except OSError as erro:
@@ -287,55 +287,19 @@ async def _gravar(request: web.Request, identidade: str | None) -> web.Response:
         return _erro(recusa.codigo)
     if identidade is None and _achar(gestor.cadastros, cadastro.identidade) is not None:
         return _erro(IDENTIDADE_DUPLICADA)
-    zonas = zonas_de(app)
-    # Why: section 6 says a zone is a multiroom equipment occupying a block, so an equipment
-    # that changes to a tipo that is not multiroom cannot stay in one: the block would publish
-    # a zone whose speaker refuses every data point of section 8. Its block is emptied, and it
-    # stays empty, because closing the hole would move every zone below it one up in silence
-    # on a bus the customer already automated.
-    # Por que: a seção 6 diz que uma zona é um equipamento multiroom ocupando um bloco, então
-    # um equipamento que troca para um tipo que não é multiroom não pode ficar num: o bloco
-    # publicaria uma zona cuja caixa recusa todo data point da seção 8. O bloco dele é
-    # esvaziado, e continua vazio, porque fechar o buraco moveria toda zona abaixo dele uma
-    # para cima, em silêncio, num barramento que o cliente já automatizou.
-    saiu_da_zona = (
-        anterior is not None
-        and anterior.tipo != cadastro.tipo
-        and zonas.bloco(cadastro.identidade) != 0
-        and not _e_multiroom(app, cadastro.tipo)
-    )
-    ordem = modulo_zonas.sem(zonas.ordem, cadastro.identidade) if saiu_da_zona else None
-    if not _persistir(app, _com(gestor.cadastros, cadastro), ordem):
+    # Why: section 6, any registered equipment may occupy a block, so a change of tipo keeps
+    # the block: DP 102 follows the new manifest (transport or power) on the next report.
+    # Por que: seção 6, qualquer equipamento cadastrado pode ocupar um bloco, então uma troca
+    # de tipo mantém o bloco: o DP 102 segue o manifesto novo (transporte ou ligar) no
+    # próximo report.
+    if not _persistir(app, _com(gestor.cadastros, cadastro)):
         return _erro(ERRO_INTERNO)
     mudar = gestor.cadastrar if identidade is None else gestor.atualizar_cadastro
     try:
         await mudar(cadastro)
     except ErroDeCadastro as erro:
         return _erro(erro.codigo)
-    if saiu_da_zona:
-        log.warning(
-            "equipment %s changed to tipo %r, which is not multiroom, so its zone block "
-            "was emptied",
-            cadastro.identidade,
-            cadastro.tipo,
-        )
-        await zonas.esquecer(cadastro.identidade)
     return resposta_ok()
-
-
-def _e_multiroom(app: web.Application, tipo: str) -> bool:
-    """Section 6: what the manifest declares decides, and it is the same rule the zones
-    module applies, written once here against the tipo instead of the identity.
-
-    Seção 6: o que o manifesto declara decide, e é a mesma regra que o módulo das zonas
-    aplica, escrita uma vez aqui contra o tipo em vez da identidade.
-    """
-    manifesto = _manifestos(app).get(tipo)
-    return (
-        manifesto is not None
-        and manifesto.categoria == modulo_zonas.CATEGORIA_DE_GRUPO
-        and modulo_zonas.CAPACIDADE_DE_GRUPO in manifesto.capacidades
-    )
 
 
 @com_sessao
@@ -345,19 +309,19 @@ async def remover(request: web.Request) -> web.Response:
     if _achar(gestor.cadastros, identidade) is None:
         return _erro(EQ_NAO_ENCONTRADO)
     restantes = tuple(c for c in gestor.cadastros if c.identidade != identidade)
-    zonas = zonas_de(request.app)
+    blocos = blocos_de(request.app)
     # Why: section 8 numbers the block by position, so the block of a removed speaker stays
-    # there, empty; closing the hole would move every speaker below it one zone up, in
+    # there, empty; closing the hole would move every speaker below it one block up, in
     # silence, on a bus the customer already automated. The group it was in falls with it,
     # because a group led by an equipment nobody has is a group nobody can take down.
     # Por que: a seção 8 numera o bloco pela posição, então o bloco de uma caixa removida
-    # continua ali, vazio; fechar o buraco moveria toda caixa abaixo dele uma zona para cima,
+    # continua ali, vazio; fechar o buraco moveria toda caixa abaixo dele um bloco para cima,
     # em silêncio, num barramento que o cliente já automatizou. O grupo em que ela estava cai
     # junto, porque um grupo liderado por um equipamento que ninguém tem é um grupo que
     # ninguém consegue desfazer.
-    if not _persistir(request.app, restantes, modulo_zonas.sem(zonas.ordem, identidade)):
+    if not _persistir(request.app, restantes, modulo_blocos.sem(blocos.ordem, identidade)):
         return _erro(ERRO_INTERNO)
-    await zonas.esquecer(identidade)
+    await blocos.esquecer(identidade)
     await gestor.remover(identidade)
     return resposta_ok()
 

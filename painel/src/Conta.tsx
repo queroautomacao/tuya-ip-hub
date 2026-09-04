@@ -139,7 +139,7 @@ function Reiniciar() {
       {confirmando ? (
         <div className="confirmacao">
           <p>{t("conta_reiniciar_pergunta")}</p>
-          <button type="button" className="botao secundario" onClick={() => void confirmar()}>
+          <button type="button" className="botao perigo" onClick={() => void confirmar()}>
             {t("conta_reiniciar_confirmar")}
           </button>
           <button type="button" className="botao secundario" onClick={() => setConfirmando(false)}>
@@ -147,7 +147,7 @@ function Reiniciar() {
           </button>
         </div>
       ) : (
-        <button type="button" className="botao secundario" onClick={() => setConfirmando(true)}>
+        <button type="button" className="botao perigo" onClick={() => setConfirmando(true)}>
           {t("conta_reiniciar")}
         </button>
       )}

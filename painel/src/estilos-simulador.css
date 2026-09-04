@@ -70,7 +70,7 @@
   color: var(--texto-suave);
 }
 
-.app-zona {
+.app-bloco {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
@@ -80,18 +80,18 @@
   border: 1px solid var(--borda);
 }
 
-.app-zona-offline {
+.app-bloco-offline {
   opacity: 0.6;
 }
 
-.app-zona header {
+.app-bloco header {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   gap: 0.5rem;
 }
 
-.app-zona h4 {
+.app-bloco h4 {
   margin: 0;
   font-size: 1.05rem;
   overflow-wrap: anywhere;
@@ -133,6 +133,22 @@
 .app-play[disabled] {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Why: the power key of an equipment without transport reads as a switch: outlined when off,
+   filled when on, the way the app of the customer draws a switch.
+   Por que: a tecla de energia de um equipamento sem transporte se lê como interruptor: contorno
+   quando desligado, preenchida quando ligado, como o app do cliente desenha um interruptor. */
+.app-energia {
+  background: var(--fundo);
+  color: var(--texto);
+  border: 1px solid var(--borda);
+}
+
+.app-energia[aria-pressed="true"] {
+  background: var(--destaque);
+  border-color: var(--destaque);
+  color: #ffffff;
 }
 
 .app-volume {

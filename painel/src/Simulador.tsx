@@ -13,14 +13,14 @@
 // e um report da caixa o move de volta.
 
 import { useCallback, useEffect, useState } from "react";
-import { ajustarDp, codigoDoErro, lerCatalogo, lerCenas, lerDps, lerZonas } from "./api.ts";
+import { ajustarDp, codigoDoErro, lerCatalogo, lerCenas, lerDps, lerBlocos } from "./api.ts";
 import { FUNCAO_DA_CENA, type Cena, type ItemDoMapa } from "./cenas.ts";
 import { type ItemCatalogo } from "./equipamentos.ts";
 import { t, traduzirErro } from "./i18n";
-import { SOLO, gruposPossiveis, type LeituraDeZonas, type Zona } from "./zonas.ts";
+import { SOLO, controlesDaBloco, gruposPossiveis, type LeituraDeBlocos, type Bloco } from "./blocos.ts";
 
 interface Leitura {
-  zonas: LeituraDeZonas | null;
+  blocos: LeituraDeBlocos | null;
   dps: Record<string, unknown>;
   mapa: ItemDoMapa[];
   cenas: Cena[];
@@ -28,7 +28,7 @@ interface Leitura {
   erro: string | null;
 }
 
-const VAZIA: Leitura = { zonas: null, dps: {}, mapa: [], cenas: [], catalogo: [], erro: null };
+const VAZIA: Leitura = { blocos: null, dps: {}, mapa: [], cenas: [], catalogo: [], erro: null };
 
 // Why: the app of the customer polls its device a few times a minute, and the simulator
 // wants to feel like it: three seconds is close to the report cadence of section 8.
@@ -45,30 +45,40 @@ function texto(valor: unknown): string {
   return typeof valor === "string" ? valor : "";
 }
 
-function CartaoZona({
-  zona,
+function CartaoBloco({
+  bloco,
+  item,
   dps,
   mapa,
   ocupado,
   aoAjustar,
 }: {
-  zona: Zona;
+  bloco: Bloco;
+  item: ItemCatalogo | undefined;
   dps: Record<string, unknown>;
   mapa: ItemDoMapa[];
   ocupado: boolean;
   aoAjustar: (dpid: number, valor: unknown) => void;
 }) {
   const [arrastando, setArrastando] = useState<number | null>(null);
-  const online = dps[String(zona.dps.online)] === true;
-  const volume = numero(dps[String(zona.dps.volume)]) ?? 0;
-  const tocando = dps[String(zona.dps.play)] === true;
-  const titulo = texto(dps[String(zona.dps.tocando)]);
-  const entrada = texto(dps[String(zona.dps.entrada)]);
-  const presets = mapa.find((item) => item.dpid === zona.dps.preset)?.valores ?? [];
-  const nome = zona.nome || zona.identidade;
+  // Why: section 8, DP 102 is play/pause for an equipment with transport and the power switch
+  // for any other, so the same key is drawn as play or as power from what the driver declares.
+  // Por que: seção 8, o DP 102 é play/pause para um equipamento com transporte e a chave de
+  // ligar para qualquer outro, então a mesma tecla é desenhada como play ou como energia a
+  // partir do que o driver declara.
+  const controles = controlesDaBloco(bloco, item);
+  const play = controles.find((controle) => controle.funcao === "play");
+  const temVolume = controles.some((controle) => controle.funcao === "volume");
+  const online = dps[String(bloco.dps.online)] === true;
+  const volume = numero(dps[String(bloco.dps.volume)]) ?? 0;
+  const tocando = dps[String(bloco.dps.play)] === true;
+  const titulo = texto(dps[String(bloco.dps.tocando)]);
+  const entrada = texto(dps[String(bloco.dps.entrada)]);
+  const presets = mapa.find((item) => item.dpid === bloco.dps.preset)?.valores ?? [];
+  const nome = bloco.nome || bloco.identidade;
   const mostrado = arrastando ?? volume;
   return (
-    <section className={`app-zona ${online ? "" : "app-zona-offline"}`}>
+    <section className={`app-bloco ${online ? "" : "app-bloco-offline"}`}>
       <header>
         <h4>{nome}</h4>
         <span className="app-estado">
@@ -76,23 +86,41 @@ function CartaoZona({
         </span>
       </header>
       <div className="app-transporte">
-        <button
-          type="button"
-          className="app-play"
-          disabled={!online || ocupado}
-          aria-label={tocando ? t("zonas_pausar") : t("zonas_tocar")}
-          onClick={() => aoAjustar(zona.dps.play, !tocando)}
-        >
-          {tocando ? (
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M7 5h4v14H7zM13 5h4v14h-4z" />
+        {play?.especie === "ligar" && (
+          <button
+            type="button"
+            className="app-play app-energia"
+            disabled={!online || ocupado}
+            aria-pressed={tocando}
+            aria-label={tocando ? t("simulador_desligar") : t("simulador_ligar")}
+            onClick={() => aoAjustar(bloco.dps.play, !tocando)}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" aria-hidden="true">
+              <path d="M12 3v9" />
+              <path d="M6.3 6.5a8 8 0 1 0 11.4 0" />
             </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-          )}
-        </button>
+          </button>
+        )}
+        {play?.especie === "alternar" && (
+          <button
+            type="button"
+            className="app-play"
+            disabled={!online || ocupado}
+            aria-label={tocando ? t("blocos_pausar") : t("blocos_tocar")}
+            onClick={() => aoAjustar(bloco.dps.play, !tocando)}
+          >
+            {tocando ? (
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M7 5h4v14H7zM13 5h4v14h-4z" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            )}
+          </button>
+        )}
+        {temVolume && (
         <label className="app-volume">
           <span className="app-volume-valor">{mostrado}</span>
           <input
@@ -101,29 +129,30 @@ function CartaoZona({
             max={100}
             value={mostrado}
             disabled={!online || ocupado}
-            aria-label={`${t("zonas_funcao_volume")} ${nome}`}
+            aria-label={`${t("blocos_funcao_volume")} ${nome}`}
             onChange={(evento) => setArrastando(Number(evento.target.value))}
             onPointerUp={() => {
-              if (arrastando !== null) aoAjustar(zona.dps.volume, arrastando);
+              if (arrastando !== null) aoAjustar(bloco.dps.volume, arrastando);
               setArrastando(null);
             }}
             onKeyUp={() => {
-              if (arrastando !== null) aoAjustar(zona.dps.volume, arrastando);
+              if (arrastando !== null) aoAjustar(bloco.dps.volume, arrastando);
               setArrastando(null);
             }}
           />
         </label>
+        )}
       </div>
-      {zona.entradas.length > 0 && (
-        <div className="app-fichas" role="group" aria-label={t("zonas_funcao_entrada")}>
-          {zona.entradas.map((opcao) => (
+      {bloco.entradas.length > 0 && (
+        <div className="app-fichas" role="group" aria-label={t("blocos_funcao_entrada")}>
+          {bloco.entradas.map((opcao) => (
             <button
               key={opcao}
               type="button"
               className="app-ficha"
               aria-pressed={opcao === entrada}
               disabled={!online || ocupado}
-              onClick={() => aoAjustar(zona.dps.entrada, opcao)}
+              onClick={() => aoAjustar(bloco.dps.entrada, opcao)}
             >
               {opcao}
             </button>
@@ -131,14 +160,14 @@ function CartaoZona({
         </div>
       )}
       {presets.length > 0 && (
-        <div className="app-fichas" role="group" aria-label={t("zonas_funcao_preset")}>
+        <div className="app-fichas" role="group" aria-label={t("blocos_funcao_preset")}>
           {presets.map((preset, indice) => (
             <button
               key={preset}
               type="button"
               className="app-ficha app-preset"
               disabled={!online || ocupado}
-              onClick={() => aoAjustar(zona.dps.preset, preset)}
+              onClick={() => aoAjustar(bloco.dps.preset, preset)}
             >
               {indice + 1}
             </button>
@@ -156,13 +185,13 @@ export default function Simulador({ nomeInstalacao }: { nomeInstalacao: string }
 
   const recarregar = useCallback(async (): Promise<void> => {
     try {
-      const [zonas, snapshot, cenas, catalogo] = await Promise.all([
-        lerZonas(),
+      const [blocos, snapshot, cenas, catalogo] = await Promise.all([
+        lerBlocos(),
         lerDps(),
         lerCenas(),
         lerCatalogo(),
       ]);
-      setLeitura({ zonas, dps: snapshot.dps, mapa: snapshot.mapa, cenas: cenas.cenas, catalogo, erro: null });
+      setLeitura({ blocos, dps: snapshot.dps, mapa: snapshot.mapa, cenas: cenas.cenas, catalogo, erro: null });
     } catch (falha) {
       setLeitura((anterior) => ({ ...anterior, erro: codigoDoErro(falha) }));
     }
@@ -187,9 +216,9 @@ export default function Simulador({ nomeInstalacao }: { nomeInstalacao: string }
     }
   }
 
-  const zonas = (leitura.zonas?.zonas ?? []).filter((zona) => zona.identidade !== "");
-  const grupos = leitura.zonas === null ? [] : gruposPossiveis(leitura.zonas.zonas, leitura.catalogo);
-  const grupoAtual = leitura.zonas?.grupo ?? SOLO;
+  const blocos = (leitura.blocos?.blocos ?? []).filter((bloco) => bloco.identidade !== "");
+  const grupos = leitura.blocos === null ? [] : gruposPossiveis(leitura.blocos.blocos, leitura.catalogo);
+  const grupoAtual = leitura.blocos?.grupo ?? SOLO;
   const dpCena = leitura.mapa.find((item) => item.funcao === FUNCAO_DA_CENA)?.dpid;
   const cenas = leitura.cenas.filter((cena) => cena.passos.length > 0);
   return (
@@ -220,21 +249,22 @@ export default function Simulador({ nomeInstalacao }: { nomeInstalacao: string }
             <h3>{nomeInstalacao || t("produto")}</h3>
           </header>
           <div className="app-corpo">
-            <h4 className="app-secao">{t("simulador_zonas")}</h4>
-            {leitura.zonas !== null && zonas.length === 0 && (
+            <h4 className="app-secao">{t("simulador_blocos")}</h4>
+            {leitura.blocos !== null && blocos.length === 0 && (
               <p className="app-vazio">{t("simulador_vazio")}</p>
             )}
-            {zonas.map((zona) => (
-              <CartaoZona
-                key={zona.zona}
-                zona={zona}
+            {blocos.map((bloco) => (
+              <CartaoBloco
+                key={bloco.bloco}
+                bloco={bloco}
+                item={leitura.catalogo.find((candidato) => candidato.tipo === bloco.tipo)}
                 dps={leitura.dps}
                 mapa={leitura.mapa}
                 ocupado={ocupado}
                 aoAjustar={(dpid, valor) => void ajustar(dpid, valor)}
               />
             ))}
-            {leitura.zonas !== null && zonas.length > 1 && (
+            {leitura.blocos !== null && blocos.length > 1 && (
               <>
                 <h4 className="app-secao">{t("simulador_grupo")}</h4>
                 <div className="app-fichas" role="group" aria-label={t("simulador_grupo")}>
@@ -245,9 +275,9 @@ export default function Simulador({ nomeInstalacao }: { nomeInstalacao: string }
                       className="app-ficha"
                       aria-pressed={valor === grupoAtual}
                       disabled={ocupado}
-                      onClick={() => void ajustar(leitura.zonas?.dp_grupo ?? 0, valor)}
+                      onClick={() => void ajustar(leitura.blocos?.dp_grupo ?? 0, valor)}
                     >
-                      {valor === SOLO ? t("zonas_solo") : `${t("zonas_bloco")} ${valor.slice(5)}`}
+                      {valor === SOLO ? t("blocos_solo") : `${t("blocos_bloco")} ${valor.slice(5)}`}
                     </button>
                   ))}
                 </div>

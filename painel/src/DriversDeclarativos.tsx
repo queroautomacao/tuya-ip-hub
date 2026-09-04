@@ -26,6 +26,7 @@ import {
   type Transporte,
 } from "./declarativos.ts";
 import { rotuloDoTipo, type ItemCatalogo } from "./equipamentos.ts";
+import EditorDeCodigo from "./EditorDeCodigo.tsx";
 import { t, traduzirErro, type Idioma } from "./i18n";
 
 function Problemas({ grupos }: { grupos: readonly Grupo[] }) {
@@ -229,15 +230,7 @@ function Editor({
       </div>
       <div className="formulario">
         <label htmlFor="driver-json">{t("editor_json")}</label>
-        <textarea
-          id="driver-json"
-          className="editor-json"
-          name="json"
-          rows={16}
-          spellCheck={false}
-          value={texto}
-          onChange={(evento) => escrever(evento.target.value)}
-        />
+        <EditorDeCodigo id="driver-json" nome="json" valor={texto} aoMudar={escrever} />
         {grupos.length > 0 && <Problemas grupos={grupos} />}
         {erro !== null && (
           <p className="erro" role="alert">
