@@ -4,6 +4,7 @@
 @import "./estilos-declarativos.css";
 @import "./estilos-zonas.css";
 @import "./estilos-cenas.css";
+@import "./estilos-concha.css";
 
 :root {
   color-scheme: light dark;
@@ -46,10 +47,10 @@ body {
 }
 
 .pagina {
-  max-width: 720px;
-  min-height: 100vh;
+  max-width: 560px;
+  min-height: 100dvh;
   margin: 0 auto;
-  padding: 2rem 1.25rem 2.5rem;
+  padding: calc(1.5rem + env(safe-area-inset-top)) 1.25rem calc(2rem + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
@@ -81,6 +82,7 @@ body {
 .idiomas button {
   font: inherit;
   font-size: 0.85rem;
+  min-height: 2.2rem;
   padding: 0.3rem 0.7rem;
   border: 1px solid var(--borda);
   border-radius: 999px;
@@ -184,8 +186,16 @@ main {
   margin-top: 0.5rem;
 }
 
+/* Why: on a phone a field under 16px makes iOS zoom the page on focus, and a control
+   under 44px is a control the thumb misses; these two rules are the whole difference between
+   a panel that works on a phone and one that only opens on it.
+   Por que: no celular um campo abaixo de 16px faz o iOS ampliar a página ao focar, e um
+   controle abaixo de 44px é um controle que o polegar erra; estas duas regras são toda a
+   diferença entre um painel que funciona no celular e um que só abre nele. */
 .formulario input {
   font: inherit;
+  font-size: max(1rem, 16px);
+  min-height: 2.75rem;
   padding: 0.55rem 0.7rem;
   border: 1px solid var(--borda);
   border-radius: 8px;
@@ -208,6 +218,7 @@ main {
   font: inherit;
   font-weight: 600;
   margin-top: 1rem;
+  min-height: 2.75rem;
   padding: 0.6rem 1.1rem;
   border: 1px solid var(--destaque);
   border-radius: 8px;

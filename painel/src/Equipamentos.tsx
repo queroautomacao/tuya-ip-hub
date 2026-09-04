@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Quero Automação Ltda
 
+// Why: the reading cycle of the equipment and the full card of one of them are shared by the
+// home and by the detail screen, so they live here, written once; neither screen decides how
+// the list is read.
+// Por que: o ciclo de leitura dos equipamentos e o cartão completo de um deles são
+// compartilhados pelo início e pela tela de detalhe, então moram aqui, escritos uma vez;
+// nenhuma das telas decide como a lista é lida.
+
 import { Fragment, useCallback, useEffect, useState } from "react";
-import CadastroEquipamento from "./CadastroEquipamento.tsx";
 import Controles from "./ControlesEquipamento.tsx";
 import EditarEquipamento from "./EditarEquipamento.tsx";
 import {
@@ -27,7 +33,38 @@ import {
 } from "./equipamentos.ts";
 import { t, traduzirErro, type Idioma } from "./i18n";
 
-function Linhas({
+async function tentar<T>(trabalho: () => Promise<T>): Promise<Tentativa<T>> {
+  try {
+    return { ok: true, valor: await trabalho() };
+  } catch (falha) {
+    return { ok: false, codigo: codigoDoErro(falha) };
+  }
+}
+
+export function usarEquipamentos(): Leitura & { recarregar: () => Promise<void> } {
+  const [leitura, setLeitura] = useState<Leitura>(LEITURA_INICIAL);
+
+  // Why: the catalog is read in the same cycle as the list, so a request that failed once
+  // is tried again on the next tick instead of leaving the panel unable to register
+  // anything until someone reloads the page.
+  // Por que: o catálogo é lido no mesmo ciclo da lista, então uma requisição que falhou
+  // uma vez é refeita no próximo ciclo em vez de deixar o painel sem conseguir cadastrar
+  // nada até alguém recarregar a página.
+  const recarregar = useCallback(async (): Promise<void> => {
+    const [catalogo, lista] = await Promise.all([tentar(lerCatalogo), tentar(lerEquipamentos)]);
+    setLeitura((anterior) => aplicarCiclo(anterior, catalogo, lista));
+  }, []);
+
+  useEffect(() => {
+    void recarregar();
+    const temporizador = window.setInterval(() => void recarregar(), INTERVALO_MS);
+    return () => window.clearInterval(temporizador);
+  }, [recarregar]);
+
+  return { ...leitura, recarregar };
+}
+
+export function Linhas({
   equipamento,
   item,
   idioma,
@@ -75,16 +112,18 @@ function Linhas({
   );
 }
 
-function CartaoEquipamento({
+export function CartaoEquipamento({
   equipamento,
   item,
   idioma,
   aoMudar,
+  aoRemover,
 }: {
   equipamento: Equipamento;
   item: ItemCatalogo | undefined;
   idioma: Idioma;
   aoMudar: () => void;
+  aoRemover: () => void;
 }) {
   const [erro, setErro] = useState<string | null>(null);
   const [confirmando, setConfirmando] = useState(false);
@@ -121,172 +160,110 @@ function CartaoEquipamento({
   }
 
   const ajuda = textoDoManifesto(item, idioma, "auth_ajuda");
+  const capacidades = item?.capacidades ?? [];
   return (
-    <li className={`equipamento ${equipamento.estado.online ? "cartao-online" : "cartao-offline"}`}>
-      <div className="equipamento-cabeca">
-        <div>
-          <h3>{equipamento.nome || equipamento.identidade}</h3>
-          <p className="texto-suave">{rotuloDoTipo(item, idioma, equipamento.tipo)}</p>
+    <div className="detalhe">
+      <section className={`cartao ${equipamento.estado.online ? "cartao-online" : "cartao-offline"}`}>
+        <div className="equipamento-cabeca">
+          <div>
+            <h3>{equipamento.nome || equipamento.identidade}</h3>
+            <p className="texto-suave">{rotuloDoTipo(item, idioma, equipamento.tipo)}</p>
+          </div>
+          <p className="estado-curto">
+            <span className="ponto" aria-hidden="true" />
+            {equipamento.estado.online ? t("equipamentos_online") : t("equipamentos_offline")}
+          </p>
         </div>
-        <p className="estado-curto">
-          <span className="ponto" aria-hidden="true" />
-          {equipamento.estado.online ? t("equipamentos_online") : t("equipamentos_offline")}
-        </p>
-      </div>
-      <Linhas equipamento={equipamento} item={item} idioma={idioma} />
-      <Controles
-        capacidades={item?.capacidades ?? []}
-        estado={equipamento.estado}
-        ocupado={ocupado}
-        aoExecutar={executar}
-      />
-      {item !== undefined && item.auth !== "nenhuma" && (
-        <div className="pareamento">
-          <button
-            type="button"
-            className="botao secundario"
-            disabled={ocupado}
-            onClick={() =>
-              void chamar("parear", async () =>
-                setPar(await autenticarEquipamento(equipamento.identidade)),
-              )
-            }
-          >
-            {emCurso === "parear" ? t("pareando") : t("parear")}
-          </button>
-          {ajuda && <p className="dica">{ajuda}</p>}
-          {par !== null && (
-            <p className={par === "falhou" ? "erro" : "sucesso"} role="status">
-              {t(`par_${par}` as const)}
-            </p>
-          )}
-        </div>
-      )}
-      {erro !== null && (
-        <p className="erro" role="alert">
-          {traduzirErro(erro)}
-        </p>
-      )}
-      {editando && item !== undefined && (
-        <EditarEquipamento
-          equipamento={equipamento}
-          item={item}
-          idioma={idioma}
-          aoSalvar={() => {
-            setEditando(false);
-            aoMudar();
-          }}
-          aoCancelar={() => setEditando(false)}
+        <Linhas equipamento={equipamento} item={item} idioma={idioma} />
+      </section>
+      <section className="cartao">
+        <h2>{t("detalhe_controles")}</h2>
+        {capacidades.length === 0 && <p className="texto-suave">{t("detalhe_sem_controle")}</p>}
+        <Controles
+          capacidades={capacidades}
+          estado={equipamento.estado}
+          ocupado={ocupado}
+          aoExecutar={executar}
         />
-      )}
-      {confirmando ? (
-        // Why: section 9 keeps the panel in charge of its own answers, and a browser
-        // dialog is also the one thing a kiosk tablet may refuse to show.
-        // Por que: a seção 9 mantém o painel dono das próprias respostas, e um diálogo do
-        // navegador é também a única coisa que um tablet de quiosque pode recusar mostrar.
-        <div className="confirmacao">
-          <p>{t("remover_pergunta")}</p>
-          <button
-            type="button"
-            className="botao secundario"
-            disabled={ocupado}
-            onClick={() => {
-              setConfirmando(false);
-              void chamar("remover", async () => {
-                await removerEquipamento(equipamento.identidade);
-                aoMudar();
-              });
-            }}
-          >
-            {t("remover_confirmar")}
-          </button>
-          <button type="button" className="botao secundario" onClick={() => setConfirmando(false)}>
-            {t("remover_cancelar")}
-          </button>
-        </div>
-      ) : (
-        <div className="acoes">
-          {item !== undefined && (
+        {item !== undefined && item.auth !== "nenhuma" && (
+          <div className="pareamento">
             <button
               type="button"
               className="botao secundario"
-              onClick={() => setEditando((atual) => !atual)}
+              disabled={ocupado}
+              onClick={() =>
+                void chamar("parear", async () =>
+                  setPar(await autenticarEquipamento(equipamento.identidade)),
+                )
+              }
             >
-              {editando ? t("editar_cancelar") : t("editar")}
+              {emCurso === "parear" ? t("pareando") : t("parear")}
             </button>
-          )}
-          <button type="button" className="botao secundario" onClick={() => setConfirmando(true)}>
-            {t("remover")}
-          </button>
-        </div>
-      )}
-    </li>
-  );
-}
-
-async function tentar<T>(trabalho: () => Promise<T>): Promise<Tentativa<T>> {
-  try {
-    return { ok: true, valor: await trabalho() };
-  } catch (falha) {
-    return { ok: false, codigo: codigoDoErro(falha) };
-  }
-}
-
-export default function Equipamentos({ idioma }: { idioma: Idioma }) {
-  const [leitura, setLeitura] = useState<Leitura>(LEITURA_INICIAL);
-
-  // Why: the catalog is read in the same cycle as the list, so a request that failed once
-  // is tried again on the next tick instead of leaving the panel unable to register
-  // anything until someone reloads the page.
-  // Por que: o catálogo é lido no mesmo ciclo da lista, então uma requisição que falhou
-  // uma vez é refeita no próximo ciclo em vez de deixar o painel sem conseguir cadastrar
-  // nada até alguém recarregar a página.
-  const recarregar = useCallback(async (): Promise<void> => {
-    const [catalogo, lista] = await Promise.all([tentar(lerCatalogo), tentar(lerEquipamentos)]);
-    setLeitura((anterior) => aplicarCiclo(anterior, catalogo, lista));
-  }, []);
-
-  useEffect(() => {
-    void recarregar();
-    const temporizador = window.setInterval(() => void recarregar(), INTERVALO_MS);
-    return () => window.clearInterval(temporizador);
-  }, [recarregar]);
-
-  const { catalogo, lista, erro } = leitura;
-  return (
-    <>
-      <section className="cartao">
-        <h2>{t("equipamentos_titulo")}</h2>
+            {ajuda && <p className="dica">{ajuda}</p>}
+            {par !== null && (
+              <p className={par === "falhou" ? "erro" : "sucesso"} role="status">
+                {t(`par_${par}` as const)}
+              </p>
+            )}
+          </div>
+        )}
         {erro !== null && (
           <p className="erro" role="alert">
             {traduzirErro(erro)}
           </p>
         )}
-        {lista === null && erro === null && <p className="carregando">{t("carregando")}</p>}
-        {/* Why: section 6, zero equipment is a normal state of the hub and not a failure. */}
-        {/* Por que: seção 6, zero equipamento é estado normal do hub e não uma falha. */}
-        {lista !== null && lista.length === 0 && (
-          <p className="texto-suave">{t("equipamentos_vazio")}</p>
-        )}
-        {lista !== null && lista.length > 0 && (
-          <ul className="equipamentos">
-            {lista.map((equipamento) => (
-              <CartaoEquipamento
-                key={equipamento.identidade}
-                equipamento={equipamento}
-                item={(catalogo ?? []).find((candidato) => candidato.tipo === equipamento.tipo)}
-                idioma={idioma}
-                aoMudar={() => void recarregar()}
-              />
-            ))}
-          </ul>
+      </section>
+      <section className="cartao">
+        <h2>{t("detalhe_cadastro")}</h2>
+        {editando && item !== undefined ? (
+          <EditarEquipamento
+            equipamento={equipamento}
+            item={item}
+            idioma={idioma}
+            aoSalvar={() => {
+              setEditando(false);
+              aoMudar();
+            }}
+            aoCancelar={() => setEditando(false)}
+          />
+        ) : confirmando ? (
+          // Why: section 9 keeps the panel in charge of its own answers, and a browser
+          // dialog is also the one thing a kiosk tablet may refuse to show.
+          // Por que: a seção 9 mantém o painel dono das próprias respostas, e um diálogo do
+          // navegador é também a única coisa que um tablet de quiosque pode recusar mostrar.
+          <div className="confirmacao">
+            <p>{t("remover_pergunta")}</p>
+            <button
+              type="button"
+              className="botao secundario"
+              disabled={ocupado}
+              onClick={() => {
+                setConfirmando(false);
+                void chamar("remover", async () => {
+                  await removerEquipamento(equipamento.identidade);
+                  aoRemover();
+                });
+              }}
+            >
+              {t("remover_confirmar")}
+            </button>
+            <button type="button" className="botao secundario" onClick={() => setConfirmando(false)}>
+              {t("remover_cancelar")}
+            </button>
+          </div>
+        ) : (
+          <div className="acoes-largas">
+            {item !== undefined && (
+              <button type="button" className="botao secundario" onClick={() => setEditando(true)}>
+                {t("editar")}
+              </button>
+            )}
+            <button type="button" className="botao secundario" onClick={() => setConfirmando(true)}>
+              {t("remover")}
+            </button>
+          </div>
         )}
       </section>
-      <CadastroEquipamento
-        catalogo={catalogo}
-        idioma={idioma}
-        aoCadastrar={() => void recarregar()}
-      />
-    </>
+    </div>
   );
 }

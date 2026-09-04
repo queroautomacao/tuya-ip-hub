@@ -72,7 +72,9 @@
 
 .valor {
   font: inherit;
+  font-size: max(1rem, 16px);
   width: 8rem;
+  min-height: 2.75rem;
   padding: 0.35rem 0.5rem;
   border: 1px solid var(--borda);
   border-radius: 8px;
@@ -116,6 +118,8 @@
 
 .formulario select {
   font: inherit;
+  font-size: max(1rem, 16px);
+  min-height: 2.75rem;
   padding: 0.55rem 0.7rem;
   border: 1px solid var(--borda);
   border-radius: 8px;

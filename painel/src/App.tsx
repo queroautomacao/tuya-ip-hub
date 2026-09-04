@@ -1,111 +1,121 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Quero Automação Ltda
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Assistente from "./Assistente";
 import Cenas from "./Cenas.tsx";
+import Concha from "./Concha.tsx";
+import Conta from "./Conta.tsx";
+import DetalheEquipamento from "./DetalheEquipamento.tsx";
 import DriversDeclarativos from "./DriversDeclarativos.tsx";
-import Equipamentos from "./Equipamentos.tsx";
+import Inicio from "./Inicio.tsx";
 import Login from "./Login";
-import TrocarSenha from "./TrocarSenha";
+import NovoEquipamento from "./NovoEquipamento.tsx";
 import Zonas from "./Zonas.tsx";
 import { lerEstado, lerSessao, sair, type Estado } from "./api";
 import { IDIOMAS, definirIdioma, idiomaAtual, t, type Idioma } from "./i18n";
-import { INTERVALO_MS, formatarUptime, lerSaude, type Saude } from "./saude";
+import { rotaAtual, type Rota } from "./rotas.ts";
 import { ler as lerToken } from "./sessao";
 
 const REPOSITORIO = "https://github.com/queroautomacao/tuya-ip-hub";
 
-type Fase = "verificando" | "online" | "offline";
 type Tela = "carregando" | "indisponivel" | "assistente" | "login" | "painel";
 
-interface Leitura {
-  fase: Fase;
-  saude: Saude | null;
-  em: Date | null;
-}
-
-function usarSaude(): Leitura {
-  const [leitura, setLeitura] = useState<Leitura>({ fase: "verificando", saude: null, em: null });
-
+// Why: the address after the hash is the only state of navigation, so the back button, a
+// reload and a bookmark all agree with what is on the screen.
+// Por que: o endereço depois do hash é o único estado da navegação, então o botão de voltar,
+// um recarregar e um favorito concordam todos com o que está na tela.
+function usarRota(): Rota {
+  const [rota, setRota] = useState<Rota>(rotaAtual);
   useEffect(() => {
-    let ativo = true;
-
-    async function verificar(): Promise<void> {
-      let proxima: Leitura;
-      try {
-        const saude = await lerSaude();
-        proxima = { fase: saude.ok ? "online" : "offline", saude, em: new Date() };
-      } catch {
-        proxima = { fase: "offline", saude: null, em: new Date() };
-      }
-      if (ativo) setLeitura(proxima);
-    }
-
-    void verificar();
-    const temporizador = window.setInterval(() => void verificar(), INTERVALO_MS);
-    return () => {
-      ativo = false;
-      window.clearInterval(temporizador);
-    };
+    const aoMudar = (): void => setRota(rotaAtual());
+    window.addEventListener("hashchange", aoMudar);
+    return () => window.removeEventListener("hashchange", aoMudar);
   }, []);
-
-  return leitura;
+  return rota;
 }
 
-function CartaoEstado({ leitura, idioma }: { leitura: Leitura; idioma: Idioma }) {
-  const { fase, saude, em } = leitura;
-  const locale = idioma === "pt" ? "pt-BR" : "en-US";
-  return (
-    <section className={`cartao cartao-${fase}`} aria-live="polite">
-      <h2>{t("estado")}</h2>
-      <p className="estado">
-        <span className="ponto" aria-hidden="true" />
-        {t(`estado_${fase}` as const)}
-      </p>
-      <dl>
-        <dt>{t("versao")}</dt>
-        <dd>{saude ? saude.versao : t("indisponivel")}</dd>
-        <dt>{t("esquema")}</dt>
-        <dd>{saude ? String(saude.schema_version) : t("indisponivel")}</dd>
-        <dt>{t("uptime")}</dt>
-        <dd>{saude ? formatarUptime(saude.uptime_s) : t("indisponivel")}</dd>
-        <dt>{t("ultima_verificacao")}</dt>
-        <dd>{em ? em.toLocaleTimeString(locale) : t("indisponivel")}</dd>
-      </dl>
-    </section>
-  );
-}
-
-function Painel({
+function Tela({
+  rota,
   estado,
   idioma,
   aoSair,
 }: {
+  rota: Rota;
   estado: Estado;
   idioma: Idioma;
   aoSair: () => void;
 }) {
-  const leitura = usarSaude();
+  switch (rota.tela) {
+    case "inicio":
+      return <Inicio idioma={idioma} />;
+    case "novo":
+      return <NovoEquipamento idioma={idioma} />;
+    case "equipamento":
+      return <DetalheEquipamento identidade={rota.identidade} idioma={idioma} />;
+    case "zonas":
+      return <Zonas idioma={idioma} />;
+    case "cenas":
+      return <Cenas />;
+    case "drivers":
+      return <DriversDeclarativos idioma={idioma} />;
+    case "conta":
+      return <Conta estado={estado} idioma={idioma} aoSair={aoSair} />;
+  }
+}
+
+function Rodape() {
   return (
-    <>
-      <CartaoEstado leitura={leitura} idioma={idioma} />
-      <Equipamentos idioma={idioma} />
-      <Zonas idioma={idioma} />
-      <Cenas />
-      <DriversDeclarativos idioma={idioma} />
-      <section className="cartao">
-        <h2>{t("instalacao")}</h2>
-        <p className="instalacao">{estado.nome_instalacao || t("sem_nome")}</p>
-        <button type="button" className="botao secundario" onClick={aoSair}>
-          {t("sair")}
-        </button>
-      </section>
-      <TrocarSenha />
-      <p className="aviso" role="note">
-        {t("marco_aviso")}
+    <footer className="rodape">
+      <p>{t("licenca")}</p>
+      <p>
+        <a href={REPOSITORIO} rel="noreferrer">
+          {t("repositorio")}
+        </a>
       </p>
-    </>
+      <p className="discreto">
+        {t("marca")} {t("copyright")}
+      </p>
+    </footer>
+  );
+}
+
+// Why: before the owner is in there is no navigation to draw: the wizard and the login are
+// the whole page, with nothing around them that could be tapped by mistake.
+// Por que: antes de o dono entrar não há navegação para desenhar: o assistente e o login são
+// a página inteira, sem nada em volta que pudesse ser tocado por engano.
+function Porta({
+  idioma,
+  aoTrocarIdioma,
+  children,
+}: {
+  idioma: Idioma;
+  aoTrocarIdioma: (idioma: Idioma) => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="pagina">
+      <header className="cabecalho">
+        <div>
+          <h1>{t("titulo")}</h1>
+          <p className="subtitulo">{t("subtitulo")}</p>
+        </div>
+        <nav className="idiomas" aria-label={t("idioma")}>
+          {IDIOMAS.map((opcao) => (
+            <button
+              key={opcao}
+              type="button"
+              aria-pressed={opcao === idioma}
+              onClick={() => aoTrocarIdioma(opcao)}
+            >
+              {t(`idioma_${opcao}` as const)}
+            </button>
+          ))}
+        </nav>
+      </header>
+      <main>{children}</main>
+      <Rodape />
+    </div>
   );
 }
 
@@ -113,6 +123,7 @@ export default function App() {
   const [idioma, setIdioma] = useState<Idioma>(idiomaAtual);
   const [tela, setTela] = useState<Tela>("carregando");
   const [estado, setEstado] = useState<Estado | null>(null);
+  const rota = usarRota();
 
   const carregar = useCallback(async (): Promise<void> => {
     setTela("carregando");
@@ -165,54 +176,29 @@ export default function App() {
     setTela("login");
   }
 
+  if (tela === "painel" && estado) {
+    return (
+      <Concha rota={rota} idioma={idioma} aoTrocarIdioma={trocarIdioma}>
+        <Tela rota={rota} estado={estado} idioma={idioma} aoSair={() => void encerrar()} />
+        <Rodape />
+      </Concha>
+    );
+  }
+
   return (
-    <div className="pagina">
-      <header className="cabecalho">
-        <div>
-          <h1>{t("titulo")}</h1>
-          <p className="subtitulo">{t("subtitulo")}</p>
-        </div>
-        <nav className="idiomas" aria-label={t("idioma")}>
-          {IDIOMAS.map((opcao) => (
-            <button
-              key={opcao}
-              type="button"
-              aria-pressed={opcao === idioma}
-              onClick={() => trocarIdioma(opcao)}
-            >
-              {t(`idioma_${opcao}` as const)}
-            </button>
-          ))}
-        </nav>
-      </header>
-      <main>
-        {tela === "carregando" && <p className="carregando">{t("carregando")}</p>}
-        {tela === "indisponivel" && (
-          <section className="cartao">
-            <h2>{t("estado")}</h2>
-            <p role="alert">{t("daemon_indisponivel")}</p>
-            <button type="button" className="botao" onClick={() => void carregar()}>
-              {t("repetir")}
-            </button>
-          </section>
-        )}
-        {tela === "assistente" && <Assistente aoEntrar={() => void carregar()} />}
-        {tela === "login" && <Login aoEntrar={() => void carregar()} />}
-        {tela === "painel" && estado && (
-          <Painel estado={estado} idioma={idioma} aoSair={() => void encerrar()} />
-        )}
-      </main>
-      <footer className="rodape">
-        <p>{t("licenca")}</p>
-        <p>
-          <a href={REPOSITORIO} rel="noreferrer">
-            {t("repositorio")}
-          </a>
-        </p>
-        <p className="discreto">
-          {t("marca")} {t("copyright")}
-        </p>
-      </footer>
-    </div>
+    <Porta idioma={idioma} aoTrocarIdioma={trocarIdioma}>
+      {tela === "carregando" && <p className="carregando">{t("carregando")}</p>}
+      {tela === "indisponivel" && (
+        <section className="cartao">
+          <h2>{t("estado")}</h2>
+          <p role="alert">{t("daemon_indisponivel")}</p>
+          <button type="button" className="botao" onClick={() => void carregar()}>
+            {t("repetir")}
+          </button>
+        </section>
+      )}
+      {tela === "assistente" && <Assistente aoEntrar={() => void carregar()} />}
+      {tela === "login" && <Login aoEntrar={() => void carregar()} />}
+    </Porta>
   );
 }
