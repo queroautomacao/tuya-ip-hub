@@ -239,6 +239,12 @@ driver existir:
   serializada: duas posses simultâneas não produzem dois donos, a segunda recebe
   `ja_configurado`.
 - **Senha** mínimo 8, PBKDF2-HMAC-SHA256 200 mil iterações, salt por instalação.
+  **Sem recuperação pela rede** (decisão de 4/set/2026): não há e-mail, segundo
+  fator nem nuvem que prove quem é o dono, então uma rota de reset seria a porta
+  de entrada. Quem alcança o `/data` já é dono, e `python -m iphub.esquecer`
+  apaga a senha mantendo equipamentos, zonas e cenas, mata as sessões e rotaciona
+  o `api_token`. Apagar o `config.json` levaria a instalação junto, então não é
+  esse o caminho.
 - **Sessão** do painel: token aleatório, guardado por **hash** em
   `/data/sessoes.json` (0600), validade 24 h renovada a cada uso, teto 30
   dias, `POST /api/sair` revoga. Trocar a senha revoga todas.

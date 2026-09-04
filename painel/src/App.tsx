@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Quero Automação Ltda
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Assistente from "./Assistente";
 import Cenas from "./Cenas.tsx";
-import Concha, { BotaoTema, Idiomas, Marca } from "./Concha.tsx";
+import Concha from "./Concha.tsx";
 import Conta from "./Conta.tsx";
 import DetalheEquipamento from "./DetalheEquipamento.tsx";
 import DriversDeclarativos from "./DriversDeclarativos.tsx";
 import { usarEquipamentos } from "./Equipamentos.tsx";
 import Inicio from "./Inicio.tsx";
 import Login from "./Login";
+import Porta from "./Porta.tsx";
 import NovoEquipamento from "./NovoEquipamento.tsx";
 import Simulador from "./Simulador.tsx";
 import Zonas from "./Zonas.tsx";
@@ -136,38 +137,6 @@ function Painel({
   );
 }
 
-// Why: before the owner is in there is no navigation to draw: the wizard and the login are
-// the whole page, with nothing around them that could be tapped by mistake.
-// Por que: antes de o dono entrar não há navegação para desenhar: o assistente e o login são
-// a página inteira, sem nada em volta que pudesse ser tocado por engano.
-function Porta({
-  idioma,
-  tema,
-  aoTrocarIdioma,
-  aoTrocarTema,
-  children,
-}: {
-  idioma: Idioma;
-  tema: Tema;
-  aoTrocarIdioma: (idioma: Idioma) => void;
-  aoTrocarTema: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <div className="pagina">
-      <header className="cabecalho">
-        <Marca subtitulo={t("subtitulo")} />
-        <div className="barra-acoes">
-          <BotaoTema tema={tema} aoTrocar={aoTrocarTema} />
-          <Idiomas idioma={idioma} aoTrocar={aoTrocarIdioma} />
-        </div>
-      </header>
-      <main>{children}</main>
-      <Rodape />
-    </div>
-  );
-}
-
 export default function App() {
   const [idioma, setIdioma] = useState<Idioma>(idiomaAtual);
   const [tema, setTema] = useState<Tema>(lerTema);
@@ -250,7 +219,13 @@ export default function App() {
   }
 
   return (
-    <Porta idioma={idioma} tema={tema} aoTrocarIdioma={trocarIdioma} aoTrocarTema={trocarTema}>
+    <Porta
+      idioma={idioma}
+      tema={tema}
+      aoTrocarIdioma={trocarIdioma}
+      aoTrocarTema={trocarTema}
+      rodape={<Rodape />}
+    >
       {tela === "carregando" && <p className="carregando">{t("carregando")}</p>}
       {tela === "indisponivel" && (
         <section className="cartao">

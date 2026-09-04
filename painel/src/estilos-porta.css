@@ -1,0 +1,162 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (C) 2026 Quero Automação Ltda */
+
+/* The door: the wizard and the login, before there is any navigation to draw.
+   Phone first, one column that scrolls; from 900px the brand takes the left of the photo and
+   the card sits on the right, at the width of a form and never of the screen.
+   A porta: o assistente e o login, antes de haver navegação para desenhar.
+   Celular primeiro, uma coluna que rola; a partir de 900px a marca fica à esquerda da foto e
+   o cartão à direita, na largura de um formulário e nunca na da tela. */
+
+.porta {
+  position: relative;
+  min-height: 100dvh;
+  background-color: #14161b;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+/* Why: the photo is somebody's living room, not a palette, so a scrim of our own is what
+   makes white text and a card readable over any part of it, in both themes.
+   Por que: a foto é a sala de alguém, não uma paleta, então um véu nosso é o que torna texto
+   branco e cartão legíveis sobre qualquer parte dela, nos dois temas. */
+.porta-veu {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(10, 11, 14, 0.55) 0%, rgba(10, 11, 14, 0.82) 100%),
+    radial-gradient(120% 80% at 20% 30%, rgba(10, 11, 14, 0) 0%, rgba(10, 11, 14, 0.55) 100%);
+}
+
+.porta-conteudo {
+  position: relative;
+  min-height: 100dvh;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: calc(1rem + env(safe-area-inset-top)) 1.25rem calc(1.5rem + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.porta-acoes {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* Why: over the photo the controls of the bar cannot borrow the card colours, or they vanish
+   into whatever the picture happens to show behind them.
+   Por que: sobre a foto os controles da barra não podem pegar as cores do cartão, senão eles
+   somem no que a imagem tiver atrás deles. */
+.porta .tema-botao,
+.porta .idiomas button {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+}
+
+.porta .idiomas button[aria-pressed="true"] {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #14161b;
+}
+
+.porta-grade {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1.5rem;
+}
+
+.porta-marca {
+  color: #ffffff;
+  text-align: center;
+}
+
+.porta-marca img {
+  width: 3.5rem;
+  height: 3.5rem;
+  object-fit: contain;
+}
+
+.porta-marca h1 {
+  margin: 0.5rem 0 0;
+  font-size: 1.75rem;
+  letter-spacing: 0.01em;
+}
+
+.porta-marca p {
+  margin: 0.4rem auto 0;
+  max-width: 28rem;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.95rem;
+}
+
+.porta-cartao {
+  width: 100%;
+  max-width: 27rem;
+  margin: 0 auto;
+}
+
+/* Why: the card of a screen with a photo behind it needs its own ground and a shadow, or it
+   reads as a hole in the picture instead of a surface on top of it.
+   Por que: o cartão de uma tela com foto atrás precisa de chão próprio e sombra, senão ele se
+   lê como um buraco na imagem em vez de uma superfície sobre ela. */
+.porta-cartao .cartao {
+  padding: 1.5rem;
+  border-radius: 16px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+}
+
+.porta .rodape {
+  color: rgba(255, 255, 255, 0.72);
+  text-align: center;
+}
+
+.porta .rodape a {
+  color: #ffffff;
+}
+
+@media (min-width: 900px) {
+  .porta-conteudo {
+    padding: 1.5rem 2.5rem 2rem;
+  }
+
+  .porta-grade {
+    display: grid;
+    grid-template-columns: 1fr minmax(24rem, 27rem);
+    align-items: center;
+    gap: 4rem;
+  }
+
+  .porta-marca {
+    text-align: left;
+  }
+
+  .porta-marca img {
+    width: 4.5rem;
+    height: 4.5rem;
+  }
+
+  .porta-marca h1 {
+    font-size: 2.6rem;
+  }
+
+  .porta-marca p {
+    margin-left: 0;
+    font-size: 1.05rem;
+  }
+
+  .porta-cartao {
+    margin: 0;
+  }
+
+  .porta .rodape {
+    text-align: left;
+  }
+}

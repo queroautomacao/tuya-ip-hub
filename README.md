@@ -126,6 +126,19 @@ services:
 
 On Docker Desktop, where the port is published instead of shared with the host, the same override also carries the matching entry under `ports:`, `"9090:9090"`, and it is passed with `-f` after `docker-compose.desktop.yml`.
 
+### Forgotten panel password
+
+The hub has no password recovery over the network, on purpose: there is no mail, no second factor and no cloud to prove who the owner is, so a route that reset the password would be the way in and not the way back. What proves ownership of an appliance is reaching its data directory, which means the host that runs the container.
+
+Clearing the password hands the hub back to the first access, and keeps the equipment, the zones and the scenes; erasing `config.json` would take those with it. Every session dies and the machine `api_token` is rotated, the same way changing the password does.
+
+```
+docker compose exec iphub python -m iphub.esquecer
+docker compose restart iphub
+```
+
+Then open the panel and set a password immediately: until one exists, whoever reaches the panel on the local network becomes the owner.
+
 ### ARM boards without bridge network or BuildKit
 
 Some ARM appliances run Docker without a bridge network (so `-p` does not work) and without BuildKit. The repository is built for them: `docker-compose.yml` uses `network_mode: host` and never publishes ports, and the Dockerfile has no BuildKit-only syntax. On such a board, build with the legacy builder and bring the container up without rebuilding:
@@ -306,6 +319,19 @@ services:
 ```
 
 No Docker Desktop, onde a porta é publicada em vez de compartilhada com o host, o mesmo override leva também a entrada correspondente em `ports:`, `"9090:9090"`, e é passado com `-f` depois do `docker-compose.desktop.yml`.
+
+### Senha do painel esquecida
+
+O hub não tem recuperação de senha pela rede, de propósito: não há e-mail, nem segundo fator, nem nuvem que prove quem é o dono, então uma rota que zerasse a senha seria a porta de entrada, não a de volta. O que prova posse de um appliance é alcançar o diretório de dados dele, o que significa o host que roda o container.
+
+Apagar a senha devolve o hub ao primeiro acesso, e mantém os equipamentos, as zonas e as cenas; apagar o `config.json` levaria tudo isso junto. Toda sessão morre e o `api_token` de máquina é rotacionado, do mesmo jeito que a troca de senha faz.
+
+```
+docker compose exec iphub python -m iphub.esquecer
+docker compose restart iphub
+```
+
+Depois abra o painel e defina uma senha na hora: enquanto não existir uma, quem alcançar o painel na rede local vira o dono.
 
 ### Placas ARM sem rede bridge nem BuildKit
 

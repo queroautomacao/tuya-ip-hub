@@ -6,6 +6,7 @@
 @import "./estilos-cenas.css";
 @import "./estilos-concha.css";
 @import "./estilos-simulador.css";
+@import "./estilos-porta.css";
 
 :root {
   color-scheme: light dark;
