@@ -78,8 +78,12 @@ class Manifesto:
     tipo: str                 # "receiver_denon", estável, é chave de config
     rotulo: dict              # {"pt": "Receiver Denon / Marantz", "en": ...}
     categoria: str            # audio | multiroom | tv | receiver | soundbar |
-                              # projetor | matriz | rele | outro
+                              # amplificador | projetor | ar_condicionado |
+                              # matriz | rele | outro
     capacidades: tuple        # subconjunto de CAPACIDADES (abaixo)
+    teclas: tuple             # subconjunto de TECLAS que o driver manda
+    modos: tuple              # ar condicionado: subconjunto de MODOS_AR
+    ventos: tuple             # ar condicionado: subconjunto de VENTOS
     auth: Auth                # NENHUMA | POPUP_NO_APARELHO | CODIGO | CHAVE
     descoberta: Descoberta    # ssdp_st, ssdp_fabricantes, mdns_servicos
     config_campos: tuple      # o que o cadastro pede além de ip (ex: porta)
@@ -89,8 +93,24 @@ class Manifesto:
 CAPACIDADES = ("ligar", "desligar", "volume", "mudo", "fonte",
                "tocar", "pausar", "proxima", "anterior",   # transporte
                "agrupar",                                   # multiroom
+               "tecla",                                     # uma de TECLAS
+               "atalho",                                    # valor da lista do cadastro
+               "modo",                                      # ar: MODOS_AR; AV: lista
+               "vento", "temperatura",                      # ar condicionado
                "comando_extra")
+
+TECLAS = ("mais", "menos", "canal_mais", "canal_menos", "cima", "baixo",
+          "esquerda", "direita", "ok", "voltar", "inicio", "menu", "guia",
+          "sair", "info", "play_pause", "proxima", "anterior",
+          "digito_0", ..., "digito_9")
+MODOS_AR = ("auto", "frio", "quente", "vento", "seco")
+VENTOS = ("auto", "baixo", "medio", "alto")
 ```
+
+`fonte`, `atalho` e `modo` (num equipamento de AV) recebem o **valor do driver**
+que a lista do cadastro mapeou a partir do rótulo (§8); `tecla`, `modo` e
+`vento` num ar condicionado recebem uma palavra do vocabulário acima, e o driver
+a traduz para o protocolo dele. `temperatura` recebe graus inteiros de 16 a 30.
 
 ```python
 class Driver:
@@ -117,8 +137,11 @@ class Estado:
     mudo: bool | None = None
     fonte: str | None = None
     fontes: tuple = ()
-    reproduzindo: bool | None = None    # o transporte esta tocando (DP 102)
-    tocando: str | None = None          # o titulo do que toca (DP 105)
+    reproduzindo: bool | None = None    # o transporte esta tocando
+    tocando: str | None = None          # o titulo do que toca
+    temperatura: int | None = None      # ar condicionado, graus, 16 a 30
+    modo: str | None = None             # ar: MODOS_AR; AV: valor do driver
+    vento: str | None = None            # ar condicionado, VENTOS
     detalhe: str = ""
 ```
 
@@ -143,13 +166,16 @@ Regras que o gestor impõe (e testa) para todo driver:
   mesma assinatura SSDP é erro de teste, não decisão em runtime.
 
 **As caixas LinkPlay são um driver** (`nativos/linkplay.py`, categoria
-`multiroom`, capacidades de transporte e `agrupar`). O conceito de "bloco" é
-apenas: um dos seis números de equipamento do app (§8), que **qualquer**
-equipamento cadastrado pode ocupar; o painel chama o bloco de "Equipamento n".
-Multiroom é capacidade do equipamento (categoria `multiroom` mais `agrupar`),
-mostrada no detalhe dele e acionável por cena pelo DP 132. O hub
-funciona com **zero** equipamentos cadastrados; nenhum assistente exige caixa
-para seguir.
+`multiroom`, capacidades de transporte e `agrupar`). Um equipamento cadastrado
+pode ocupar um **número numa licença** (§8): um ar condicionado só entra numa
+licença de ar, todo o resto entra numa licença de áudio e vídeo. Multiroom é
+capacidade do equipamento (categoria `multiroom` mais `agrupar`), mostrada no
+detalhe dele, e o grupo é por licença de áudio e vídeo. O **cadastro** de um
+equipamento de AV leva as listas de **entradas**, **atalhos** e **modos**, cada
+item um par rótulo e valor do driver, dentro dos tetos da §8; o perfil que o
+painel da Tuya lê nasce delas e do manifesto. O hub funciona com **zero**
+equipamentos e **zero** licenças cadastradas; nenhum assistente exige caixa para
+seguir.
 
 ---
 
@@ -174,6 +200,11 @@ caminho JSON. Onde não cabe, escreve-se driver nativo.
   "descoberta": {"ssdp_fabricantes": ["exemplo"]}
 }
 ```
+
+Além de `ligar`, `desligar`, `volume`, `mudo`, `fonte` e do transporte, um
+arquivo declara `tecla`, `atalho`, `modo`, `vento` e `temperatura` com o mesmo
+`envia` e `valores` (`"tecla": {"envia": "{valor}", "valores": {"canal_mais":
+"CH+"}}`), e `estado.le` lê `temperatura`, `modo` e `vento` como lê `fonte`.
 
 O formato é **dado, não programa**: sem condicional, sem laço, sem expressão,
 sem aritmética. É a linha que separa dado de programa. O que ele
@@ -203,33 +234,115 @@ verdade. O catálogo embarcado nasce vazio e recebe driver revisado da comunidad
 
 ## 8. Contrato de data points (DP-bus)
 
-É o que a ponte Tuya consome, e é público. Regras herdadas da plataforma e
-verificadas: o chip Tuya **nunca ecoa** um DP recebido (report só nasce de
-estado real), enum customizado não é reportado, rótulo de cena vem da
-plataforma, string DP até 255 bytes, enum até 10 valores.
+É o que a ponte Tuya consome, e é público. Regras da plataforma, medidas ou
+lidas na documentação (§14): o chip Tuya **nunca ecoa** um DP recebido (report
+só nasce de estado real); enum customizado tem até **10 valores** de até 15
+caracteres; string e raw levam até **255 bytes**; a automação e a voz só agem em
+**bool, valor e enum**; a plataforma recomenda até **40 funções** por produto e
+até **300 reports por dia** por dispositivo.
 
-| DP | Tipo | Sentido | Uso |
+### Dois produtos, uma licença por dispositivo (decisão de 4/set/2026)
+
+O hub apresenta **dois produtos** na Tuya, cada um um dispositivo com identidade
+própria (uuid, pid e chave), que é uma **licença**: um QR code de pareamento no
+app, uma ponte no hub, uma fatia do DP-bus. A casa comum escaneia dois; a casa
+com mais máquinas de ar escaneia outro produto de ar. As cenas são do hub e
+iguais em todas as licenças.
+
+| Produto | Números | Por número | Da instalação | DPs |
+|---|---|---|---|---|
+| `ar` (ar condicionado) | 8 máquinas | ligado, temperatura, modo, vento | cena, online, nomes das máquinas, nomes das cenas (2) | 37 |
+| `av` (áudio e vídeo) | 12 equipamentos | ligado, nível | cena, grupo, comando, online, mudos, entradas, modos, títulos, perfis (5), nomes das cenas (2) | 39 |
+
+A prioridade é a **cena do hub** disparada pela automação da Tuya; o controle
+individual pelo painel é secundário, e o que ele precisa de verdade é a barra
+de volume. Por isso um equipamento de AV gasta dois DPs e tudo o mais é da
+instalação. Um ar condicionado é produto separado porque a Alexa reconhece o
+tipo pela categoria do produto e cada máquina ganha voz pelo nome, com uma
+capacidade de voz por DP (toggle, range, mode), mapeada na plataforma.
+
+### Produto `ar`
+
+Máquina k (1..8) começa em `101 + 5·(k-1)`; o quinto número fica livre.
+
+| DP | Tipo | Sentido | Função |
 |---|---|---|---|
-| 101 + 5·(n-1) | value 0-100 | R/W | volume do equipamento n (1..6) |
-| 102 + 5·(n-1) | bool | R/W | play/pause (driver com `tocar`+`pausar`) ou liga/desliga (os demais) |
-| 103 + 5·(n-1) | enum cmd1..cmd8 | só envio | preset |
-| 104 + 5·(n-1) | bool | report | online |
-| 105 + 5·(n-1) | string | report, throttle 5 s | tocando agora |
-| 131 | enum cena1..cena8 | só envio | cena |
-| 132 | enum solo/grupo1..N | R/W | grupo ativo |
-| 133, 134, 135 | string JSON ≤ 255 B | report | nomes de equipamentos, cenas, grupos |
-| 141..146 | enum | R/W | entrada do equipamento n |
+| base + 0 | bool | R/W | ligado |
+| base + 1 | value 16..30 | R/W | temperatura (setpoint em graus) |
+| base + 2 | enum auto, frio, quente, vento, seco | R/W | modo |
+| base + 3 | enum auto, baixo, medio, alto | R/W | vento |
+| 171 | value 1..32 | só envio | cena |
+| 172 | value, bit k-1 | report | online por máquina |
+| 173 | string JSON `{"m":[...]}` | report | nomes das máquinas |
+| 174, 175 | string JSON `{"c":[...]}` | report | nomes das cenas 1..16 e 17..32 |
 
-Um bloco n é o equipamento de número n no app; qualquer equipamento cadastrado
-pode ocupar um, e o DP 102 segue o manifesto do driver. Uma cena tem `intervalo_ms`
-(padrão 1000, editável), dormido depois de todo passo sem `espera_ms` própria,
-porque um aparelho de AV precisa de um instante entre um comando e o próximo.
+### Produto `av`
 
-WebSocket `/dpbus`: o **primeiro frame** é `{"t":"auth","token":"<api_token>"}`
-(nunca na URL; sem ele em 5 s, fecha com 4401). Depois: `{"t":"set","id":..,
-"dpid":..,"v":..}` do cliente, `{"t":"ack",...}`, `{"t":"report",...}` e
-`{"t":"snapshot",...}` do servidor. Comando reporta otimista e relê em ~1,5 s;
-comando novo para o mesmo DP cancela a verificação pendente.
+| DP | Tipo | Sentido | Função |
+|---|---|---|---|
+| 100 + n (101..112) | bool | R/W | ligado do equipamento n; always-on deixa calado |
+| 120 + n (121..132) | value 0..100 | R/W | nível (volume) do equipamento n |
+| 141 | value 1..32 | só envio | cena |
+| 142 | value 0..12 | R/W | grupo: 0 solo, n liderado pelo equipamento n |
+| 143 | string | só envio | comando `n:acao[:valor]` |
+| 144 | value, bit n-1 | report | online |
+| 145 | value, bit n-1 | report | mudos |
+| 146 | string `n=k;...` | report | entrada ativa (índice na lista do cadastro) |
+| 147 | string `n=k;...` | report | modo de som ativo |
+| 148 | string `n=texto;...` | report | título do que toca, até 18 caracteres |
+| 149..153 | string | report | perfis empacotados |
+| 154, 155 | string JSON `{"c":[...]}` | report | nomes das cenas |
+
+**Canal de comando** (DP 143), do painel para o hub: `n:ligar`, `n:desligar`,
+`n:mudo` (alterna), `n:entrada:k`, `n:atalho:k`, `n:modo:k` (k é índice 1..N na
+lista do cadastro), `n:tecla:<TECLAS>`, `n:tocar`, `n:pausar`, `n:proxima`,
+`n:anterior`, `n:extra:<nome>`. O hub traduz para a capacidade do driver e
+recusa com `nao_suportado` o que o manifesto não declara; o resultado nunca é
+ecoado, o estado volta pelos reports.
+
+**Perfil** de um equipamento, o que faz o painel se adaptar:
+`numero|template|nome|entradas|atalhos|modos|funcoes`, itens por vírgula,
+template `au` (áudio) ou `tv` (TV e projetor), funções como letras: L liga e
+desliga, N nível, M mudo, E entrada, T teclas, D modo, P transporte, G grupo.
+Os perfis viajam nos DPs 149..153 separados por `;`, empacotados por tamanho.
+Tetos do cadastro: nome 20 caracteres, rótulo 16, 10 entradas, 8 atalhos,
+8 modos, perfil de até 200 bytes; o que não cabe é recusado ao salvar.
+Template pela categoria: `tv` e `projetor` viram `tv`; o resto vira `au`.
+
+### Cenas
+
+Até **32** cenas; a posição é o número. Um passo nomeia **equipamento, ação e
+valor**, mais `espera_ms` opcional; sem ela vale o `intervalo_ms` da cena
+(padrão 1000). Ações: as CAPACIDADES da §6 mais `grupo` (valor: a identidade
+do mestre, ou vazio para solo). Um passo que falha é registrado e a cena
+segue. A automação da Tuya dispara a cena escrevendo o número no DP de cena de
+qualquer licença; o mesmo número é a mesma cena em todas.
+
+### Reports (decisão de 4/set/2026)
+
+A Tuya recomenda 300 reports por dia num dispositivo comum e limita acima
+disso, e **report disparado por consulta não conta**. O barramento:
+
+- reporta só o que **mudou** em relação ao último valor publicado, nunca repete;
+- classe **A** (ligado, nível, temperatura, modo, vento, grupo, online): ao
+  mudar, janela mínima de **2 s** por DP, o último valor da janela vence;
+- classe **B** (entradas, modos, mudos): ao mudar, janela de **10 s**;
+- classe **C** (títulos, perfis, nomes): perfis e nomes só quando o cadastro
+  muda; títulos **nunca** são empurrados, só respondem à consulta;
+- conta os reports do dia por licença: em **250** a classe B para e a classe A
+  alarga a janela para 30 s, com aviso no log; a nuvem nunca chega a limitar;
+- comando reporta otimista e relê em ~1,5 s, reportando só se o aparelho
+  divergiu; comando novo para o mesmo DP cancela a verificação pendente;
+- na subida da ponte não há rajada: a ponte consulta.
+
+### WebSocket `/dpbus`
+
+O **primeiro frame** é `{"t":"auth","token":"<api_token>","licenca":"<id>"}`
+(nunca na URL; sem ele em 5 s, fecha com 4401; licença desconhecida também
+fecha). Depois: `{"t":"set","id":..,"dpid":..,"v":..}` e `{"t":"consulta","id":..}`
+do cliente; `{"t":"ack",...}`, `{"t":"report",...}` e `{"t":"snapshot",...}` do
+servidor. O snapshot da consulta é a fatia daquela licença e não conta como
+report. Uma ponte por licença, cada uma com a identidade dela, no mesmo hub.
 
 ---
 
@@ -272,6 +385,10 @@ driver existir:
   `Content-Security-Policy: frame-ancestors 'none'`.
 - Arquivos em `/data` que carregam segredo nascem **0600** (`os.open` com modo,
   escrita atômica). Credenciais de aparelho ficam no `config.json`.
+- **Licença** (§8): a chave da Tuya fica no `config.json` e **nunca é entregue
+  ao painel**; o QR code de pareamento leva uuid e pid, nunca a chave. Criar,
+  editar e apagar licença exige sessão, e apagar uma licença esvazia os números
+  dela sem apagar equipamento.
 - Sem TLS local no beta: o README diz isso ao lado da URL do painel.
 - Container roda como **usuário não-root**; sem `docker.sock` montado.
 - O campo `ip` de qualquer rota que fala com aparelho é validado como IP
@@ -357,6 +474,7 @@ Cada marco termina com CI verde e um commit. Não pule.
 | 2 | Contrato de driver (§6) + `catalogo` + `descoberta` gerada + `simulado` + painel de equipamentos | driver de exemplo contra simulado, descoberta de teste |
 | 3 | Motor declarativo (§7) + catálogo embarcado + editor no painel | 3 JSON de exemplo (TCP, HTTP, UDP) verdes contra simulado |
 | 4 | LinkPlay como driver multiroom + DP-bus completo (§8) + cenas | fumaça com caixa real registrada na matriz |
+| 4b | §8 v2: dois produtos e licenças, cenas por ação de equipamento, canal de comando, perfis, política de reports, licenças na Conta com QR | os dois produtos cadastrados na Tuya falam com o hub; automação da Tuya dispara cena do hub |
 | 5 | Drivers nativos, um por vez, cada um com simulado: Denon, Onkyo, Yamaha, Samsung, LG webOS, Roku, Sony, Sonos, HEOS, Android TV | cada um com teste; pareamento explícito nos que exigem |
 | 6 | Release: tag, imagem no GHCR (arm64 + amd64), aviso de versão nova no painel, `API.md` gerado | um estranho instala pelo README sem ajuda |
 | 7 | Beta público | matriz de aparelhos aberta, templates de issue e PR, CLA no bot |
@@ -410,6 +528,17 @@ cadastrado; Samsung e webOS exigem pareamento com popup na TV, que é fluxo
 **explícito** (`autenticar()`), nunca efeito colateral do primeiro comando;
 Sonos e HEOS são always-on, não declaram `ligar`/`desligar` (omitir a
 capacidade é o certo, não implementar para recusar).
+
+**Plataforma Tuya (lido na documentação em 4/set/2026)**: enum customizado até
+10 valores de 15 caracteres; string e raw até 255 bytes; recomendação de 40
+funções por produto; automação e voz só em bool, valor e enum; capacidade de voz
+customizada mapeia um DP por capacidade (toggle bool/enum, mode enum, range
+inteiro) e é cobrada por capacidade no PID ou por dispositivo; DP customizado
+sem essa capacidade não entra na voz; 300 reports por dia recomendados num
+dispositivo comum e 3.500 num sensor, throttling acima disso; report disparado
+por consulta não conta; o painel MiniApp (Ray) lê o schema em runtime e um
+painel serve a mais de um PID. A Tuya não libera o SDK de gateway para ARM,
+então o caminho é um dispositivo por licença e não sub-dispositivos.
 
 **Appliance ARM de referência**: Docker sem bridge e sem iptables
 (`network_mode: host` obrigatório, `-p` não funciona), sem BuildKit
