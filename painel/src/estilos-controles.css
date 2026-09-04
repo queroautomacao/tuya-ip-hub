@@ -30,31 +30,39 @@
 
 .segmentos {
   display: inline-flex;
+  gap: 0.2rem;
   width: fit-content;
   max-width: 100%;
-  border: 1px solid var(--borda);
-  border-radius: 10px;
-  overflow: hidden;
+  padding: 0.2rem;
+  border: 1px solid var(--vidro-borda);
+  border-radius: 999px;
+  background: var(--campo);
+  box-shadow: inset 0 1px 0 var(--vidro-brilho);
 }
 
 .segmentos button {
   font: inherit;
   font-weight: 600;
-  min-height: 2.75rem;
+  min-height: 2.4rem;
   padding: 0 1.2rem;
   border: 0;
-  background: var(--cartao);
+  border-radius: 999px;
+  background: transparent;
   color: var(--texto);
   cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    transform 0.15s ease;
 }
 
-.segmentos button + button {
-  border-left: 1px solid var(--borda);
+.segmentos button:active {
+  transform: scale(0.97);
 }
 
 .segmentos button[aria-pressed="true"] {
-  background: var(--destaque);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acento-botao) 84%, #ffffff), var(--acento-botao));
   color: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 .segmentos button[disabled] {
@@ -100,11 +108,19 @@
   justify-content: center;
   width: 2.9rem;
   height: 2.9rem;
-  border: 1px solid var(--borda);
+  border: 1px solid var(--vidro-borda);
   border-radius: 50%;
   background: var(--cartao);
   color: var(--texto);
   cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 var(--vidro-brilho),
+    0 4px 12px var(--vidro-sombra);
+  transition: transform 0.15s ease;
+}
+
+.botao-icone:active {
+  transform: scale(0.94);
 }
 
 .botao-icone svg {

@@ -16,9 +16,11 @@
 
 .equipamento,
 .achados li {
-  border: 1px solid var(--borda);
-  border-radius: 10px;
+  border: 1px solid var(--vidro-borda);
+  border-radius: var(--raio-interno);
   padding: 0.9rem 1rem;
+  background: var(--cartao);
+  box-shadow: inset 0 1px 0 var(--vidro-brilho);
 }
 
 .equipamento h3 {
@@ -92,17 +94,6 @@
 
 .achado-titulo {
   font-weight: 600;
-}
-
-.formulario select {
-  font: inherit;
-  font-size: max(1rem, 16px);
-  min-height: 2.75rem;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid var(--borda);
-  border-radius: 8px;
-  background: var(--fundo);
-  color: var(--texto);
 }
 
 /* Why: text a device answered is not ours, so a 200 character header with no space in it

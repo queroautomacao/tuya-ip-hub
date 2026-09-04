@@ -8,31 +8,68 @@
 @import "./estilos-simulador.css";
 @import "./estilos-porta.css";
 
+/* Liquid glass: every surface of the panel is a sheet of frosted glass over a softly lit
+   background, with a bright edge on top where the light hits it and a soft shadow under it.
+   The tokens below are the whole material: a screen names a surface (.cartao, .barra,
+   .navegacao) and never mixes its own colour. Blur is spent on the top-level surfaces only;
+   what sits inside a surface is a translucent fill without blur, because every backdrop
+   filter is a full-screen pass on a phone.
+   Vidro líquido: toda superfície do painel é uma placa de vidro fosco sobre um fundo iluminado
+   de leve, com uma borda clara em cima onde a luz bate e uma sombra suave embaixo. Os tokens
+   abaixo são o material inteiro: uma tela nomeia uma superfície (.cartao, .barra, .navegacao)
+   e nunca mistura cor própria. O desfoque é gasto só nas superfícies de primeiro nível; o que
+   fica dentro de uma superfície é preenchimento translúcido sem desfoque, porque cada filtro
+   de fundo é uma passada de tela inteira no celular. */
 :root {
   color-scheme: light dark;
-  --fundo: #f4f5f7;
-  --cartao: #ffffff;
-  --texto: #1c1f26;
-  --texto-suave: #5b6270;
-  --borda: #d9dde3;
-  --destaque: #c8423a;
   --online: #1e9e5a;
   --offline: #d13b3b;
   --verificando: #8a919c;
+  --desfoque: 18px;
+  --raio: 22px;
+  --raio-interno: 14px;
+  --fundo: #eef0f4;
+  --cartao: rgba(255, 255, 255, 0.55);
+  --campo: rgba(255, 255, 255, 0.64);
+  --vidro: rgba(255, 255, 255, 0.6);
+  --vidro-borda: rgba(255, 255, 255, 0.72);
+  --vidro-brilho: rgba(255, 255, 255, 0.95);
+  --vidro-sombra: rgba(24, 28, 44, 0.14);
+  --vidro-reflexo: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 45%);
+  --texto: #1c1f26;
+  --texto-suave: #5b6270;
+  --borda: rgba(28, 31, 38, 0.1);
+  --destaque: #c8423a;
+  --acento-botao: #c8423a;
+  --perigo-botao: #b8362c;
   --erro: #b32626;
   --sucesso: #17794a;
+  --luz-1: rgba(200, 66, 58, 0.22);
+  --luz-2: rgba(70, 120, 255, 0.18);
+  --luz-3: rgba(255, 176, 60, 0.18);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --fundo: #14161b;
-    --cartao: #1e2129;
+    --fundo: #0e1016;
+    --cartao: rgba(44, 48, 60, 0.5);
+    --campo: rgba(0, 0, 0, 0.28);
+    --vidro: rgba(30, 33, 43, 0.58);
+    --vidro-borda: rgba(255, 255, 255, 0.12);
+    --vidro-brilho: rgba(255, 255, 255, 0.16);
+    --vidro-sombra: rgba(0, 0, 0, 0.5);
+    --vidro-reflexo: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 45%);
     --texto: #e8eaee;
     --texto-suave: #a3a9b4;
-    --borda: #2f343e;
+    --borda: rgba(255, 255, 255, 0.1);
     --destaque: #f2837b;
+    --acento-botao: #d9584e;
+    --perigo-botao: #c9423a;
     --erro: #ff8b8b;
     --sucesso: #67d6a2;
+    --luz-1: rgba(242, 131, 123, 0.16);
+    --luz-2: rgba(90, 130, 255, 0.16);
+    --luz-3: rgba(255, 176, 60, 0.08);
   }
 }
 
@@ -42,30 +79,107 @@
    o color-scheme o acompanha para os controles nativos e as barras de rolagem concordarem. */
 :root[data-tema="light"] {
   color-scheme: light;
-  --fundo: #f4f5f7;
-  --cartao: #ffffff;
+  --fundo: #eef0f4;
+  --cartao: rgba(255, 255, 255, 0.55);
+  --campo: rgba(255, 255, 255, 0.64);
+  --vidro: rgba(255, 255, 255, 0.6);
+  --vidro-borda: rgba(255, 255, 255, 0.72);
+  --vidro-brilho: rgba(255, 255, 255, 0.95);
+  --vidro-sombra: rgba(24, 28, 44, 0.14);
+  --vidro-reflexo: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 45%);
   --texto: #1c1f26;
   --texto-suave: #5b6270;
-  --borda: #d9dde3;
+  --borda: rgba(28, 31, 38, 0.1);
   --destaque: #c8423a;
+  --acento-botao: #c8423a;
+  --perigo-botao: #b8362c;
   --erro: #b32626;
   --sucesso: #17794a;
+  --luz-1: rgba(200, 66, 58, 0.22);
+  --luz-2: rgba(70, 120, 255, 0.18);
+  --luz-3: rgba(255, 176, 60, 0.18);
 }
 
 :root[data-tema="dark"] {
   color-scheme: dark;
-  --fundo: #14161b;
-  --cartao: #1e2129;
+  --fundo: #0e1016;
+  --cartao: rgba(44, 48, 60, 0.5);
+  --campo: rgba(0, 0, 0, 0.28);
+  --vidro: rgba(30, 33, 43, 0.58);
+  --vidro-borda: rgba(255, 255, 255, 0.12);
+  --vidro-brilho: rgba(255, 255, 255, 0.16);
+  --vidro-sombra: rgba(0, 0, 0, 0.5);
+  --vidro-reflexo: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 45%);
   --texto: #e8eaee;
   --texto-suave: #a3a9b4;
-  --borda: #2f343e;
+  --borda: rgba(255, 255, 255, 0.1);
   --destaque: #f2837b;
+  --acento-botao: #d9584e;
+  --perigo-botao: #c9423a;
   --erro: #ff8b8b;
   --sucesso: #67d6a2;
+  --luz-1: rgba(242, 131, 123, 0.16);
+  --luz-2: rgba(90, 130, 255, 0.16);
+  --luz-3: rgba(255, 176, 60, 0.08);
 }
 
 * {
   box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  background: var(--fundo);
+  color: var(--texto);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Why: glass needs something behind it to refract, so the page carries three soft lights,
+   fixed to the viewport; a flat colour behind frosted glass reads as grey plastic.
+   Por que: vidro precisa de algo atrás para refratar, então a página carrega três luzes
+   suaves, fixas na janela; uma cor chapada atrás de vidro fosco se lê como plástico cinza. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(55rem 38rem at 8% -8%, var(--luz-1), transparent 62%),
+    radial-gradient(48rem 34rem at 105% 5%, var(--luz-2), transparent 60%),
+    radial-gradient(44rem 30rem at 50% 108%, var(--luz-3), transparent 60%);
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.01em;
+}
+
+/* The material. Every top-level surface of the panel is one of these.
+   O material. Toda superfície de primeiro nível do painel é uma destas. */
+.cartao,
+.cartao-link,
+.cena,
+.barra,
+.navegacao,
+.cenas-rodape {
+  background-color: var(--vidro);
+  background-image: var(--vidro-reflexo);
+  -webkit-backdrop-filter: blur(var(--desfoque)) saturate(1.6);
+  backdrop-filter: blur(var(--desfoque)) saturate(1.6);
+  border: 1px solid var(--vidro-borda);
+  box-shadow:
+    inset 0 1px 0 var(--vidro-brilho),
+    0 14px 36px var(--vidro-sombra);
+}
+
+.cartao,
+.cartao-link,
+.cena {
+  border-radius: var(--raio);
 }
 
 /* Why: every field and every list of choices in the panel is one of these, wherever it is
@@ -80,28 +194,33 @@ textarea {
   font: inherit;
   font-size: max(1rem, 16px);
   min-height: 2.75rem;
-  padding: 0.5rem 0.7rem;
+  padding: 0.5rem 0.9rem;
   border: 1px solid var(--borda);
-  border-radius: 8px;
-  background: var(--fundo);
+  border-radius: var(--raio-interno);
+  background: var(--campo);
   color: var(--texto);
   max-width: 100%;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 select {
   appearance: none;
-  padding-right: 2.2rem;
+  padding-right: 2.4rem;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a919c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 0.7rem center;
+  background-position: right 0.9rem center;
   background-size: 1.1rem;
 }
 
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid var(--destaque);
-  outline-offset: 1px;
+  outline: 0;
+  border-color: var(--destaque);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--destaque) 22%, transparent);
 }
 
 input[disabled],
@@ -109,12 +228,8 @@ select[disabled] {
   opacity: 0.6;
 }
 
-body {
-  margin: 0;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  background: var(--fundo);
-  color: var(--texto);
-  line-height: 1.5;
+input[type="range"] {
+  accent-color: var(--destaque);
 }
 
 .pagina {
@@ -150,36 +265,37 @@ body {
   gap: 0.25rem;
 }
 
+/* Capsules: the small controls of the bar are glass pills, pressed one filled.
+   Cápsulas: os controles pequenos da barra são pílulas de vidro, a apertada preenchida. */
 .idiomas button {
   font: inherit;
   font-size: 0.85rem;
   min-height: 2.2rem;
-  padding: 0.3rem 0.7rem;
-  border: 1px solid var(--borda);
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--vidro-borda);
   border-radius: 999px;
   background: var(--cartao);
   color: var(--texto);
   cursor: pointer;
+  box-shadow: inset 0 1px 0 var(--vidro-brilho);
 }
 
 .idiomas button[aria-pressed="true"] {
-  border-color: var(--destaque);
-  color: var(--destaque);
+  background: var(--texto);
+  border-color: var(--texto);
+  color: var(--fundo);
   font-weight: 600;
 }
 
 .cartao {
-  background: var(--cartao);
-  border: 1px solid var(--borda);
-  border-radius: 12px;
   padding: 1.25rem 1.5rem;
 }
 
 .cartao h2 {
   margin: 0 0 0.75rem;
-  font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--texto-suave);
 }
@@ -198,14 +314,17 @@ body {
   height: 0.8rem;
   border-radius: 50%;
   background: var(--verificando);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--verificando) 25%, transparent);
 }
 
 .cartao-online .ponto {
   background: var(--online);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--online) 25%, transparent);
 }
 
 .cartao-offline .ponto {
   background: var(--offline);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--offline) 25%, transparent);
 }
 
 .cartao dl {
@@ -257,51 +376,59 @@ main {
   margin-top: 0.5rem;
 }
 
-/* Why: on a phone a field under 16px makes iOS zoom the page on focus, and a control
-   under 44px is a control the thumb misses; these two rules are the whole difference between
-   a panel that works on a phone and one that only opens on it.
-   Por que: no celular um campo abaixo de 16px faz o iOS ampliar a página ao focar, e um
-   controle abaixo de 44px é um controle que o polegar erra; estas duas regras são toda a
-   diferença entre um painel que funciona no celular e um que só abre nele. */
-.formulario input {
-  font: inherit;
-  font-size: max(1rem, 16px);
-  min-height: 2.75rem;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid var(--borda);
-  border-radius: 8px;
-  background: var(--fundo);
-  color: var(--texto);
-}
-
-.formulario input:focus-visible {
-  outline: 2px solid var(--destaque);
-  outline-offset: 1px;
-}
-
 .dica {
   margin: 0;
   font-size: 0.8rem;
   color: var(--texto-suave);
 }
 
+/* Buttons: capsules. The primary one is the brand colour with a lit top edge, the secondary
+   one is glass, the dangerous one is the colour of an error. A press sinks the capsule a
+   little, the way a glass key does.
+   Botões: cápsulas. O principal é a cor da marca com a borda de cima iluminada, o secundário é
+   vidro, o perigoso é a cor de erro. Uma apertada afunda a cápsula um pouco, como uma tecla de
+   vidro faz. */
 .botao {
   font: inherit;
   font-weight: 600;
   margin-top: 1rem;
   min-height: 2.75rem;
-  padding: 0.6rem 1.1rem;
-  border: 1px solid var(--destaque);
-  border-radius: 8px;
-  background: var(--destaque);
+  padding: 0.6rem 1.25rem;
+  border: 1px solid color-mix(in srgb, var(--acento-botao) 70%, #ffffff);
+  border-radius: 999px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acento-botao) 84%, #ffffff), var(--acento-botao));
   color: #ffffff;
   cursor: pointer;
   align-self: flex-start;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 8px 20px color-mix(in srgb, var(--acento-botao) 32%, transparent);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    filter 0.15s ease;
+}
+
+.botao:hover {
+  filter: brightness(1.05);
+}
+
+.botao:active {
+  transform: scale(0.97);
+}
+
+.botao:focus-visible {
+  outline: 0;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 0 0 4px color-mix(in srgb, var(--destaque) 30%, transparent);
 }
 
 .botao[disabled] {
   opacity: 0.6;
   cursor: progress;
+  filter: none;
+  transform: none;
 }
 
 /* Why: a row of actions under the readings of a card needs air above it, or the buttons read
@@ -334,9 +461,17 @@ main {
 
 .botao.secundario {
   background: var(--cartao);
-  border-color: var(--borda);
+  border-color: var(--vidro-borda);
   color: var(--texto);
   margin-top: 0;
+  box-shadow:
+    inset 0 1px 0 var(--vidro-brilho),
+    0 4px 12px var(--vidro-sombra);
+}
+
+.botao.secundario:hover {
+  filter: none;
+  background: color-mix(in srgb, var(--cartao) 70%, var(--vidro-brilho));
 }
 
 /* Why: restarting the hub is the one button on the panel that takes every equipment off the
@@ -344,17 +479,21 @@ main {
    Por que: reiniciar o hub é o único botão do painel que tira todo equipamento do barramento
    por alguns segundos, então ele é desenhado na cor de erro e nunca como um ajuste. */
 .botao.perigo {
-  background: var(--erro);
-  border-color: var(--erro);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--perigo-botao) 82%, #ffffff), var(--perigo-botao));
+  border-color: color-mix(in srgb, var(--perigo-botao) 70%, #ffffff);
   color: #ffffff;
   margin-top: 0;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 8px 20px color-mix(in srgb, var(--perigo-botao) 30%, transparent);
 }
 
 .etiqueta {
   font-size: 0.75rem;
-  border: 1px solid var(--borda);
+  border: 1px solid var(--vidro-borda);
   border-radius: 999px;
-  padding: 2px 8px;
+  padding: 2px 9px;
+  background: var(--campo);
   color: var(--texto-suave);
 }
 
@@ -371,9 +510,10 @@ main {
 .aviso {
   margin: 0;
   padding: 0.75rem 1rem;
+  border: 1px solid var(--vidro-borda);
   border-left: 4px solid var(--destaque);
-  background: var(--cartao);
-  border-radius: 0 8px 8px 0;
+  background: var(--campo);
+  border-radius: var(--raio-interno);
   color: var(--texto-suave);
 }
 
@@ -399,4 +539,17 @@ main {
 
 .discreto {
   font-size: 0.8rem;
+}
+
+/* Why: the motion of the glass is decoration, and somebody who asked the system for less of
+   it gets none of it.
+   Por que: o movimento do vidro é decoração, e quem pediu ao sistema menos movimento não
+   recebe nenhum. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
 }

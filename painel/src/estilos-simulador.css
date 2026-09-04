@@ -12,11 +12,20 @@
   width: min(100%, 24rem);
   margin: 0 auto;
   padding: 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 2.6rem;
-  background: #111318;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.3);
+  background: rgba(18, 20, 26, 0.82);
+  -webkit-backdrop-filter: blur(var(--desfoque));
+  backdrop-filter: blur(var(--desfoque));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 18px 40px rgba(0, 0, 0, 0.35);
 }
 
+/* Why: the screen of the phone carries the same soft lights as the panel, so the glass cards
+   of the app of the customer have something to refract, the way they do on a real phone.
+   Por que: a tela do celular carrega as mesmas luzes suaves do painel, para os cartões de
+   vidro do app do cliente terem o que refratar, como têm num celular de verdade. */
 .telefone-tela {
   display: flex;
   flex-direction: column;
@@ -24,7 +33,10 @@
   min-height: 30rem;
   border-radius: 2.1rem;
   overflow: hidden;
-  background: var(--fundo);
+  background:
+    radial-gradient(28rem 18rem at 15% 0%, var(--luz-1), transparent 60%),
+    radial-gradient(24rem 18rem at 100% 100%, var(--luz-2), transparent 60%),
+    var(--fundo);
   color: var(--texto);
 }
 
@@ -75,9 +87,11 @@
   flex-direction: column;
   gap: 0.6rem;
   padding: 0.9rem 1rem;
-  border-radius: 1.1rem;
-  background: var(--cartao);
-  border: 1px solid var(--borda);
+  border-radius: 1.2rem;
+  background-color: var(--cartao);
+  background-image: var(--vidro-reflexo);
+  border: 1px solid var(--vidro-borda);
+  box-shadow: inset 0 1px 0 var(--vidro-brilho);
 }
 
 .app-bloco-offline {
@@ -118,11 +132,12 @@
   justify-content: center;
   width: 2.75rem;
   height: 2.75rem;
-  border: 0;
+  border: 1px solid color-mix(in srgb, var(--acento-botao) 70%, #ffffff);
   border-radius: 50%;
-  background: var(--destaque);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acento-botao) 84%, #ffffff), var(--acento-botao));
   color: #ffffff;
   cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 .app-play svg {
@@ -140,14 +155,15 @@
    Por que: a tecla de energia de um equipamento sem transporte se lê como interruptor: contorno
    quando desligado, preenchida quando ligado, como o app do cliente desenha um interruptor. */
 .app-energia {
-  background: var(--fundo);
+  background: var(--campo);
   color: var(--texto);
-  border: 1px solid var(--borda);
+  border: 1px solid var(--vidro-borda);
+  box-shadow: inset 0 1px 0 var(--vidro-brilho);
 }
 
 .app-energia[aria-pressed="true"] {
-  background: var(--destaque);
-  border-color: var(--destaque);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acento-botao) 84%, #ffffff), var(--acento-botao));
+  border-color: color-mix(in srgb, var(--acento-botao) 70%, #ffffff);
   color: #ffffff;
 }
 
@@ -185,16 +201,17 @@
   font-size: 0.85rem;
   min-height: 2.25rem;
   padding: 0.25rem 0.8rem;
-  border: 1px solid var(--borda);
+  border: 1px solid var(--vidro-borda);
   border-radius: 999px;
-  background: var(--fundo);
+  background: var(--campo);
   color: var(--texto);
   cursor: pointer;
+  box-shadow: inset 0 1px 0 var(--vidro-brilho);
 }
 
 .app-ficha[aria-pressed="true"] {
-  background: var(--destaque);
-  border-color: var(--destaque);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acento-botao) 84%, #ffffff), var(--acento-botao));
+  border-color: color-mix(in srgb, var(--acento-botao) 70%, #ffffff);
   color: #ffffff;
 }
 
@@ -222,9 +239,11 @@
   gap: 0.35rem;
   min-height: 4.5rem;
   padding: 0.75rem 0.9rem;
-  border: 1px solid var(--borda);
-  border-radius: 1rem;
-  background: var(--cartao);
+  border: 1px solid var(--vidro-borda);
+  border-radius: 1.1rem;
+  background-color: var(--cartao);
+  background-image: var(--vidro-reflexo);
+  box-shadow: inset 0 1px 0 var(--vidro-brilho);
   color: var(--texto);
   font: inherit;
   font-weight: 600;
