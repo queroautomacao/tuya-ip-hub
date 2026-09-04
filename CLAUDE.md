@@ -116,7 +116,8 @@ class Estado:
     mudo: bool | None = None
     fonte: str | None = None
     fontes: tuple = ()
-    tocando: str | None = None
+    reproduzindo: bool | None = None    # o transporte esta tocando (DP 102)
+    tocando: str | None = None          # o titulo do que toca (DP 105)
     detalhe: str = ""
 ```
 
@@ -124,6 +125,11 @@ Regras que o gestor impõe (e testa) para todo driver:
 
 - Ação fora de `capacidades` volta `nao_suportado` **antes** de chegar ao
   driver. O driver nunca implementa método só para recusar.
+- **`reproduzindo` e `tocando` são fatos diferentes** (decisão de 3/set/2026): o
+  DP 102 é o transporte, o DP 105 é o título. Ler um do outro fazia uma caixa
+  tocando por bluetooth, por entrada de linha, ou um rádio sem metadado, reportar
+  **pausada**, e o app mandava play no que já tocava. Driver que não sabe dizer
+  deixa `reproduzindo` em `None`.
 - `estado()` é o dataclass acima. Chave nova no painel = campo novo aqui, com
   teste. Nunca "o driver X publica `modo` e o Y publica `modo_clima`".
 - Identidade de aparelho é UUID, MAC ou serial; **IP nunca é chave**. O IP é

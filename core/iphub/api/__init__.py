@@ -7,7 +7,9 @@ API REST: um módulo por área, registrados aqui.
 
 from aiohttp import web
 
-from iphub.api import declarativos, equipamentos, health, setup
+from iphub.api import cenas, declarativos, equipamentos, health, setup
+from iphub.api import zonas as rotas_zonas
+from iphub.dpbus import socket
 from iphub.portao import TrataExpect, rota_delete, rota_get, rota_post
 
 
@@ -38,3 +40,20 @@ def registrar_rotas(app: web.Application, tratar_expect: TrataExpect) -> None:
     rota_get(app, "/api/drivers", declarativos.listar, tratar_expect)
     rota_post(app, "/api/drivers", declarativos.salvar, tratar_expect)
     rota_delete(app, "/api/drivers/{tipo}", declarativos.remover, tratar_expect)
+    rota_get(app, "/api/zonas", rotas_zonas.listar, tratar_expect)
+    rota_post(app, "/api/zonas", rotas_zonas.definir, tratar_expect)
+    rota_get(app, "/api/dps", rotas_zonas.dps, tratar_expect)
+    rota_post(app, "/api/dp/{dpid}", rotas_zonas.ajustar, tratar_expect)
+    rota_post(app, "/api/grupo", rotas_zonas.grupo, tratar_expect)
+    # Why: the fixed path comes first, so a scene number could never take the route of the
+    # list away from the panel.
+    # Por que: o caminho fixo vem antes, para um número de cena nunca tomar do painel a rota
+    # da listagem.
+    rota_get(app, "/api/cenas", cenas.listar, tratar_expect)
+    rota_post(app, "/api/cenas", cenas.salvar, tratar_expect)
+    rota_post(app, "/api/cenas/{numero}/executar", cenas.executar, tratar_expect)
+    # Why: section 8, the bus of the bridge is not part of /api/ and carries no session; it
+    # authenticates on its FIRST frame with the api_token, which never travels in the URL.
+    # Por que: seção 8, o barramento da ponte não faz parte do /api/ e não leva sessão; ele
+    # autentica no PRIMEIRO quadro com o api_token, que nunca viaja na URL.
+    rota_get(app, "/dpbus", socket.dpbus, tratar_expect)

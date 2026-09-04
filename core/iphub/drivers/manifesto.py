@@ -138,6 +138,13 @@ class Estado:
     mudo: bool | None = None
     fonte: str | None = None
     fontes: tuple = ()
+    # Why: the transport and the title are different facts, and reading one from the other
+    # made a speaker playing over bluetooth, over a line input, or a radio with no metadata,
+    # report paused on DP 102 while it played. A driver that cannot tell leaves it None.
+    # Por que: o transporte e o título são fatos diferentes, e ler um do outro fazia uma caixa
+    # tocando por bluetooth, por entrada de linha, ou um rádio sem metadado, reportar pausada
+    # no DP 102 enquanto tocava. Um driver que não sabe dizer deixa isto em None.
+    reproduzindo: bool | None = None
     tocando: str | None = None
     detalhe: str = ""
 

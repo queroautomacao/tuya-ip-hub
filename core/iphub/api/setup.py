@@ -27,6 +27,7 @@ from iphub.api.comum import (
 )
 from iphub.auth import SenhaCurta, gerar_hash
 from iphub.auth import conferir as conferir_senha
+from iphub.dpbus.socket import BARRAMENTO
 from iphub.portao import ip_do_pedido, resposta_erro
 from iphub.segredos import rotacionar_api_token
 from iphub.versao import SCHEMA_VERSION, VERSAO
@@ -79,6 +80,16 @@ def _renovar_posse(app: web.Application) -> None:
     )
 
 
+async def _revogar_barramento(app: web.Application) -> None:
+    """Section 9: rotating the machine credential closes the sockets it authenticated.
+
+    Seção 9: rotacionar a credencial de máquina fecha os sockets que ela autenticou.
+    """
+    barramento = app.get(BARRAMENTO)
+    if barramento is not None:
+        await barramento.revogar()
+
+
 async def estado(request: web.Request) -> web.Response:
     cfg = config_de(request.app)
     return resposta_ok(
@@ -115,6 +126,7 @@ async def posse(request: web.Request) -> web.Response:
         except SenhaCurta:
             return resposta_erro(400, "senha_curta")
         _renovar_posse(app)
+        await _revogar_barramento(app)
         return _sessao_nova(request)
 
 
@@ -181,4 +193,5 @@ async def senha(request: web.Request) -> web.Response:
     app[SEGREDOS].valor = replace(
         segredos_de(app), api_token=rotacionar_api_token(app[AMBIENTE].dir_data)
     )
+    await _revogar_barramento(app)
     return _sessao_nova(request)

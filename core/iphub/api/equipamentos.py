@@ -30,9 +30,11 @@ from iphub.api.comum import (
     ler_corpo,
     resposta_ok,
     trocar_config,
+    zonas_de,
 )
 from iphub.api.formato import achado_json, equipamento_json, manifesto_json
 from iphub.config import Cadastro, ip_literal
+from iphub.dpbus import zonas as modulo_zonas
 from iphub.drivers import descoberta
 from iphub.drivers.gestor import ErroDeCadastro, Gestor
 from iphub.drivers.manifesto import Manifesto, TipoCampo
@@ -47,6 +49,7 @@ log = logging.getLogger("iphub.api.equipamentos")
 TIMEOUT_VARREDURA_S = 3.0
 LIMITE_VARREDURA_S = 8.0
 DESTINO = descoberta.DESTINO_PADRAO
+DESTINO_MDNS = descoberta.DESTINO_MDNS
 
 TEXTO_MAXIMO = 200
 
@@ -202,15 +205,21 @@ def _identidade_do_corpo(dados: dict, identidade: str | None) -> str:
     return identidade
 
 
-def _persistir(app: web.Application, cadastros: tuple[Cadastro, ...]) -> bool:
+def _persistir(
+    app: web.Application, cadastros: tuple[Cadastro, ...], zonas: tuple[str, ...] | None = None
+) -> bool:
     # Why: the route writes the set (section 6) and answers whether it could, because a gestor
     # changed first left the daemon polling an equipment that never reached the disk, listed by
     # the panel until a restart made it vanish.
     # Por que: a rota grava o conjunto (seção 6) e responde se conseguiu, porque um gestor
     # alterado primeiro deixava o daemon com um equipamento que nunca chegou ao disco, listado
     # pelo painel até um reinício o sumir.
+    atual = config_de(app)
+    mudanca = {"equipamentos": cadastros}
+    if zonas is not None:
+        mudanca["zonas"] = zonas
     try:
-        trocar_config(app, replace(config_de(app), equipamentos=cadastros))
+        trocar_config(app, replace(atual, **mudanca))
     except OSError as erro:
         log.error("could not write the equipment set: %s", erro)
         return False
@@ -277,14 +286,55 @@ async def _gravar(request: web.Request, identidade: str | None) -> web.Response:
         return _erro(recusa.codigo)
     if identidade is None and _achar(gestor.cadastros, cadastro.identidade) is not None:
         return _erro(IDENTIDADE_DUPLICADA)
-    if not _persistir(app, _com(gestor.cadastros, cadastro)):
+    zonas = zonas_de(app)
+    # Why: section 6 says a zone is a multiroom equipment occupying a block, so an equipment
+    # that changes to a tipo that is not multiroom cannot stay in one: the block would publish
+    # a zone whose speaker refuses every data point of section 8. Its block is emptied, and it
+    # stays empty, because closing the hole would move every zone below it one up in silence
+    # on a bus the customer already automated.
+    # Por que: a seção 6 diz que uma zona é um equipamento multiroom ocupando um bloco, então
+    # um equipamento que troca para um tipo que não é multiroom não pode ficar num: o bloco
+    # publicaria uma zona cuja caixa recusa todo data point da seção 8. O bloco dele é
+    # esvaziado, e continua vazio, porque fechar o buraco moveria toda zona abaixo dele uma
+    # para cima, em silêncio, num barramento que o cliente já automatizou.
+    saiu_da_zona = (
+        anterior is not None
+        and anterior.tipo != cadastro.tipo
+        and zonas.bloco(cadastro.identidade) != 0
+        and not _e_multiroom(app, cadastro.tipo)
+    )
+    ordem = modulo_zonas.sem(zonas.ordem, cadastro.identidade) if saiu_da_zona else None
+    if not _persistir(app, _com(gestor.cadastros, cadastro), ordem):
         return _erro(ERRO_INTERNO)
     mudar = gestor.cadastrar if identidade is None else gestor.atualizar_cadastro
     try:
         await mudar(cadastro)
     except ErroDeCadastro as erro:
         return _erro(erro.codigo)
+    if saiu_da_zona:
+        log.warning(
+            "equipment %s changed to tipo %r, which is not multiroom, so its zone block "
+            "was emptied",
+            cadastro.identidade,
+            cadastro.tipo,
+        )
+        await zonas.esquecer(cadastro.identidade)
     return resposta_ok()
+
+
+def _e_multiroom(app: web.Application, tipo: str) -> bool:
+    """Section 6: what the manifest declares decides, and it is the same rule the zones
+    module applies, written once here against the tipo instead of the identity.
+
+    Seção 6: o que o manifesto declara decide, e é a mesma regra que o módulo das zonas
+    aplica, escrita uma vez aqui contra o tipo em vez da identidade.
+    """
+    manifesto = _manifestos(app).get(tipo)
+    return (
+        manifesto is not None
+        and manifesto.categoria == modulo_zonas.CATEGORIA_DE_GRUPO
+        and modulo_zonas.CAPACIDADE_DE_GRUPO in manifesto.capacidades
+    )
 
 
 @com_sessao
@@ -294,8 +344,19 @@ async def remover(request: web.Request) -> web.Response:
     if _achar(gestor.cadastros, identidade) is None:
         return _erro(EQ_NAO_ENCONTRADO)
     restantes = tuple(c for c in gestor.cadastros if c.identidade != identidade)
-    if not _persistir(request.app, restantes):
+    zonas = zonas_de(request.app)
+    # Why: section 8 numbers the block by position, so the block of a removed speaker stays
+    # there, empty; closing the hole would move every speaker below it one zone up, in
+    # silence, on a bus the customer already automated. The group it was in falls with it,
+    # because a group led by an equipment nobody has is a group nobody can take down.
+    # Por que: a seção 8 numera o bloco pela posição, então o bloco de uma caixa removida
+    # continua ali, vazio; fechar o buraco moveria toda caixa abaixo dele uma zona para cima,
+    # em silêncio, num barramento que o cliente já automatizou. O grupo em que ela estava cai
+    # junto, porque um grupo liderado por um equipamento que ninguém tem é um grupo que
+    # ninguém consegue desfazer.
+    if not _persistir(request.app, restantes, modulo_zonas.sem(zonas.ordem, identidade)):
         return _erro(ERRO_INTERNO)
+    await zonas.esquecer(identidade)
     await gestor.remover(identidade)
     return resposta_ok()
 
@@ -388,12 +449,70 @@ async def _varrer(app: web.Application) -> tuple[descoberta.Achado, ...] | str:
     """
     try:
         plano = descoberta.montar(_manifestos(app).values())
-        async with asyncio.timeout(LIMITE_VARREDURA_S):
-            return await descoberta.procurar(plano, destino=DESTINO, timeout_s=TIMEOUT_VARREDURA_S)
-    except (OSError, TimeoutError, descoberta.PlanoAmbiguo) as erro:
-        # Why: a segment with no route for the group is a fault of this host, and answering an
-        # empty list would send the integrator hunting the network instead of the daemon.
-        # Por que: um segmento sem rota para o grupo é falha deste host, e responder lista
-        # vazia mandaria o integrador caçar a rede em vez do daemon.
+    except descoberta.PlanoAmbiguo as erro:
         log.warning("discovery sweep failed: %s", erro)
         return ERRO_INTERNO
+    try:
+        async with asyncio.timeout(LIMITE_VARREDURA_S):
+            # Why: section 6 generates the discovery from the manifests, and a manifest
+            # declares its signature on the transport its device answers: the multiroom
+            # speaker of section 14 is only ever found by mDNS, and sweeping SSDP alone made
+            # the panel answer "nothing here" on a segment full of speakers. The two run
+            # together because the sweep floods the segment either way and its length is the
+            # slower of the two, not their sum.
+            # Por que: a seção 6 gera a descoberta dos manifestos, e um manifesto declara sua
+            # assinatura no transporte que o aparelho dele responde: a caixa multiroom da
+            # seção 14 só é achada por mDNS, e varrer só SSDP fazia o painel responder "não há
+            # nada aqui" num segmento cheio de caixas. Os dois correm juntos porque a
+            # varredura inunda o segmento de todo jeito e a duração dela é a do mais lento dos
+            # dois, não a soma.
+            ssdp, mdns = await asyncio.gather(
+                descoberta.procurar(plano, destino=DESTINO, timeout_s=TIMEOUT_VARREDURA_S),
+                descoberta.procurar_mdns(
+                    plano, destino=DESTINO_MDNS, timeout_s=TIMEOUT_VARREDURA_S
+                ),
+                return_exceptions=True,
+            )
+    except TimeoutError as erro:
+        log.warning("discovery sweep failed: %s", erro)
+        return ERRO_INTERNO
+    return _juntar(ssdp, mdns)
+
+
+def _juntar(
+    ssdp: tuple[descoberta.Achado, ...] | BaseException,
+    mdns: tuple[descoberta.Achado, ...] | BaseException,
+) -> tuple[descoberta.Achado, ...] | str:
+    """The findings of both transports, with a device seen on both counted once.
+
+    Why: one transport failing is a fault of this host on that transport, and throwing away
+    what the other one found would hide the speakers the panel is there to show. Both failing
+    is the fault section 9 wants reported, because answering an empty list would send the
+    integrator hunting the network instead of the daemon.
+
+    Os achados dos dois transportes, com um aparelho visto nos dois contado uma vez.
+
+    Por que: um transporte falhando é falha deste host naquele transporte, e jogar fora o que
+    o outro achou esconderia as caixas que o painel existe para mostrar. Os dois falharem é a
+    falha que a seção 9 quer reportada, porque responder lista vazia mandaria o integrador
+    caçar a rede em vez do daemon.
+    """
+    achados: list[descoberta.Achado] = []
+    falhas = 0
+    for resultado in (ssdp, mdns):
+        if isinstance(resultado, BaseException):
+            falhas += 1
+            log.warning("discovery sweep failed: %s", resultado)
+            continue
+        achados.extend(resultado)
+    if falhas == 2:
+        return ERRO_INTERNO
+    vistos: dict[tuple[str, str], descoberta.Achado] = {}
+    for achado in achados:
+        # Why: the same speaker answering both transports is one device, and section 6 says
+        # the identity decides; only an answer with no identity falls back to the address.
+        # Por que: a mesma caixa respondendo os dois transportes é um aparelho só, e a seção 6
+        # diz que a identidade decide; só uma resposta sem identidade recai no endereço.
+        chave = ("id", achado.identidade) if achado.identidade else ("ip", achado.ip)
+        vistos.setdefault(chave, achado)
+    return tuple(vistos.values())

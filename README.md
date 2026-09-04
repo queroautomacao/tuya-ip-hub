@@ -39,11 +39,11 @@ When complete, the hub is three parts, and only three:
 
 ### Project status
 
-Milestones 0 to 3 are delivered, so the hub controls equipment today. The daemon carries the driver contract, the driver catalog, an SSDP sweep that finds devices on the local network and the REST API behind all of it; the panel is where the integrator takes ownership on the first access, signs in, finds a device, registers it, commands it and writes drivers. Four drivers ship inside the image: a PJLink projector written in Python, and an HDMI matrix (TCP), a relay board (HTTP) and an audio amplifier (UDP) written as JSON.
+Milestones 0 to 4 are delivered, so the hub controls equipment today and publishes the data point contract a Tuya bridge consumes. The daemon carries the driver contract, the driver catalog, an SSDP sweep that finds devices on the local network and the REST API behind all of it; the panel is where the integrator takes ownership on the first access, signs in, finds a device, registers it, commands it and writes drivers. Four drivers ship inside the image: a PJLink projector written in Python, and an HDMI matrix (TCP), a relay board (HTTP) and an audio amplifier (UDP) written as JSON.
 
 A driver for a new device is written as a JSON file, with no programming. The file says how to reach the device (a line of text on a TCP port, a simple HTTP request, or UDP), which commands it takes and how to read its state back. The panel opens a starting template per transport, validates the file field by field and loads it without restarting the hub; a file dropped by hand into the `drivers` directory of the data volume is loaded on the next boot and wins over an embedded driver of the same type. A file that does not validate is refused and logged by name: it never costs the boot, and every other driver goes on loading. The format is described in section 7 of [CLAUDE.md](CLAUDE.md).
 
-What is still missing is the Tuya side. The DP-bus, the scenes and the multiroom driver arrive in the milestones below, one at a time, each one closed with a green CI, so for now the hub is driven by its own panel and REST API and not yet from the Tuya app.
+Audio zones, scenes and the DP-bus arrived with milestone 4. Up to six multiroom speakers occupy the six data point blocks the contract numbers, a scene is a list of steps saved as data, and the bus is a WebSocket at `/dpbus` that authenticates on its first frame with the `api_token` and never from the URL. The data point scheme is public and written down in [CLAUDE.md](CLAUDE.md), so anybody may write a bridge on top of it. What is still missing are the native drivers of the receivers and the TVs and the published image, in the milestones below, one at a time, each one closed with a green CI.
 
 | # | Status | Milestone | Exit gate |
 |---|---|---|---|
@@ -51,7 +51,7 @@ What is still missing is the Tuya side. The DP-bus, the scenes and the multiroom
 | 1 | delivered | `config`, `auth`, `portao` (host gate), `api/setup`, minimal panel (password, login, logout) | every security test green |
 | 2 | delivered | Driver contract, catalog, generated discovery, simulated device, equipment panel | example driver against the simulator, discovery under test |
 | 3 | delivered | Declarative engine (JSON), embedded catalog, editor in the panel | three example JSON drivers (TCP, HTTP, UDP) green against the simulator |
-| 4 | planned | LinkPlay as the multiroom driver, complete DP-bus, scenes | smoke test with a real speaker recorded in the device matrix |
+| 4 | delivered | LinkPlay as the multiroom driver, complete DP-bus, scenes | smoke test with a real speaker recorded in the device matrix |
 | 5 | planned | Native drivers, one at a time, each with its simulator: Denon, Onkyo, Yamaha, Samsung, LG webOS, Roku, Sony, Sonos, HEOS, Android TV | each one tested; explicit pairing where the device requires it |
 | 6 | planned | Release: tag, image on GHCR (arm64 and amd64), new-version notice in the panel, generated `API.md` | a stranger installs from the README without help |
 | 7 | planned | Public beta | open device matrix, issue and PR templates, CLA bot |
@@ -220,11 +220,11 @@ Quando completo, o hub são três peças, e só três:
 
 ### Estado do projeto
 
-Os marcos 0 a 3 estão entregues, então o hub já controla equipamento. O daemon carrega o contrato de driver, o catálogo de drivers, uma varredura SSDP que acha aparelhos na rede local e a API REST por trás de tudo isso; o painel é onde o integrador assume a posse no primeiro acesso, entra, acha um aparelho, cadastra, comanda e escreve drivers. Quatro drivers embarcam na imagem: um projetor PJLink escrito em Python, e uma matriz HDMI (TCP), uma placa de relés (HTTP) e um amplificador de áudio (UDP) escritos em JSON.
+Os marcos 0 a 4 estão entregues, então o hub já controla equipamento e já publica o contrato de data points que uma ponte Tuya consome. O daemon carrega o contrato de driver, o catálogo de drivers, uma varredura SSDP que acha aparelhos na rede local e a API REST por trás de tudo isso; o painel é onde o integrador assume a posse no primeiro acesso, entra, acha um aparelho, cadastra, comanda e escreve drivers. Quatro drivers embarcam na imagem: um projetor PJLink escrito em Python, e uma matriz HDMI (TCP), uma placa de relés (HTTP) e um amplificador de áudio (UDP) escritos em JSON.
 
 O driver de um aparelho novo é escrito como um arquivo JSON, sem programar. O arquivo diz como falar com o aparelho (uma linha de texto numa porta TCP, uma requisição HTTP simples ou UDP), quais comandos ele aceita e como ler o estado de volta. O painel abre um modelo de partida por transporte, valida o arquivo campo a campo e o carrega sem reiniciar o hub; um arquivo colocado à mão na pasta `drivers` do volume de dados é carregado no boot seguinte e vence um driver embarcado do mesmo tipo. Um arquivo que não valida é recusado e registrado pelo nome: ele nunca custa o boot, e todo outro driver segue carregando. O formato está descrito na seção 7 do [CLAUDE.md](CLAUDE.md).
 
-O que ainda falta é o lado Tuya. O DP-bus, as cenas e o driver multiroom chegam nos marcos abaixo, um por vez, cada um fechado com CI verde, então por enquanto o hub é conduzido pelo próprio painel e pela própria API REST, e ainda não pelo app Tuya.
+As zonas de áudio, as cenas e o DP-bus chegaram com o marco 4. Até seis caixas multiroom ocupam os seis blocos de data points que o contrato numera, uma cena é uma lista de passos salva como dado, e o barramento é um WebSocket em `/dpbus` que autentica no primeiro quadro com o `api_token` e nunca pela URL. O esquema de data points é público e está escrito no [CLAUDE.md](CLAUDE.md), então qualquer um pode escrever uma ponte em cima dele. O que ainda falta são os drivers nativos dos receivers e das TVs e a imagem publicada, nos marcos abaixo, um por vez, cada um fechado com CI verde.
 
 | # | Situação | Marco | Portão de saída |
 |---|---|---|---|
@@ -232,7 +232,7 @@ O que ainda falta é o lado Tuya. O DP-bus, as cenas e o driver multiroom chegam
 | 1 | entregue | `config`, `auth`, `portao` (portão de host), `api/setup`, painel mínimo (senha, login, sair) | todos os testes de segurança verdes |
 | 2 | entregue | Contrato de driver, catálogo, descoberta gerada, aparelho simulado, painel de equipamentos | driver de exemplo contra o simulado, descoberta com teste |
 | 3 | entregue | Motor declarativo (JSON), catálogo embarcado, editor no painel | três JSON de exemplo (TCP, HTTP, UDP) verdes contra o simulado |
-| 4 | planejado | LinkPlay como driver multiroom, DP-bus completo, cenas | fumaça com caixa real registrada na matriz de aparelhos |
+| 4 | entregue | LinkPlay como driver multiroom, DP-bus completo, cenas | fumaça com caixa real registrada na matriz de aparelhos |
 | 5 | planejado | Drivers nativos, um por vez, cada um com simulado: Denon, Onkyo, Yamaha, Samsung, LG webOS, Roku, Sony, Sonos, HEOS, Android TV | cada um com teste; pareamento explícito onde o aparelho exige |
 | 6 | planejado | Release: tag, imagem no GHCR (arm64 e amd64), aviso de versão nova no painel, `API.md` gerado | um estranho instala pelo README sem ajuda |
 | 7 | planejado | Beta público | matriz de aparelhos aberta, templates de issue e PR, CLA no bot |

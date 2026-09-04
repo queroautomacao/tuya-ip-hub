@@ -3,10 +3,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Assistente from "./Assistente";
+import Cenas from "./Cenas.tsx";
 import DriversDeclarativos from "./DriversDeclarativos.tsx";
 import Equipamentos from "./Equipamentos.tsx";
 import Login from "./Login";
 import TrocarSenha from "./TrocarSenha";
+import Zonas from "./Zonas.tsx";
 import { lerEstado, lerSessao, sair, type Estado } from "./api";
 import { IDIOMAS, definirIdioma, idiomaAtual, t, type Idioma } from "./i18n";
 import { INTERVALO_MS, formatarUptime, lerSaude, type Saude } from "./saude";
@@ -89,6 +91,8 @@ function Painel({
     <>
       <CartaoEstado leitura={leitura} idioma={idioma} />
       <Equipamentos idioma={idioma} />
+      <Zonas idioma={idioma} />
+      <Cenas />
       <DriversDeclarativos idioma={idioma} />
       <section className="cartao">
         <h2>{t("instalacao")}</h2>

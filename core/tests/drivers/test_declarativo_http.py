@@ -545,3 +545,27 @@ async def test_o_exemplo_embarcado_de_http_fala_com_o_aparelho_simulado():
     assert driver.estado().ligado is False
     assert [pedido.caminho for pedido in aparelho.pedidos] == ["/status.json", "/relay/1/off"]
     assert aparelho.pedidos[0].cabecalhos["X-Api-Key"] == chave
+
+
+async def test_a_resposta_partida_em_dois_segmentos_e_lida_inteira():
+    """Section 7: the reading of a state is of the whole answer, not of the first segment.
+
+    Why: one read of the stream returns only what the buffer already holds, so a device on a
+    busy network answered a body the regex and the json path then read from a piece of it.
+
+    Seção 7: a leitura de um estado é da resposta inteira, não do primeiro segmento.
+
+    Por que: uma leitura do fluxo devolve só o que o buffer já tem, então um aparelho numa
+    rede cheia respondia um corpo que a regex e o caminho json liam de um pedaço dele.
+    """
+    async with ServidorHttp(ROTAS, partir=True) as aparelho:
+        driver = _driver(aparelho)
+        await driver.iniciar()
+        await driver.atualizar()
+        await driver.parar()
+    estado = driver.estado()
+    assert estado.online is True
+    assert estado.ligado is True
+    assert estado.mudo is True
+    assert estado.tocando == "Radio Um"
+    assert estado.volume == 51

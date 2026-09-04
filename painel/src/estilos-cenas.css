@@ -1,0 +1,76 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (C) 2026 Quero Automação Ltda */
+
+/* Why: the eight slots are always on the screen, empty ones included, because the number of a
+   scene is its position and a slot with no step is a number held open for the automations
+   already built on it.
+   Por que: as oito vagas estão sempre na tela, inclusive as vazias, porque o número de uma
+   cena é a posição dela e uma vaga sem passo é um número guardado para as automações já
+   montadas nela. */
+.cenas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.cena {
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--cartao);
+}
+
+.cena-cabeca {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cena-cabeca h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.cena-nome {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+  max-width: 320px;
+}
+
+.cena-passos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+/* Why: a step is one line that reads in the order it happens (which data point, which value,
+   how long to wait after it), and it wraps on a narrow screen instead of scrolling sideways.
+   Por que: um passo é uma linha que se lê na ordem em que acontece (qual data point, qual
+   valor, quanto esperar depois), e ela quebra numa tela estreita em vez de rolar de lado. */
+.cena-passo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.cena-passo .valor {
+  max-width: 200px;
+}
+
+.problemas {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  color: var(--erro);
+}
+
+.problemas code {
+  overflow-wrap: anywhere;
+}

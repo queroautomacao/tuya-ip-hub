@@ -66,8 +66,14 @@ METODOS = ("GET", "POST", "PUT")
 # Por que: o online vem do transporte e o detalhe carrega um código de base.CODIGOS, então
 # nenhum dos dois é leitura que um arquivo possa reivindicar; as fontes vêm dos valores do
 # comando de fonte, que é o mesmo fato escrito uma vez.
-LEITURAS = ("ligado", "volume", "mudo", "fonte", "tocando")
-BOOLEANAS = ("ligado", "mudo")
+# Why: section 6 publishes the transport and the title as different facts, and section 2
+# refuses two engines that diverge, so a declaration reads reproduzindo the same way a native
+# driver publishes it.
+# Por que: a seção 6 publica o transporte e o título como fatos diferentes, e a seção 2 recusa
+# dois motores que divergem, então uma declaração lê o reproduzindo do mesmo jeito que um
+# driver nativo o publica.
+LEITURAS = ("ligado", "volume", "mudo", "fonte", "reproduzindo", "tocando")
+BOOLEANAS = ("ligado", "mudo", "reproduzindo")
 
 CHAVES_ARQUIVO = ("manifesto", "transporte", "comandos", "estado", "escala_volume", "descoberta")
 CHAVES_MANIFESTO = (

@@ -10,11 +10,22 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from iphub import arquivos
+from iphub.cenas import Cena, CenasInvalidas
+from iphub.cenas import validar as validar_cenas
+from iphub.dpbus import mapa
 from iphub.versao import SCHEMA_VERSION
 
 ARQUIVO = "config.json"
 
 CHAVE_EQUIPAMENTOS = "equipamentos"
+CHAVE_ZONAS = "zonas"
+CHAVE_CENAS = "cenas"
+
+# Why: section 8 numbers six zone blocks and no seventh exists, so a seventh identity here
+# would name a zone the data point contract cannot carry.
+# Por que: a seção 8 numera seis blocos de zona e não existe um sétimo, então uma sétima
+# identidade aqui nomearia uma zona que o contrato de data points não sabe carregar.
+ZONAS_MAXIMO = mapa.ZONAS
 
 # Why: senha_iteracoes is handed straight to pbkdf2_hmac on every login, so a hand edited
 # huge value hangs the daemon and a tiny one makes the stored hash cheap to crack.
@@ -72,6 +83,24 @@ class Config:
     senha_hash: str = ""
     senha_iteracoes: int = 0
     equipamentos: tuple[Cadastro, ...] = ()
+    # Why: section 6 makes a zone an ORDER over identities already registered as equipment,
+    # so there is no second registry: the position IS the data point block of section 8, and
+    # an empty string is a block nobody occupies. A removal empties the slot instead of
+    # shifting the rest, because a shift would silently move a speaker from zone 2 to zone 1
+    # in every automation the customer already built on the platform.
+    # Por que: a seção 6 faz de uma zona uma ORDEM sobre identidades já cadastradas como
+    # equipamento, então não existe segundo cadastro: a posição É o bloco de data points da
+    # seção 8, e uma string vazia é um bloco que ninguém ocupa. Uma remoção esvazia a vaga em
+    # vez de empurrar o resto, porque empurrar moveria em silêncio uma caixa da zona 2 para a
+    # zona 1 em toda automação que o cliente já montou na plataforma.
+    zonas: tuple[str, ...] = ()
+    # Why: a scene is data of section 8 and the position of one is its number, the same way a
+    # zone block is a position; the module that owns the format decides what a scene is, and
+    # this file only says that the installation carries up to eight of them.
+    # Por que: uma cena é dado da seção 8 e a posição de uma é o número dela, do mesmo jeito
+    # que um bloco de zona é uma posição; o módulo dono do formato decide o que é uma cena, e
+    # este arquivo só diz que a instalação carrega até oito delas.
+    cenas: tuple[Cena, ...] = ()
 
     @property
     def configurado(self) -> bool:
@@ -126,6 +155,8 @@ def carregar(dir_data: Path) -> Config:
         senha_hash=_texto(dados, "senha_hash", PADRAO.senha_hash),
         senha_iteracoes=_iteracoes(dados, dir_data),
         equipamentos=_equipamentos(dados, dir_data),
+        zonas=_zonas(dados),
+        cenas=_cenas(dados, dir_data),
     )
 
 
@@ -204,6 +235,51 @@ def _equipamentos(dados: dict, dir_data: Path) -> tuple[Cadastro, ...]:
             f"{ARQUIVO}: key {CHAVE_EQUIPAMENTOS!r} repeats the identidade {repetidas}"
         )
     return cadastros
+
+
+def _zonas(dados: dict) -> tuple[str, ...]:
+    """The order of the zones: identities of registered equipment, empty for a free block.
+
+    A ordem das zonas: identidades de equipamento cadastrado, vazia para um bloco livre.
+    """
+    valor = _lista(dados, CHAVE_ZONAS, PADRAO.zonas)
+    if len(valor) > ZONAS_MAXIMO:
+        raise ConfigIncompativel(
+            f"{ARQUIVO}: key {CHAVE_ZONAS!r} carries {len(valor)} blocks, section 8 numbers "
+            f"{ZONAS_MAXIMO}"
+        )
+    ocupadas = [identidade for identidade in valor if identidade]
+    repetidas = sorted({i for i in ocupadas if ocupadas.count(i) > 1})
+    if repetidas:
+        # Why: one speaker in two blocks would answer the volume of two zones on the bus, and
+        # the bridge would read a device that contradicts itself.
+        # Por que: uma caixa em dois blocos responderia o volume de duas zonas no barramento,
+        # e a ponte leria um aparelho que se contradiz.
+        raise ConfigIncompativel(
+            f"{ARQUIVO}: key {CHAVE_ZONAS!r} repeats the identidade {repetidas}"
+        )
+    return valor
+
+
+def _cenas(dados: dict, dir_data: Path) -> tuple[Cena, ...]:
+    """The scenes as typed data, judged by the validation the panel route faces.
+
+    As cenas como dado tipado, julgadas pela validação que a rota do painel enfrenta.
+    """
+    # Why: the route that saves a scene is one door into this field and this file is the
+    # other, the same as the ip of a registration; a step hand edited here to write a report
+    # only data point would be run by the bus and publish a state no device ever confirmed.
+    # Por que: a rota que salva uma cena é uma porta para este campo e este arquivo é a outra,
+    # igual ao ip de um cadastro; um passo editado na mão aqui para escrever um data point de
+    # só report seria executado pelo barramento e publicaria estado que aparelho nenhum
+    # confirmou.
+    try:
+        return validar_cenas(dados.get(CHAVE_CENAS, ()))
+    except CenasInvalidas as erro:
+        raise ConfigIncompativel(
+            f"{ARQUIVO}: key {CHAVE_CENAS!r} is not a list of scenes ({erro}). "
+            f"{_conserto(dir_data)}"
+        ) from erro
 
 
 def _cadastro(item: object, indice: int, dir_data: Path) -> Cadastro:

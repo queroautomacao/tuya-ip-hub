@@ -2,18 +2,20 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Quero Automação Ltda
 #
-# Bench smoke for milestone 0. Brings the hub up from zero with compose and
-# checks /health, the security headers, the Host rule, the panel and the
-# non-root user, then tears everything down.
+# Bench smoke of section 12. Brings the hub up from zero with compose and walks
+# the whole path a bench walks: /health, the security headers, the Host rule, the
+# panel, the non-root user, then the password, the catalogue, discovery, a
+# registration, a command, a scene and the DP-bus, and tears everything down.
 # Usage: scripts/fumaca.sh [imagem]
 #   with an image name: that image is used as is, nothing is built
 #   without: docker compose build runs first
 # COMPOSE_FILE is honored, so on Docker Desktop run:
 #   COMPOSE_FILE=docker-compose.yml:docker-compose.desktop.yml scripts/fumaca.sh
 #
-# Fumaça de bancada do marco 0. Sobe o hub do zero com compose e confere o
-# /health, os cabeçalhos de segurança, a regra de Host, o painel e o usuário
-# não-root, depois derruba tudo.
+# Fumaça de bancada da seção 12. Sobe o hub do zero com compose e percorre o
+# caminho inteiro que uma bancada percorre: /health, os cabeçalhos de segurança, a
+# regra de Host, o painel, o usuário não-root, e então a senha, o catálogo, a
+# descoberta, um cadastro, um comando, uma cena e o DP-bus, depois derruba tudo.
 # Uso: scripts/fumaca.sh [imagem]
 #   com nome de imagem: essa imagem é usada como está, nada é construído
 #   sem: docker compose build roda antes
@@ -119,6 +121,115 @@ case "$painel" in
     "200 text/html"*) pass "GET /: $painel" ;;
     *) fail "GET /: expected 200 text/html, got '$painel'" ;;
 esac
+
+# Why: section 12 says the smoke goes all the way to a scene, so from here on it
+# walks the path an integrator walks on the bench. The registered equipment points
+# at an address where nothing answers on purpose: a command that comes back
+# eq_offline proves the whole path, from the route to the driver and back, without
+# the smoke needing hardware.
+# Por que: a seção 12 diz que a fumaça vai até a cena, então daqui para baixo ela
+# percorre o caminho que um integrador percorre na bancada. O equipamento cadastrado
+# aponta de propósito para um endereço onde nada responde: um comando que volta
+# eq_offline prova o caminho inteiro, da rota ao driver e de volta, sem a fumaça
+# precisar de hardware.
+campo() { grep -o "\"$1\": *\"[^\"]*\"" | head -1 | sed 's/.*: *"\(.*\)"$/\1/'; }
+
+senha="fumaca-de-bancada"
+posse="$(curl -sS --max-time 10 -X POST -H 'Content-Type: application/json' \
+    -d "{\"senha\": \"$senha\"}" "$base/api/posse" || true)"
+token="$(printf '%s' "$posse" | campo token)"
+if [ -n "$token" ]; then
+    pass "POST /api/posse: the first access set the password and opened a session"
+else
+    fail "POST /api/posse: expected a token, got '$posse'"
+fi
+
+autorizado=(-H "Authorization: Bearer $token")
+
+corpo="$(curl -sS --max-time 10 "${autorizado[@]}" "$base/api/catalogo" || true)"
+if printf '%s' "$corpo" | grep -q '"multiroom_linkplay"' \
+    && printf '%s' "$corpo" | grep -q '"matriz_hdmi_ascii"'; then
+    pass "GET /api/catalogo: the native drivers and the embedded json catalogue both loaded"
+else
+    fail "GET /api/catalogo: expected the native and the embedded json drivers, got '$corpo'"
+fi
+
+codigo="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 60 -X POST "${autorizado[@]}" "$base/api/descoberta" || true)"
+if [ "$codigo" = "200" ]; then
+    pass "POST /api/descoberta: 200 (finding nothing on this network is the expected answer)"
+else
+    fail "POST /api/descoberta: expected 200, got '$codigo'"
+fi
+
+# Why: the address is the documentation range of RFC 5737, which never routes, so
+# the smoke cannot reach a device of somebody else on the bench network.
+# Por que: o endereço é a faixa de documentação da RFC 5737, que nunca roteia, então
+# a fumaça não consegue alcançar aparelho de outra pessoa na rede da bancada.
+cadastro='{"tipo": "multiroom_linkplay", "identidade": "fumaca-uuid-1", "nome": "Fumaca", "ip": "192.0.2.10", "campos": {}}'
+codigo="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 -X POST \
+    -H 'Content-Type: application/json' "${autorizado[@]}" -d "$cadastro" "$base/api/equipamentos" || true)"
+if [ "$codigo" = "200" ]; then
+    pass "POST /api/equipamentos: a multiroom equipment was registered and took a zone"
+else
+    fail "POST /api/equipamentos: expected 200, got '$codigo'"
+fi
+
+corpo="$(curl -sS --max-time 20 -X POST -H 'Content-Type: application/json' "${autorizado[@]}" \
+    -d '{"acao": "volume", "valor": 30}' "$base/api/equipamentos/fumaca-uuid-1/acao" || true)"
+if printf '%s' "$corpo" | grep -q '"code": *"eq_offline"'; then
+    pass "POST /api/equipamentos/.../acao: eq_offline, the stable code of section 6"
+else
+    fail "POST /api/equipamentos/.../acao: expected eq_offline, got '$corpo'"
+fi
+
+cena='{"cenas": [{"nome": "Fumaca", "passos": [{"dpid": 101, "valor": 30, "espera_ms": 0}]}]}'
+codigo="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 -X POST \
+    -H 'Content-Type: application/json' "${autorizado[@]}" -d "$cena" "$base/api/cenas" || true)"
+if [ "$codigo" = "200" ]; then
+    pass "POST /api/cenas: a scene of one step was saved"
+else
+    fail "POST /api/cenas: expected 200, got '$codigo'"
+fi
+
+codigo="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 -X POST \
+    "${autorizado[@]}" "$base/api/cenas/1/executar" || true)"
+if [ "$codigo" = "200" ]; then
+    pass "POST /api/cenas/1/executar: the scene ran"
+else
+    fail "POST /api/cenas/1/executar: expected 200, got '$codigo'"
+fi
+
+# Why: section 8 says the first frame authenticates and that a socket without it is
+# closed with 4401, and the token never travels in the url. The check runs inside
+# the container because the api_token never leaves it, and it is the machine
+# credential the DP-bus takes, not the panel session.
+# Por que: a seção 8 diz que o primeiro quadro autentica e que um socket sem ele é
+# fechado com 4401, e que o token nunca viaja na url. A conferência roda dentro do
+# container porque o api_token nunca sai dele, e é a credencial de máquina que o
+# DP-bus recebe, não a sessão do painel.
+saida="$(docker compose exec -T iphub python - <<'PYFIM' 2>&1 || true
+import asyncio, pathlib, aiohttp
+
+async def principal():
+    token = pathlib.Path("/data/api-token.txt").read_text(encoding="utf-8").strip()
+    async with aiohttp.ClientSession() as sessao:
+        async with sessao.ws_connect("http://127.0.0.1:8080/dpbus") as ws:
+            await ws.send_json({"t": "auth", "token": "errado"})
+            await ws.receive()
+            print("mudo" if ws.close_code == 4401 else f"fechou com {ws.close_code}")
+        async with sessao.ws_connect("http://127.0.0.1:8080/dpbus") as ws:
+            await ws.send_json({"t": "auth", "token": token})
+            quadro = await ws.receive_json()
+            print(quadro.get("t"))
+
+asyncio.run(principal())
+PYFIM
+)"
+if printf '%s' "$saida" | grep -q '^mudo$' && printf '%s' "$saida" | grep -q 'snapshot'; then
+    pass "/dpbus: a wrong token is closed with 4401 and the api_token gets a snapshot"
+else
+    fail "/dpbus: expected a 4401 close and a snapshot, got '$saida'"
+fi
 
 uid_container="$(docker compose exec -T iphub id -u 2>/dev/null | tr -d '[:space:]' || true)"
 if [ -n "$uid_container" ] && [ "$uid_container" != "0" ]; then

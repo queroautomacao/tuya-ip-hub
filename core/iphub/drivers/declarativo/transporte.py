@@ -27,6 +27,7 @@ from contextlib import suppress
 from aiohttp import ClientError, ClientSession, ClientTimeout
 
 from iphub.config import ip_literal
+from iphub.drivers import corpo
 from iphub.drivers.base import Cadastro
 from iphub.drivers.declarativo.formato import Cabecalho, Http, Passo, Tcp, Transporte, Udp
 
@@ -396,7 +397,7 @@ class CanalHttp(_Canal):
                 # equipamento é dado, nunca instrução.
                 allow_redirects=False,
             ) as resposta:
-                bruto = await resposta.content.read(CORPO_MAXIMO)
+                bruto = await corpo.inteiro(resposta.content, CORPO_MAXIMO)
                 estado = resposta.status
         except (TimeoutError, ClientError, OSError, ValueError) as erro:
             raise FalhaDeTransporte(EQ_OFFLINE) from erro

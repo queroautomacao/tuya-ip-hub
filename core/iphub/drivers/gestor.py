@@ -144,6 +144,22 @@ class Gestor:
         """
         return {identidade: self._estado_de(identidade) for identidade in self._cadastros}
 
+    def driver(self, identidade: str) -> Driver | None:
+        """The live driver of one registration, or None when nothing is mounted for it.
+
+        O driver vivo de um cadastro, ou None quando nada está montado para ele.
+        """
+        # Why: the group moves of section 14 (join a master, ungroup, a slave volume, read the
+        # real group, mirror what the master plays) are not actions of section 6, so the gate
+        # of executar has no vocabulary for them and the module that owns the zones has no
+        # other door to the driver. It stays a read: the gestor still owns the lifecycle.
+        # Por que: os movimentos de grupo da seção 14 (entrar num mestre, desagrupar, volume de
+        # escravo, ler o grupo real, espelhar o que o mestre toca) não são ações da seção 6,
+        # então o portão do executar não tem vocabulário para eles e o módulo dono das zonas
+        # não tem outra porta para o driver. Isto continua sendo leitura: o ciclo de vida
+        # segue sendo do gestor.
+        return self._drivers.get(identidade)
+
     def manifesto(self, identidade: str) -> Manifesto | None:
         cadastro = self._cadastros.get(identidade)
         if cadastro is None:
@@ -170,6 +186,21 @@ class Gestor:
             return EQ_OFFLINE
         try:
             resposta = await self._com_prazo(driver.executar(acao, valor))
+        except TimeoutError:
+            # Why: the deadline is the gestor's and it can fire before the driver's own,
+            # because the action still waits for the lock a poll of the same unreachable
+            # device is holding. Of the stable codes of section 6, a device that did not
+            # answer in time is eq_offline: erro_aparelho would send the integrator looking
+            # for a fault in a device that is simply not there. No traceback, because an
+            # unreachable device is the ordinary case and not a defect of the hub.
+            # Por que: o prazo é do gestor e pode estourar antes do prazo do próprio driver,
+            # porque a ação ainda espera a trava que um poll do mesmo aparelho inalcançável
+            # segura. Dos códigos estáveis da seção 6, um aparelho que não respondeu a tempo
+            # é eq_offline: erro_aparelho mandaria o integrador procurar defeito num aparelho
+            # que simplesmente não está lá. Sem traceback, porque aparelho inalcançável é o
+            # caso comum e não defeito do hub.
+            log.warning("equipment %s did not answer %r within the deadline", identidade, acao)
+            return EQ_OFFLINE
         except Exception as erro:
             log.exception("equipment %s failed on %r: %s", identidade, acao, _causa(erro))
             return ERRO_APARELHO
@@ -272,6 +303,28 @@ class Gestor:
             return
         self._visitas.add(tarefa)
         tarefa.add_done_callback(self._visitas.discard)
+
+    async def visitar_e_esperar(self, identidade: str) -> None:
+        """One out of turn poll, awaited: the caller needs the state that comes back.
+
+        Why: the reread of section 8 exists to check what the device really did, so a caller
+        that does not wait for the poll compares its own optimistic value against a cache it
+        wrote itself, and the check always agrees with the guess.
+
+        Um poll fora da vez, esperado: quem chama precisa do estado que voltar.
+
+        Por que: a releitura da seção 8 existe para conferir o que o aparelho fez de verdade,
+        então quem não espera o poll compara o próprio valor otimista com um cache que ele
+        mesmo escreveu, e a conferência sempre concorda com o palpite.
+        """
+        tarefa = self._agendar(identidade)
+        if tarefa is None:
+            return
+        # Why: a poll that failed already answered with the offline counter and the detalhe of
+        # section 6; raising it here would take down the verification of the bus with it.
+        # Por que: um poll que falhou já respondeu pelo contador de offline e pelo detalhe da
+        # seção 6; levantá-lo aqui derrubaria junto a verificação do barramento.
+        await asyncio.gather(tarefa, return_exceptions=True)
 
     def _agendar(self, identidade: str) -> asyncio.Task | None:
         """The one place a poll of one equipment starts, so a device never gets two sessions.

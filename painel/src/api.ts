@@ -2,6 +2,14 @@
 // Copyright (C) 2026 Quero Automação Ltda
 
 import {
+  corpoDeCenas,
+  lerLeituraDeCenas,
+  lerSnapshot,
+  type Cena,
+  type LeituraDeCenas,
+  type Snapshot,
+} from "./cenas.ts";
+import {
   lerDriverDeclarativo,
   lerModelo,
   lerProblema,
@@ -22,6 +30,7 @@ import {
 } from "./equipamentos.ts";
 import type { CorpoCadastro } from "./formulario.ts";
 import { guardar, ler, limpar } from "./sessao.ts";
+import { lerLeituraDeZonas, type LeituraDeZonas } from "./zonas.ts";
 
 export const SENHA_MINIMA = 8;
 
@@ -287,6 +296,50 @@ export async function lerModeloDriver(
   const modelo = lerModelo(dados.modelo);
   if (modelo === null) throw new ErroApi(CODIGO_CORPO_INVALIDO);
   return modelo;
+}
+
+export async function lerZonas(): Promise<LeituraDeZonas> {
+  const leitura = lerLeituraDeZonas(await pedir("/api/zonas", "GET"));
+  if (leitura === null) throw new ErroApi(CODIGO_CORPO_INVALIDO);
+  return leitura;
+}
+
+// Why: the whole order travels, because the POSITION of a block is the data point block of
+// section 8; sending one slot alone would need an index anyway and a shorter list would move
+// a speaker from zone 2 to zone 1 in every automation the customer already built.
+// Por que: a ordem inteira viaja, porque a POSIÇÃO de um bloco é o bloco de data points da
+// seção 8; mandar uma vaga sozinha precisaria de um índice de todo jeito e uma lista mais
+// curta moveria uma caixa da zona 2 para a zona 1 em toda automação que o cliente já montou.
+export async function salvarZonas(zonas: readonly string[]): Promise<void> {
+  await pedir("/api/zonas", "POST", { zonas });
+}
+
+export async function lerDps(): Promise<Snapshot> {
+  const snapshot = lerSnapshot(await pedir("/api/dps", "GET"));
+  if (snapshot === null) throw new ErroApi(CODIGO_CORPO_INVALIDO);
+  return snapshot;
+}
+
+export async function ajustarDp(dpid: number, valor: unknown): Promise<void> {
+  await pedir(`/api/dp/${dpid}`, "POST", { v: valor });
+}
+
+export async function definirGrupo(valor: string): Promise<void> {
+  await pedir("/api/grupo", "POST", { v: valor });
+}
+
+export async function lerCenas(): Promise<LeituraDeCenas> {
+  const leitura = lerLeituraDeCenas(await pedir("/api/cenas", "GET"));
+  if (leitura === null) throw new ErroApi(CODIGO_CORPO_INVALIDO);
+  return leitura;
+}
+
+export async function salvarCenas(cenas: readonly Cena[]): Promise<void> {
+  await pedir("/api/cenas", "POST", { cenas: corpoDeCenas(cenas) });
+}
+
+export async function executarCena(numero: number): Promise<void> {
+  await pedir(`/api/cenas/${numero}/executar`, "POST");
 }
 
 export function codigoDoErro(erro: unknown): string {

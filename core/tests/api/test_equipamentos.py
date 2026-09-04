@@ -22,7 +22,7 @@ from iphub.config import Cadastro, Config
 from iphub.drivers import catalogo as modulo_catalogo
 from iphub.drivers.base import DETALHES, Driver
 from iphub.drivers.manifesto import Auth, Campo, Descoberta, Manifesto, TipoCampo
-from iphub.drivers.simulado import RespondedorSsdp
+from iphub.drivers.simulado import RespondedorMdns, RespondedorSsdp
 
 TIPO = "exemplo"
 ST = "urn:teste-org:device:Exemplo:1"
@@ -43,6 +43,7 @@ SEM_DESCOBERTA = Descoberta()
 def _manifesto(
     tipo: str = TIPO,
     *,
+    categoria: str = "outro",
     capacidades: tuple[str, ...] = ("ligar", "volume", "fonte"),
     auth: Auth = Auth.NENHUMA,
     config_campos: tuple[Campo, ...] = CAMPOS,
@@ -56,7 +57,7 @@ def _manifesto(
     return Manifesto(
         tipo=tipo,
         rotulo={"pt": "Exemplo", "en": "Example"},
-        categoria="outro",
+        categoria=categoria,
         capacidades=capacidades,
         auth=auth,
         descoberta=descoberta,
@@ -446,8 +447,14 @@ def varredura_curta(monkeypatch):
     Aponta a varredura para um respondedor no loopback e encurta a espera pelas respostas.
     """
 
-    def apontar(endereco: tuple[str, int]) -> None:
+    def apontar(endereco: tuple[str, int], mdns: tuple[str, int] | None = None) -> None:
         monkeypatch.setattr(rotas, "DESTINO", endereco)
+        # Why: the sweep speaks both transports, so a test that pointed only the SSDP one at
+        # loopback would send a real mDNS query onto the segment of whoever runs the suite.
+        # Por que: a varredura fala os dois transportes, então um teste que apontasse só o
+        # SSDP para o loopback mandaria consulta mDNS de verdade para o segmento de quem roda
+        # a suíte.
+        monkeypatch.setattr(rotas, "DESTINO_MDNS", mdns or endereco)
         monkeypatch.setattr(rotas, "TIMEOUT_VARREDURA_S", 0.4)
 
     return apontar
@@ -579,3 +586,106 @@ def test_um_catalogo_que_estoura_no_boot_recusa_sem_traceback(amb, monkeypatch, 
     assert "refusing to boot" in caplog.text
     assert "driver module blew up on import" in caplog.text
     assert all(registro.exc_info is None for registro in caplog.records)
+
+
+async def test_a_varredura_acha_o_aparelho_que_so_responde_mdns(abrir, varredura_curta):
+    """Section 6: discovery is generated from the manifests, on the transport each one
+    declares, and the multiroom speaker of section 14 declares only mDNS.
+
+    Why: sweeping SSDP alone answered "nothing here" on a segment full of speakers, and the
+    whole shipped catalogue declares not one SSDP signature, so the panel could never find a
+    single device.
+
+    Seção 6: a descoberta é gerada dos manifestos, no transporte que cada um declara, e a
+    caixa multiroom da seção 14 declara só mDNS.
+
+    Por que: varrer só SSDP respondia "não há nada aqui" num segmento cheio de caixas, e o
+    catálogo inteiro que embarca não declara uma assinatura SSDP sequer, então o painel nunca
+    conseguiria achar aparelho nenhum.
+    """
+    servico = "_linkplay._tcp"
+    entrada = {
+        "servico": servico,
+        "instancia": f"Caixa.{servico}.local",
+        "host": "caixa.local",
+        "ip": "127.0.0.1",
+        "porta": 80,
+    }
+    async with RespondedorMdns((entrada,)) as servidor:
+        varredura_curta(servidor.endereco)
+        classe = _fabrica(_manifesto(descoberta=Descoberta(mdns_servicos=(servico,))))
+        cliente, auth = await abrir({TIPO: classe})
+        corpo = await (await cliente.post("/api/descoberta", headers=auth)).json()
+    (achado,) = corpo["achados"]
+    assert achado["tipo"] == TIPO
+    assert achado["ip"] == "127.0.0.1"
+
+
+async def test_um_transporte_que_falha_nao_apaga_o_que_o_outro_achou(abrir, varredura_curta):
+    """One transport failing on this host must not hide the devices the other one found.
+
+    Um transporte falhando neste host não pode esconder os aparelhos que o outro achou.
+    """
+    resposta_ssdp = {"st": ST, "usn": f"uuid:{UUID}::{ST}", "server": "Teste/1.0"}
+    async with RespondedorSsdp((resposta_ssdp,)) as servidor:
+        # An mDNS destination with no port at all: the socket raises instead of answering.
+        # Um destino mDNS sem porta alguma: o socket estoura em vez de responder.
+        varredura_curta(servidor.endereco, mdns=("127.0.0.1", 0))
+        classe = _fabrica(
+            _manifesto(descoberta=Descoberta(ssdp_st=(ST,), mdns_servicos=("_x._tcp",)))
+        )
+        cliente, auth = await abrir({TIPO: classe})
+        resposta = await cliente.post("/api/descoberta", headers=auth)
+        assert resposta.status == 200, await resposta.text()
+        (achado,) = (await resposta.json())["achados"]
+    assert achado["identidade"] == UUID
+
+
+async def test_os_dois_transportes_falhando_respondem_erro_interno(abrir, varredura_curta):
+    """Both transports failing is a fault of this host, and it is reported as one.
+
+    Why: answering an empty list there would send the integrator hunting the network instead
+    of the daemon, which is the whole reason the sweep answers a stable code.
+
+    Os dois transportes falhando é falha deste host, e é reportada como tal.
+
+    Por que: responder lista vazia ali mandaria o integrador caçar a rede em vez do daemon,
+    que é a razão inteira de a varredura responder um código estável.
+    """
+    # A destination with no port at all: the socket raises instead of answering.
+    # Um destino sem porta alguma: o socket estoura em vez de responder.
+    varredura_curta(("127.0.0.1", 0))
+    classe = _fabrica(_manifesto(descoberta=Descoberta(ssdp_st=(ST,), mdns_servicos=("_x._tcp",))))
+    cliente, auth = await abrir({TIPO: classe})
+    resposta = await cliente.post("/api/descoberta", headers=auth)
+    assert resposta.status == 500
+    assert await resposta.json() == {"ok": False, "code": "erro_interno"}
+
+
+async def test_trocar_o_tipo_para_um_que_nao_e_multiroom_esvazia_o_bloco_de_zona(abrir):
+    """Section 6: a zone is a multiroom equipment occupying a block, so an equipment that
+    stops being multiroom cannot stay in one.
+
+    Why: the block would keep publishing a zone whose device refuses every data point of
+    section 8, and nothing anywhere would say why.
+
+    Seção 6: uma zona é um equipamento multiroom ocupando um bloco, então um equipamento que
+    deixa de ser multiroom não pode ficar num.
+
+    Por que: o bloco seguiria publicando uma zona cujo aparelho recusa todo data point da
+    seção 8, e nada em lugar nenhum diria por quê.
+    """
+    outro = "projetor_falso"
+    caixa = _fabrica(_manifesto(categoria="multiroom", capacidades=("volume", "agrupar")))
+    projetor = _fabrica(_manifesto(outro, categoria="projetor"))
+    cliente, auth = await abrir({TIPO: caixa, outro: projetor})
+    assert (await _cadastrar(cliente, auth)).status == 200
+    resposta = await cliente.post("/api/zonas", json={"zonas": ["uuid-1"]}, headers=auth)
+    assert resposta.status == 200, await resposta.text()
+
+    resposta = await cliente.post(
+        "/api/equipamentos/uuid-1", json={**CORPO, "tipo": outro}, headers=auth
+    )
+    assert resposta.status == 200, await resposta.text()
+    corpo = await (await cliente.get("/api/zonas", headers=auth)).json()
+    assert corpo["zonas"][0]["identidade"] == ""

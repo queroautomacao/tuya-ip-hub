@@ -62,3 +62,5 @@ Um estado só sobe por um pull request que diz o que foi rodado. Nunca sobe porq
 
 | Brand (Marca) | Model (Modelo) | Driver | State (Estado) | Who, when (Quem, quando) | Notes (Observações) |
 |---|---|---|---|---|---|
+| LinkPlay | A31 (uyesee-i50), firmware 4.6 | `multiroom_linkplay` | `simulado` | | Recording of real traffic from two speakers, and the driver's suite runs against it: identity by `uuid`, mask `plm_support` `0x6` (line input and bluetooth, no usb and no optical), metadata in hexadecimal, and a streaming service answering a mode the input table does not name. No command was sent to the speaker, so the capabilities are not verified. (Gravação de tráfego real de duas caixas, e a suíte do driver roda contra ela: identidade pelo `uuid`, máscara `plm_support` `0x6` (entrada de linha e bluetooth, sem usb e sem óptica), metadado em hexadecimal, e um serviço de streaming respondendo um modo que a tabela de entradas não nomeia. Nenhum comando foi enviado à caixa, então as capacidades não estão verificadas.) |
+| PJLink | Class 1, generic (genérico) | `projetor_pjlink` | `simulado` | | Simulated device only (Só aparelho simulado.) |

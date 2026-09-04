@@ -77,6 +77,8 @@ def _fabrica(manifesto: Manifesto | None = None, **comportamento: object) -> typ
             self.executados.append((acao, valor))
             if comportamento.get("estoura_no_executar"):
                 raise RuntimeError("quebrei")
+            if comportamento.get("emudece_no_executar"):
+                await asyncio.Event().wait()
             return comportamento.get("resposta")
 
         async def autenticar(self) -> str:
@@ -157,6 +159,30 @@ async def test_driver_que_estoura_responde_erro_aparelho_e_o_gestor_segue(monta)
     gestor = await monta({"exemplo": classe}, [_cadastro()])
     assert await gestor.executar("uuid-1", "ligar") == "erro_aparelho"
     assert await gestor.executar("uuid-1", "ligar") == "erro_aparelho"
+    assert len(classe.instancias[0].executados) == 2
+
+
+async def test_driver_que_nao_responde_no_prazo_e_eq_offline_e_nao_erro_aparelho(monta):
+    """Section 6: of the stable codes, a device that did not answer in time is eq_offline.
+
+    Why: the deadline is the gestor's and it fires before the driver's own whenever the
+    action is still waiting for the lock that a poll of the same unreachable device holds.
+    Answering erro_aparelho there sends the integrator looking for a fault inside a device
+    that is simply not on the network.
+
+    Seção 6: dos códigos estáveis, um aparelho que não respondeu a tempo é eq_offline.
+
+    Por que: o prazo é do gestor e estoura antes do prazo do próprio driver sempre que a ação
+    ainda espera a trava que um poll do mesmo aparelho inalcançável segura. Responder
+    erro_aparelho ali manda o integrador procurar defeito dentro de um aparelho que
+    simplesmente não está na rede.
+    """
+    classe = _fabrica(emudece_no_executar=True)
+    gestor = await monta({"exemplo": classe}, [_cadastro()], limite_s=0.05)
+    assert await gestor.executar("uuid-1", "ligar") == "eq_offline"
+    # The gestor is still usable, and the mute driver did not take the next command with it.
+    # O gestor segue utilizável, e o driver mudo não levou junto o comando seguinte.
+    assert await gestor.executar("uuid-1", "ligar") == "eq_offline"
     assert len(classe.instancias[0].executados) == 2
 
 

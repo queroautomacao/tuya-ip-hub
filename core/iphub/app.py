@@ -6,6 +6,7 @@ Liga o portão, a API e o painel numa única aplicação aiohttp.
 """
 
 import asyncio
+import functools
 import time
 
 from aiohttp import web
@@ -23,13 +24,25 @@ from iphub.api.comum import (
     TRAVA_DRIVERS,
     TRAVA_POSSE,
     VARREDURA,
+    ZONAS,
     Mutavel,
+    aplicar_dp,
+    montar_dpbus,
     trocar_config,
+    valores_dps,
 )
 from iphub.api.health import INICIO
 from iphub.arquivos import garantir_diretorio
 from iphub.config import Config
 from iphub.config import carregar as carregar_config
+from iphub.dpbus.socket import (
+    BARRAMENTO,
+    Barramento,
+    Dormir,
+    Relogio,
+    baixar_barramento,
+    subir_barramento,
+)
 from iphub.drivers.base import Driver
 from iphub.drivers.catalogo import Catalogo
 from iphub.drivers.gestor import Gestor
@@ -100,7 +113,15 @@ def criar_app(
     limite: Limite | None = None,
     segredos: Segredos | None = None,
     catalogo: dict[str, type[Driver]] | None = None,
+    dormir: Dormir = asyncio.sleep,
+    agora: Relogio = time.time,
 ) -> web.Application:
+    # Why: the bus is the only piece of the daemon that waits (five seconds for the first
+    # frame, a second and a half for the reread of section 8), so a test moves those two by
+    # hand instead of really sleeping them.
+    # Por que: o barramento é a única peça do daemon que espera (cinco segundos pelo primeiro
+    # quadro, um segundo e meio pela releitura da seção 8), então um teste move essas duas na
+    # mão em vez de dormi-las de verdade.
     # Why: the Host check runs before every handler, so a rebinding probe gets 421 and nothing
     # else. The Expect handler repeats it because aiohttp runs Expect before the middlewares.
     # Por que: o Host é checado antes de todo handler, então uma sonda de rebinding recebe 421
@@ -134,10 +155,36 @@ def criar_app(
     app[LIMITE] = Limite() if limite is None else limite
     app[CATALOGO] = _catalogo_do_app(amb, catalogo)
     app[GESTOR] = Gestor(app[CATALOGO].drivers, cfg.valor.equipamentos)
+    montar_dpbus(app, cfg.valor)
+    # Why: the bus of section 8 owns no state of its own; it takes the same door the panel
+    # routes take (aplicar_dp and valores_dps), so a set that arrives over the socket and a
+    # set that arrives over /api/dp land on the very same zones and scenes.
+    # Por que: o barramento da seção 8 não é dono de estado nenhum; ele toma a mesma porta que
+    # as rotas do painel tomam (aplicar_dp e valores_dps), então um set que chega pelo socket e
+    # um que chega pelo /api/dp caem nas mesmíssimas zonas e cenas.
+    app[BARRAMENTO] = Barramento(
+        functools.partial(aplicar_dp, app),
+        functools.partial(valores_dps, app),
+        lambda: segs.valor.api_token,
+        valores_de=app[ZONAS].valores_de,
+        sanear=app[ZONAS].sanear,
+        sincronizar=app[ZONAS].sincronizar,
+        reler=app[ZONAS].reler,
+        dormir=dormir,
+        agora=agora,
+    )
     app[VARREDURA] = Mutavel(None)
     app[TRAVA_POSSE] = asyncio.Lock()
     app[TRAVA_DRIVERS] = asyncio.Lock()
     app.on_startup.append(_subir_gestor)
+    # Why: on boot the bus takes down the zombie group of section 14, which reaches the
+    # speakers, so it rises AFTER the gestor mounted the drivers and falls BEFORE the gestor
+    # drops them; a socket left open over drivers that are gone reads a hub that has no zones.
+    # Por que: no boot o barramento derruba o grupo zumbi da seção 14, o que alcança as caixas,
+    # então ele sobe DEPOIS de o gestor montar os drivers e cai ANTES de o gestor os largar; um
+    # socket aberto sobre drivers que já foram lê um hub sem zona nenhuma.
+    app.on_startup.append(subir_barramento)
+    app.on_cleanup.append(baixar_barramento)
     app.on_cleanup.append(_baixar_gestor)
     tratar_expect = criar_tratar_expect(obter_hosts)
     registrar_rotas(app, tratar_expect)

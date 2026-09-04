@@ -2,6 +2,8 @@
 /* Copyright (C) 2026 Quero Automação Ltda */
 @import "./estilos-equipamentos.css";
 @import "./estilos-declarativos.css";
+@import "./estilos-zonas.css";
+@import "./estilos-cenas.css";
 
 :root {
   color-scheme: light dark;

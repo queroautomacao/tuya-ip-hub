@@ -17,6 +17,7 @@ que o driver enviou, não só o que ele leu de volta.
 """
 
 import asyncio
+import ipaddress
 from collections.abc import Coroutine
 from contextlib import suppress
 from dataclasses import dataclass, field
@@ -29,6 +30,12 @@ LINHA_MAXIMA = 8 * 1024
 DATAGRAMA_MAXIMO = 8 * 1024
 BUSCA_TOTAL = "ssdp:all"
 PRAZO_PARADA_S = 2.0
+
+# Why: long enough that the second write lands in a segment of its own, short enough that a
+# test that reads the whole answer does not feel it.
+# Por que: longo o bastante para a segunda escrita cair num segmento próprio, curto o bastante
+# para um teste que lê a resposta inteira não senti-lo.
+PAUSA_ENTRE_SEGMENTOS_S = 0.05
 
 
 class _Servidor:
@@ -179,15 +186,24 @@ class ServidorHttp(_Servidor):
     bare path, so both "/httpapi.asp?command=getStatusEx" and "/estado" are one line of test
     setup. An unmapped path answers 404 with an empty body.
 
+    With partir set, the body leaves in two writes with a pause between them, which is what a
+    device on a busy wifi does and what tells a driver that reads the whole answer from one
+    that reads only the first segment.
+
     HTTP, para os aparelhos que o falam, inclusive os que levam o comando na query string.
 
     Uma chave de rotas casa primeiro com o caminho mais a query string, depois com o caminho
     puro, então tanto "/httpapi.asp?command=getStatusEx" quanto "/estado" são uma linha de
     preparo do teste. Um caminho fora do mapa responde 404 com corpo vazio.
+
+    Com partir ligado, o corpo sai em duas escritas com uma pausa no meio, que é o que um
+    aparelho faz num wifi cheio e o que distingue um driver que lê a resposta inteira de um
+    que lê só o primeiro segmento.
     """
 
-    def __init__(self, rotas: dict[str, tuple[int, str]]) -> None:
+    def __init__(self, rotas: dict[str, tuple[int, str]], *, partir: bool = False) -> None:
         self.rotas = dict(rotas)
+        self.partir = partir
         self.pedidos: list[Pedido] = []
         self._runner: web.AppRunner | None = None
 
@@ -222,7 +238,22 @@ class ServidorHttp(_Servidor):
         rota = self.rotas.get(request.path_qs) or self.rotas.get(request.path)
         if rota is None:
             return web.Response(status=404, text="")
+        if self.partir:
+            return await self._em_dois(request, rota)
         return web.Response(status=rota[0], text=rota[1])
+
+    async def _em_dois(self, request: web.Request, rota: tuple[int, str]) -> web.Response:
+        estado, texto = rota
+        bruto = texto.encode("utf-8")
+        meio = max(1, len(bruto) // 2)
+        resposta = web.StreamResponse(status=estado)
+        resposta.content_length = len(bruto)
+        await resposta.prepare(request)
+        await resposta.write(bruto[:meio])
+        await asyncio.sleep(PAUSA_ENTRE_SEGMENTOS_S)
+        await resposta.write(bruto[meio:])
+        await resposta.write_eof()
+        return resposta
 
 
 class ServidorDatagrama(_Servidor):
@@ -365,3 +396,227 @@ def _datagrama(resposta: dict) -> bytes:
     if resposta.get("location"):
         linhas.append(f"LOCATION: {resposta['location']}")
     return ("\r\n".join([*linhas, "", ""])).encode("utf-8", errors="ignore")
+
+
+# mDNS, RFC 6762, in the shape the SSDP responder above already has: a device that answers a
+# one shot query and stays quiet for a service nobody asked for.
+# mDNS, RFC 6762, no formato que o respondedor SSDP acima já tem: um aparelho que responde a
+# uma consulta de um tiro só e fica calado para um serviço que ninguém pediu.
+SUFIXO_MDNS = ".local"
+CABECALHO_DNS = 12
+RESPOSTA_DNS = 0x8400
+CLASSE_IN = 1
+# Why: RFC 6762 sets the cache flush bit on the class of a unique record, and a real speaker
+# answers its SRV and its A with it set, so the simulated one does the same.
+# Por que: a RFC 6762 liga o bit de limpeza de cache na classe de um registro único, e uma
+# caixa real responde o SRV e o A dela com ele ligado, então a simulada faz igual.
+CLASSE_UNICA = 0x8001
+TTL_MDNS = 120
+TIPO_A = 1
+TIPO_PTR = 12
+TIPO_SRV = 33
+ROTULO_MAXIMO = 63
+REGISTROS_PADRAO = ("ptr", "srv", "a")
+PONTEIRO_DNS = 0xC000
+
+
+class _EscritorDns:
+    """A DNS message under construction, with the name compression a real responder uses.
+
+    Uma mensagem DNS em construção, com a compressão de nome que um respondedor real usa.
+    """
+
+    def __init__(self) -> None:
+        self.dados = bytearray()
+        self.posicoes: dict[str, int] = {}
+
+    def nome(self, nome: str) -> None:
+        partes = [parte for parte in nome.split(".") if parte]
+        while partes:
+            atual = ".".join(partes)
+            posicao = self.posicoes.get(atual)
+            if posicao is not None:
+                self.dados += (PONTEIRO_DNS | posicao).to_bytes(2, "big")
+                return
+            self.posicoes[atual] = len(self.dados)
+            bruto = partes[0].encode("utf-8")
+            self.dados += bytes([len(bruto)]) + bruto
+            partes = partes[1:]
+        self.dados += b"\x00"
+
+    def registro_ptr(self, servico: str, instancia: str) -> None:
+        marca = self._abrir(servico, TIPO_PTR, CLASSE_IN)
+        self.nome(instancia)
+        self._fechar(marca)
+
+    def registro_srv(self, instancia: str, porta: int, host: str) -> None:
+        marca = self._abrir(instancia, TIPO_SRV, CLASSE_UNICA)
+        self.dados += b"\x00\x00\x00\x00" + int(porta).to_bytes(2, "big")
+        self.nome(host)
+        self._fechar(marca)
+
+    def registro_a(self, host: str, ip: str) -> None:
+        marca = self._abrir(host, TIPO_A, CLASSE_UNICA)
+        self.dados += ipaddress.IPv4Address(ip).packed
+        self._fechar(marca)
+
+    def _abrir(self, nome: str, tipo: int, classe: int) -> int:
+        self.nome(nome)
+        cabecalho = tipo.to_bytes(2, "big") + classe.to_bytes(2, "big")
+        self.dados += cabecalho + TTL_MDNS.to_bytes(4, "big")
+        marca = len(self.dados)
+        self.dados += b"\x00\x00"
+        return marca
+
+    def _fechar(self, marca: int) -> None:
+        self.dados[marca : marca + 2] = (len(self.dados) - marca - 2).to_bytes(2, "big")
+
+
+def quadro_mdns(respostas: tuple[dict, ...], *, pedido: bytes = b"") -> bytes:
+    """One mDNS answer: the PTR of each entry, with the SRV and the A in the ADDITIONAL
+    section, which is where a real speaker puts them.
+
+    An entry carries "servico", "instancia", "ip" and "porta", and may carry "host" and
+    "registros" to say which of ptr, srv and a it sends. pedido is the query being answered:
+    its identifier and its question are copied byte for byte, which is what a responder does
+    and what keeps every offset a compression pointer refers to.
+
+    Uma resposta mDNS: o PTR de cada entrada, com o SRV e o A na seção ADICIONAL, que é onde
+    uma caixa real os põe.
+
+    Uma entrada leva "servico", "instancia", "ip" e "porta", e pode levar "host" e
+    "registros" para dizer quais de ptr, srv e a ela envia. pedido é a consulta respondida:
+    o identificador e a questão dela são copiados byte a byte, que é o que um respondedor faz
+    e o que mantém todo deslocamento a que um ponteiro de compressão se refere.
+    """
+    escritor = _EscritorDns()
+    escritor.dados += b"\x00" * CABECALHO_DNS
+    questoes = 0
+    pergunta = _questao_mdns(pedido)
+    if pergunta is not None:
+        nome, _tipo, fim = pergunta
+        escritor.dados += pedido[CABECALHO_DNS:fim]
+        escritor.posicoes[nome] = CABECALHO_DNS
+        questoes = 1
+    respondidos = 0
+    for entrada in respostas:
+        if "ptr" in _quais_mdns(entrada):
+            escritor.registro_ptr(_servico_mdns(entrada), _instancia_mdns(entrada))
+            respondidos += 1
+    adicionais = 0
+    for entrada in respostas:
+        quais = _quais_mdns(entrada)
+        if "srv" in quais:
+            porta = int(entrada.get("porta", 80))
+            escritor.registro_srv(_instancia_mdns(entrada), porta, _host_mdns(entrada))
+            adicionais += 1
+        if "a" in quais:
+            escritor.registro_a(_host_mdns(entrada), entrada.get("ip", HOST_LOCAL))
+            adicionais += 1
+    escritor.dados[0:2] = pedido[:2] if len(pedido) >= 2 else b"\x00\x00"
+    escritor.dados[2:4] = RESPOSTA_DNS.to_bytes(2, "big")
+    escritor.dados[4:6] = questoes.to_bytes(2, "big")
+    escritor.dados[6:8] = respondidos.to_bytes(2, "big")
+    escritor.dados[10:12] = adicionais.to_bytes(2, "big")
+    return bytes(escritor.dados)
+
+
+class RespondedorMdns(_Servidor):
+    """UDP answering a one shot mDNS query, one datagram per matching entry of respostas.
+
+    It answers only the PTR question of its own service, which is what makes a plan built
+    from the manifests testable: a query for another service gets silence.
+
+    UDP respondendo a uma consulta mDNS de um tiro só, um datagrama por entrada de respostas
+    que casar.
+
+    Ele só responde à questão PTR do próprio serviço, que é o que torna testável um plano
+    montado a partir dos manifestos: uma consulta por outro serviço recebe silêncio.
+    """
+
+    def __init__(self, respostas: tuple[dict, ...]) -> None:
+        self.respostas = tuple(respostas)
+        self.pedidos: list[bytes] = []
+        self._transporte: asyncio.DatagramTransport | None = None
+
+    async def iniciar(self) -> tuple[str, int]:
+        laco = asyncio.get_running_loop()
+        transporte, _protocolo = await laco.create_datagram_endpoint(
+            lambda: _ProtocoloMdns(self), local_addr=(HOST_LOCAL, 0)
+        )
+        self._transporte = transporte
+        anfitriao, porta = transporte.get_extra_info("sockname")[:2]
+        self.endereco = (anfitriao, porta)
+        return self.endereco
+
+    async def parar(self) -> None:
+        if self._transporte is None:
+            return
+        self._transporte.close()
+        self._transporte = None
+
+    def _responder(self, dados: bytes, remetente, transporte: asyncio.DatagramTransport) -> None:
+        self.pedidos.append(dados)
+        pergunta = _questao_mdns(dados)
+        if pergunta is None:
+            return
+        nome, tipo, _fim = pergunta
+        if tipo != TIPO_PTR:
+            return
+        for resposta in self.respostas:
+            if nome == _servico_mdns(resposta):
+                transporte.sendto(quadro_mdns((resposta,), pedido=dados), remetente)
+
+
+class _ProtocoloMdns(asyncio.DatagramProtocol):
+    def __init__(self, dono: RespondedorMdns) -> None:
+        self._dono = dono
+        self._transporte: asyncio.DatagramTransport | None = None
+
+    def connection_made(self, transport: asyncio.BaseTransport) -> None:
+        self._transporte = transport
+
+    def datagram_received(self, data: bytes, addr) -> None:
+        if self._transporte is not None and len(data) <= DATAGRAMA_MAXIMO:
+            self._dono._responder(data, addr, self._transporte)
+
+
+def _quais_mdns(entrada: dict) -> tuple[str, ...]:
+    return tuple(entrada.get("registros", REGISTROS_PADRAO))
+
+
+def _servico_mdns(entrada: dict) -> str:
+    nome = str(entrada.get("servico", "")).strip().strip(".").lower()
+    return nome if nome.endswith(SUFIXO_MDNS) else nome + SUFIXO_MDNS
+
+
+def _instancia_mdns(entrada: dict) -> str:
+    return f"{entrada.get('instancia', 'simulado')}.{_servico_mdns(entrada)}"
+
+
+def _host_mdns(entrada: dict) -> str:
+    return str(entrada.get("host", "simulado" + SUFIXO_MDNS)).strip(".").lower()
+
+
+def _questao_mdns(dados: bytes) -> tuple[str, int, int] | None:
+    """The name and the type of the single question of a query, and where it ends.
+
+    O nome e o tipo da única questão de uma consulta, e onde ela termina.
+    """
+    if len(dados) < CABECALHO_DNS:
+        return None
+    rotulos = []
+    posicao = CABECALHO_DNS
+    while posicao < len(dados):
+        tamanho = dados[posicao]
+        posicao += 1
+        if tamanho == 0:
+            if posicao + 4 > len(dados):
+                return None
+            tipo = int.from_bytes(dados[posicao : posicao + 2], "big")
+            return ".".join(rotulos).lower(), tipo, posicao + 4
+        if tamanho > ROTULO_MAXIMO or posicao + tamanho > len(dados):
+            return None
+        rotulos.append(dados[posicao : posicao + tamanho].decode("utf-8", errors="replace"))
+        posicao += tamanho
+    return None

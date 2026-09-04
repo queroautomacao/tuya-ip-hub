@@ -7,8 +7,10 @@ that claim the same signature are a test error, not a decision taken in runtime.
 in spirit: an answer is data, so the address of a device is the address the datagram came
 from and never what the answer points at.
 
-mDNS: the plan carries the services the manifests declare, and procurar does NOT search
-them. The mDNS transport arrives with the driver that needs it (LinkPlay, milestone 4).
+mDNS: procurar_mdns asks for the services the manifests declare, one shot over UDP the way
+RFC 6762 defines a query that leaves an ephemeral port, with no background browser and no
+dependency. The rule of the address holds there too: an A record that names a host other
+than the sender is read and refused, never followed.
 
 Descoberta gerada dos manifestos: uma varredura SSDP que acredita apenas no remetente.
 
@@ -17,8 +19,10 @@ reivindicam a mesma assinatura são erro de teste, não decisão tomada em runti
 em espírito: uma resposta é dado, então o endereço de um aparelho é o endereço de onde o
 datagrama veio e nunca o que a resposta aponta.
 
-mDNS: o plano carrega os serviços que os manifestos declaram, e procurar NÃO os busca. O
-transporte mDNS chega com o driver que precisar dele (LinkPlay, marco 4).
+mDNS: procurar_mdns pergunta pelos serviços que os manifestos declaram, um tiro só sobre
+UDP como a RFC 6762 define uma consulta que sai de porta efêmera, sem navegador de fundo e
+sem dependência. A regra do endereço vale ali também: um registro A que nomeia outro host
+que não o remetente é lido e recusado, nunca seguido.
 """
 
 import asyncio
@@ -54,6 +58,43 @@ MX_MAXIMO = 5
 ACHADOS_MAXIMOS = 200
 DATAGRAMAS_MAXIMOS = 5000
 
+# mDNS, RFC 6762. A query that leaves an ephemeral port is a one shot query, so the answer
+# comes back by unicast and this daemon needs neither the multicast group nor a browser.
+# mDNS, RFC 6762. Uma consulta que sai de porta efêmera é consulta de um tiro só, então a
+# resposta volta por unicast e este daemon não precisa nem do grupo multicast nem de um
+# navegador de fundo.
+DESTINO_MDNS = ("224.0.0.251", 5353)
+SUFIXO_MDNS = ".local"
+
+CABECALHO_DNS = 12
+RESPOSTA_DNS = 0x8000
+PONTEIRO_DNS = 0xC0
+ROTULO_DO_PONTEIRO = 0x3F
+CLASSE_IN = 1
+# Why: RFC 6762 sets the cache flush bit on the class of a unique record, so a real SRV and a
+# real A arrive with class 0x8001 and only the low bits name the class.
+# Por que: a RFC 6762 liga o bit de limpeza de cache na classe de um registro único, então um
+# SRV e um A reais chegam com classe 0x8001 e só os bits baixos nomeiam a classe.
+MASCARA_CLASSE = 0x7FFF
+TIPO_A = 1
+TIPO_PTR = 12
+TIPO_SRV = 33
+TAMANHO_A = 4
+TAMANHO_SRV_MINIMO = 7
+CABECALHO_REGISTRO = 10
+PORTA_MAXIMA = 65535
+
+# Why: a name that walks in circles and a message that claims ten thousand records are the
+# two ways a datagram makes a reader work forever; each one meets a number here.
+# Por que: um nome que anda em círculo e uma mensagem que declara dez mil registros são os
+# dois jeitos de um datagrama fazer um leitor trabalhar para sempre; cada um encontra um
+# número aqui.
+ROTULO_MAXIMO = 63
+NOME_MAXIMO = 255
+SALTOS_MAXIMOS = 16
+REGISTROS_MAXIMOS = 64
+INSTANCIAS_MAXIMAS = 32
+
 # Why: the uuid stops at the two colons that separate it from the service inside a USN, so
 # the colon is out of the class on purpose.
 # Por que: o uuid termina nos dois pontos que o separam do serviço dentro de um USN, então
@@ -86,13 +127,13 @@ class PlanoAmbiguo(ValueError):
 class Plano:
     """What to search and how to read the answer, generated from the manifests.
 
-    mdns lists the services the manifests declare and nothing searches them yet; the
-    transport arrives with the driver that needs it (LinkPlay, milestone 4).
+    mdns lists the services the manifests declare, in the form the manifest wrote them;
+    procurar_mdns is what turns each one into a question on the wire.
 
     O que buscar e como ler a resposta, gerado a partir dos manifestos.
 
-    mdns lista os serviços que os manifestos declaram e nada os busca ainda; o transporte
-    chega com o driver que precisar dele (LinkPlay, marco 4).
+    mdns lista os serviços que os manifestos declaram, na forma em que o manifesto os
+    escreveu; procurar_mdns é quem transforma cada um numa pergunta no fio.
     """
 
     sts: tuple[str, ...] = ()
@@ -148,23 +189,34 @@ async def procurar(
     alvos = _alvos(plano)
     if not alvos:
         return ()
-    laco = asyncio.get_running_loop()
-    soquete = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        soquete.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        # Why: a device flooding the group must not grow the kernel queue while the sweep
-        # runs; what does not fit in the cap is dropped, and a sweep is repeatable.
-        # Por que: um aparelho inundando o grupo não pode crescer a fila do núcleo enquanto a
-        # varredura roda; o que não couber no teto é descartado, e uma varredura se repete.
-        with suppress(OSError):
-            soquete.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, BUFFER_RECEBIMENTO)
-        soquete.setblocking(False)
-        soquete.bind(bind)
-        for alvo in alvos:
-            await laco.sock_sendto(soquete, _msearch(alvo, destino, timeout_s), destino)
-        return await _coletar(laco, soquete, plano, timeout_s)
-    finally:
-        soquete.close()
+    coleta = _Coleta(plano)
+    perguntas = tuple(_msearch(alvo, destino, timeout_s) for alvo in alvos)
+    await _perguntar(perguntas, coleta, destino=destino, timeout_s=timeout_s, bind=bind)
+    return coleta.resultado()
+
+
+async def procurar_mdns(
+    plano: Plano,
+    *,
+    destino: tuple[str, int] = DESTINO_MDNS,
+    timeout_s: float = TIMEOUT_PADRAO,
+    bind: tuple[str, int] = BIND_PADRAO,
+) -> tuple[Achado, ...]:
+    """One PTR query per declared service, then every answer before timeout_s, folded by
+    instance name.
+
+    Uma consulta PTR por serviço declarado, depois toda resposta antes de timeout_s, dobrada
+    por nome de instância.
+    """
+    servicos = _servicos_mdns(plano)
+    if not servicos:
+        return ()
+    coleta = _ColetaMdns(servicos)
+    perguntas = tuple(
+        pergunta for pergunta in map(_pergunta_mdns, servicos) if pergunta is not None
+    )
+    await _perguntar(perguntas, coleta, destino=destino, timeout_s=timeout_s, bind=bind)
+    return coleta.resultado()
 
 
 def _reivindicar(
@@ -219,10 +271,43 @@ def _msearch(alvo: str, destino: tuple[str, int], timeout_s: float) -> bytes:
     return "\r\n".join(linhas).encode("ascii", errors="ignore")
 
 
-async def _coletar(
-    laco: asyncio.AbstractEventLoop, soquete: socket.socket, plano: Plano, timeout_s: float
-) -> tuple[Achado, ...]:
-    coleta = _Coleta()
+async def _perguntar(
+    perguntas: tuple[bytes, ...],
+    coleta: "_Coleta | _ColetaMdns",
+    *,
+    destino: tuple[str, int],
+    timeout_s: float,
+    bind: tuple[str, int],
+) -> None:
+    """Puts every question of one search on one socket and hands the answers to the coleta.
+
+    Põe toda pergunta de uma busca num socket só e entrega as respostas à coleta.
+    """
+    laco = asyncio.get_running_loop()
+    soquete = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        soquete.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # Why: a device flooding the group must not grow the kernel queue while the sweep
+        # runs; what does not fit in the cap is dropped, and a sweep is repeatable.
+        # Por que: um aparelho inundando o grupo não pode crescer a fila do núcleo enquanto a
+        # varredura roda; o que não couber no teto é descartado, e uma varredura se repete.
+        with suppress(OSError):
+            soquete.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, BUFFER_RECEBIMENTO)
+        soquete.setblocking(False)
+        soquete.bind(bind)
+        for pergunta in perguntas:
+            await laco.sock_sendto(soquete, pergunta, destino)
+        await _receber(laco, soquete, coleta, timeout_s)
+    finally:
+        soquete.close()
+
+
+async def _receber(
+    laco: asyncio.AbstractEventLoop,
+    soquete: socket.socket,
+    coleta: "_Coleta | _ColetaMdns",
+    timeout_s: float,
+) -> None:
     erros = 0
     datagramas = 0
     fim = laco.time() + timeout_s
@@ -245,10 +330,8 @@ async def _coletar(
             continue
         erros = 0
         datagramas += 1
-        achado = _ler(dados, remetente[0], plano)
-        if achado is not None:
-            coleta.guardar(achado)
-        if len(coleta.por_chave) >= ACHADOS_MAXIMOS:
+        coleta.absorver(dados, remetente[0])
+        if coleta.quantos() >= ACHADOS_MAXIMOS:
             teto = f"ACHADOS_MAXIMOS ({ACHADOS_MAXIMOS})"
         elif datagramas >= DATAGRAMAS_MAXIMOS:
             teto = f"DATAGRAMAS_MAXIMOS ({DATAGRAMAS_MAXIMOS})"
@@ -258,7 +341,6 @@ async def _coletar(
         # the log. Por que: uma varredura cortada deixa aparelho fora, e a razão vai ao log.
         log.warning("discovery sweep cut short by %s; a later answer is missing from it", teto)
         break
-    return coleta.resultado()
 
 
 def _ler(dados: bytes, ip: str, plano: Plano) -> Achado | None:
@@ -366,8 +448,17 @@ class _Coleta:
     A resposta de uma varredura enquanto nasce: dobrada na chegada, uma entrada por aparelho.
     """
 
+    plano: Plano = field(default_factory=Plano)
     por_chave: dict[tuple[str, str, str], Achado] = field(default_factory=dict)
     ips_por_identidade: dict[str, set[str]] = field(default_factory=dict)
+
+    def absorver(self, dados: bytes, ip: str) -> None:
+        achado = _ler(dados, ip, self.plano)
+        if achado is not None:
+            self.guardar(achado)
+
+    def quantos(self) -> int:
+        return len(self.por_chave)
 
     def guardar(self, achado: Achado) -> None:
         self._conferir_endereco(achado)
@@ -397,3 +488,315 @@ class _Coleta:
                 achado.identidade,
                 ", ".join(sorted(enderecos)),
             )
+
+
+def _servicos_mdns(plano: Plano) -> dict[str, str]:
+    """The services to ask for, in the form the wire uses, each pointing at the tipo that
+    claims it.
+
+    Os serviços a perguntar, na forma que o fio usa, cada um apontando o tipo que o pede.
+    """
+    servicos: dict[str, str] = {}
+    for declarado, tipo in plano.mdns.items():
+        nome = _nome_de_servico(declarado)
+        # Why: a manifest is data on disk, and a label longer than the wire admits would go
+        # out as a malformed question that no device on the segment can answer.
+        # Por que: um manifesto é dado em disco, e um rótulo maior do que o fio admite sairia
+        # como pergunta torta que nenhum aparelho do segmento sabe responder.
+        if nome is None or _nome_em_bytes(nome) is None:
+            log.warning("mdns service %r of %r cannot be asked for and is skipped", declarado, tipo)
+            continue
+        dono = servicos.setdefault(nome, tipo)
+        if dono != tipo:
+            log.warning(
+                "mdns service %r is claimed by %r and by %r; %r keeps it", nome, dono, tipo, dono
+            )
+    return servicos
+
+
+def _nome_de_servico(declarado: str) -> str | None:
+    nome = declarado.strip().strip(".").lower()
+    if not nome:
+        return None
+    return nome if nome.endswith(SUFIXO_MDNS) else nome + SUFIXO_MDNS
+
+
+def _nome_em_bytes(nome: str) -> bytes | None:
+    """A name in the length prefixed form of DNS, or None when it does not fit the wire.
+
+    Um nome na forma de prefixo de tamanho do DNS, ou None quando não cabe no fio.
+    """
+    saida = bytearray()
+    for parte in nome.split("."):
+        bruto = parte.encode("utf-8", errors="ignore")
+        if not bruto or len(bruto) > ROTULO_MAXIMO:
+            return None
+        saida += bytes([len(bruto)]) + bruto
+    saida += b"\x00"
+    return bytes(saida) if len(saida) <= NOME_MAXIMO else None
+
+
+def _pergunta_mdns(nome: str) -> bytes | None:
+    """One PTR question for one service, which is the whole query this daemon sends.
+
+    Uma pergunta PTR por serviço, que é toda a consulta que este daemon envia.
+    """
+    codificado = _nome_em_bytes(nome)
+    if codificado is None:
+        return None
+    # Why: RFC 6762 fixes the identifier of a query at zero, so it is not a token to check in
+    # the answer, and the ceilings below are what bound a hostile one.
+    # Por que: a RFC 6762 fixa em zero o identificador de uma consulta, então ele não é
+    # segredo a conferir na resposta, e os tetos abaixo é que limitam uma hostil.
+    cabecalho = b"\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\x00\x00"
+    return cabecalho + codificado + TIPO_PTR.to_bytes(2, "big") + CLASSE_IN.to_bytes(2, "big")
+
+
+def _nome(dados: bytes, posicao: int) -> tuple[tuple[bytes, ...], int] | None:
+    """The labels of a name and the position right after it, or None for a name that lies.
+
+    Os rótulos de um nome e a posição logo depois dele, ou None para um nome que mente.
+    """
+    rotulos: list[bytes] = []
+    tamanho = 0
+    fim = -1
+    saltos = 0
+    limite = posicao
+    while True:
+        if posicao >= len(dados):
+            return None
+        marca = dados[posicao]
+        if (marca & PONTEIRO_DNS) == PONTEIRO_DNS:
+            if posicao + 1 >= len(dados):
+                return None
+            alvo = ((marca & ROTULO_DO_PONTEIRO) << 8) | dados[posicao + 1]
+            if fim < 0:
+                fim = posicao + 2
+            saltos += 1
+            # Why: a pointer that does not go strictly backwards is how a datagram makes a
+            # reader walk in circles, and a daemon walking in circles is a daemon that is
+            # down. Por que: um ponteiro que não anda estritamente para trás é como um
+            # datagrama faz um leitor andar em círculo, e um daemon andando em círculo é um
+            # daemon fora do ar.
+            if alvo < CABECALHO_DNS or alvo >= limite or saltos > SALTOS_MAXIMOS:
+                return None
+            limite = alvo
+            posicao = alvo
+            continue
+        if marca & PONTEIRO_DNS:
+            return None
+        if marca == 0:
+            return tuple(rotulos), fim if fim >= 0 else posicao + 1
+        inicio = posicao + 1
+        posicao = inicio + marca
+        tamanho += marca + 1
+        if posicao > len(dados) or tamanho > NOME_MAXIMO:
+            return None
+        rotulos.append(dados[inicio:posicao])
+
+
+def _registros(dados: bytes) -> tuple[tuple[tuple[bytes, ...], int, int, int], ...] | None:
+    """Every record of an answer as (name, type, where its data starts, how long it is).
+
+    None is a datagram that is not an mDNS answer or that does not parse whole; what a
+    message claims beyond REGISTROS_MAXIMOS is left on the wire.
+
+    Todo registro de uma resposta como (nome, tipo, onde o dado começa, que tamanho tem).
+
+    None é um datagrama que não é resposta mDNS ou que não se lê inteiro; o que uma mensagem
+    declara além de REGISTROS_MAXIMOS fica no fio.
+    """
+    if len(dados) < CABECALHO_DNS or not int.from_bytes(dados[2:4], "big") & RESPOSTA_DNS:
+        return None
+    contagens = [int.from_bytes(dados[i : i + 2], "big") for i in (4, 6, 8, 10)]
+    posicao = CABECALHO_DNS
+    for _ in range(contagens[0]):
+        lido = _nome(dados, posicao)
+        if lido is None:
+            return None
+        posicao = lido[1] + 4
+    registros: list[tuple[tuple[bytes, ...], int, int, int]] = []
+    for _ in range(min(sum(contagens[1:]), REGISTROS_MAXIMOS)):
+        lido = _nome(dados, posicao)
+        if lido is None:
+            return None
+        nome, posicao = lido
+        if posicao + CABECALHO_REGISTRO > len(dados):
+            return None
+        tipo = int.from_bytes(dados[posicao : posicao + 2], "big")
+        classe = int.from_bytes(dados[posicao + 2 : posicao + 4], "big") & MASCARA_CLASSE
+        tamanho = int.from_bytes(dados[posicao + 8 : posicao + 10], "big")
+        posicao += CABECALHO_REGISTRO
+        if posicao + tamanho > len(dados):
+            return None
+        if classe == CLASSE_IN:
+            registros.append((nome, tipo, posicao, tamanho))
+        posicao += tamanho
+    return tuple(registros)
+
+
+@dataclass
+class _InstanciaMdns:
+    """What one answer said about one instance, before it becomes an Achado.
+
+    O que uma resposta disse de uma instância, antes de ela virar um Achado.
+    """
+
+    servico: str
+    rotulo: str
+    porta: int | None = None
+    alvo: str | None = None
+
+
+def _ler_mdns(dados: bytes, ip: str, servicos: dict[str, str]) -> tuple[tuple[str, Achado], ...]:
+    """What one answer says about the instances of the declared services, by instance name.
+
+    O que uma resposta diz das instâncias dos serviços declarados, por nome de instância.
+    """
+    registros = _registros(dados)
+    if not registros:
+        return ()
+    enderecos: dict[str, str] = {}
+    instancias: dict[str, _InstanciaMdns] = {}
+    for nome, tipo, inicio, tamanho in registros:
+        if tipo == TIPO_A and tamanho == TAMANHO_A:
+            endereco = str(ipaddress.IPv4Address(dados[inicio : inicio + TAMANHO_A]))
+            enderecos.setdefault(_texto_do_nome(nome), endereco)
+        elif tipo == TIPO_PTR:
+            apontado = _nome(dados, inicio)
+            if apontado is not None:
+                _anotar(instancias, apontado[0], servicos)
+        elif tipo == TIPO_SRV and tamanho >= TAMANHO_SRV_MINIMO:
+            alvo = _nome(dados, inicio + 6)
+            _anotar(
+                instancias,
+                nome,
+                servicos,
+                porta=int.from_bytes(dados[inicio + 4 : inicio + 6], "big"),
+                alvo=_texto_do_nome(alvo[0]) if alvo is not None else None,
+            )
+    return tuple(
+        _achado_da_instancia(nome, instancia, servicos, enderecos, ip)
+        for nome, instancia in instancias.items()
+    )
+
+
+def _anotar(
+    instancias: dict[str, _InstanciaMdns],
+    rotulos: tuple[bytes, ...],
+    servicos: dict[str, str],
+    *,
+    porta: int | None = None,
+    alvo: str | None = None,
+) -> None:
+    """Files one record under the instance it names, and only for a service we asked for.
+
+    Arquiva um registro sob a instância que ele nomeia, e só para um serviço que pedimos.
+    """
+    if not rotulos:
+        return
+    nome = _texto_do_nome(rotulos)
+    servico = _servico_da_instancia(nome, servicos)
+    if servico is None:
+        return
+    instancia = instancias.get(nome)
+    if instancia is None:
+        if len(instancias) >= INSTANCIAS_MAXIMAS:
+            return
+        instancia = _InstanciaMdns(
+            servico=servico, rotulo=_texto_limpo(_texto_do_rotulo(rotulos[0]))
+        )
+        instancias[nome] = instancia
+    if porta is not None:
+        instancia.porta = porta
+    if alvo:
+        instancia.alvo = alvo
+
+
+def _servico_da_instancia(nome: str, servicos: dict[str, str]) -> str | None:
+    # Why: the instance name carries its own service, so a PTR and an SRV that arrive in
+    # different datagrams still name the same tipo without one having to trust the other.
+    # Por que: o nome da instância carrega o próprio serviço, então um PTR e um SRV que
+    # chegam em datagramas diferentes ainda nomeiam o mesmo tipo sem um confiar no outro.
+    for servico in servicos:
+        if nome.endswith("." + servico):
+            return servico
+    return None
+
+
+def _achado_da_instancia(
+    nome: str,
+    instancia: _InstanciaMdns,
+    servicos: dict[str, str],
+    enderecos: dict[str, str],
+    ip: str,
+) -> tuple[str, Achado]:
+    """The finding of one instance: the ip of the A record, and the port of the SRV.
+
+    O achado de uma instância: o ip do registro A, e a porta do SRV.
+    """
+    apontado = enderecos.get(instancia.alvo) if instancia.alvo else None
+    porta = instancia.porta
+    if apontado is not None and apontado != ip:
+        # Why: section 9. Following the address an answer points at is how this hub becomes a
+        # proxy for the LAN of the customer, so an answer that names another host keeps only
+        # what it said about itself. Por que: seção 9. Seguir o endereço que uma resposta
+        # aponta é como este hub vira proxy da LAN do cliente, então uma resposta que nomeia
+        # outro host guarda só o que disse de si.
+        log.warning(
+            "mdns answer from %s points instance %r at %s; the address is not followed",
+            ip,
+            nome,
+            apontado,
+        )
+        apontado, porta = None, None
+    return nome, Achado(
+        tipo=servicos[instancia.servico],
+        # Why: section 6 makes an identity a uuid, a mac or a serial, and an instance name is
+        # none of the three; the driver reads the real identity when the equipment is
+        # registered. Por que: a seção 6 faz de uma identidade um uuid, um mac ou um serial, e
+        # um nome de instância não é nenhum dos três; o driver lê a identidade real quando o
+        # equipamento é cadastrado.
+        identidade="",
+        ip=apontado or ip,
+        porta=porta if porta is not None and 0 < porta <= PORTA_MAXIMA else None,
+        descricao=instancia.rotulo,
+    )
+
+
+def _texto_do_rotulo(rotulo: bytes) -> str:
+    return rotulo.decode("utf-8", errors="replace")
+
+
+def _texto_do_nome(rotulos: tuple[bytes, ...]) -> str:
+    # Why: DNS compares names without case, so the comparison here does the same or an
+    # instance of "_LinkPlay._tcp.local" would answer for nobody.
+    # Por que: o DNS compara nomes sem caixa, então a comparação aqui faz o mesmo ou uma
+    # instância de "_LinkPlay._tcp.local" não responderia por ninguém.
+    return ".".join(_texto_do_rotulo(rotulo) for rotulo in rotulos).lower()
+
+
+@dataclass
+class _ColetaMdns:
+    """The answer of an mDNS query while it is built: one entry per instance of one sender.
+
+    A resposta de uma consulta mDNS enquanto nasce: uma entrada por instância de um remetente.
+    """
+
+    servicos: dict[str, str]
+    por_chave: dict[tuple[str, str], Achado] = field(default_factory=dict)
+
+    def absorver(self, dados: bytes, ip: str) -> None:
+        for nome, achado in _ler_mdns(dados, ip, self.servicos):
+            # Why: a device answers the PTR in one datagram and the SRV with the A in the
+            # next, so the fold is by instance name and never by datagram.
+            # Por que: um aparelho responde o PTR num datagrama e o SRV com o A no seguinte,
+            # então a dobra é por nome de instância e nunca por datagrama.
+            anterior = self.por_chave.get((ip, nome))
+            self.por_chave[(ip, nome)] = achado if anterior is None else _mesclar(anterior, achado)
+
+    def quantos(self) -> int:
+        return len(self.por_chave)
+
+    def resultado(self) -> tuple[Achado, ...]:
+        return tuple(sorted(self.por_chave.values(), key=lambda a: (a.ip, a.tipo, a.descricao)))

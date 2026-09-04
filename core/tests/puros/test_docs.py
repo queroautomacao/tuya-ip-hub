@@ -205,3 +205,46 @@ def test_readme_e_contribuir_tem_as_mesmas_secoes_nas_duas_linguas():
             for idioma, metade in _metades(caminho).items()
         }
         assert len(set(contagem.values())) == 1, f"{caminho.name} halves differ: {contagem}"
+
+
+MATRIZ = RAIZ / "docs" / "MATRIZ.md"
+
+# A row of the table: brand, model, driver, state, who, notes. The driver is the third cell
+# and the manifest tipo is written between backticks.
+# Uma linha da tabela: marca, modelo, driver, estado, quem, observações. O driver é a terceira
+# célula e o tipo do manifesto é escrito entre crases.
+LINHA_DA_MATRIZ = re.compile(r"^\|(?P<celulas>.+)\|\s*$")
+ESTADOS_DA_MATRIZ = ("verificado", "simulado", "declarado")
+
+
+def _linhas_de_aparelho() -> Iterator[list[str]]:
+    for linha in MATRIZ.read_text(encoding="utf-8").splitlines():
+        casado = LINHA_DA_MATRIZ.match(linha)
+        if casado is None:
+            continue
+        celulas = [c.strip() for c in casado.group("celulas").split("|")]
+        if len(celulas) == 6 and celulas[3].strip("`") in ESTADOS_DA_MATRIZ:
+            yield celulas
+
+
+def test_a_matriz_so_cita_driver_que_existe_no_catalogo():
+    """A row naming a tipo no manifest declares sends a reader looking for a driver that is
+    not in the image.
+
+    Why: the matrix is the public promise of what the hub controls, and section 6 says the
+    tipo is the stable key of a driver, so a row that misspells it is a promise nobody can
+    check and a bug report nobody can reproduce.
+
+    Uma linha citando um tipo que nenhum manifesto declara manda o leitor procurar um driver
+    que não está na imagem.
+
+    Por que: a matriz é a promessa pública do que o hub controla, e a seção 6 diz que o tipo é
+    a chave estável de um driver, então uma linha que o escreve errado é promessa que ninguém
+    confere e relato de defeito que ninguém reproduz.
+    """
+    from iphub.drivers import catalogo
+
+    tipos = set(catalogo.carregar())
+    citados = {celulas[2].strip("`") for celulas in _linhas_de_aparelho()}
+    assert citados, "the matrix has no device row to check"
+    assert citados <= tipos, f"the matrix names drivers that do not exist: {citados - tipos}"

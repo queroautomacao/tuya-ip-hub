@@ -5,6 +5,7 @@
 Fixtures compartilhadas: painel construído em disco, ambiente, cliente HTTP e os fluxos.
 """
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -95,3 +96,64 @@ def relogio():
             self.agora += segundos
 
     return Relogio()
+
+
+@pytest.fixture
+def agenda():
+    """The clock of the DP-bus, moved by hand: nothing waits until the test says so.
+
+    The bus waits twice (five seconds for the first frame and a second and a half for the
+    reread of section 8), and both are attacked in the tests, so neither is really slept:
+    soltar wakes exactly what asked for that many seconds and lets it run to its next stop.
+
+    O relógio do DP-bus, movido na mão: nada espera até o teste mandar.
+
+    O barramento espera duas vezes (cinco segundos pelo primeiro quadro e um segundo e meio
+    pela releitura da seção 8), e as duas são atacadas nos testes, então nenhuma é dormida de
+    verdade: o soltar acorda exatamente quem pediu aqueles segundos e o deixa correr até a
+    próxima parada dele.
+    """
+
+    class Agenda:
+        def __init__(self) -> None:
+            self.agora = 1_700_000_000.0
+            self.esperas: list[tuple[float, asyncio.Future]] = []
+
+        def __call__(self) -> float:
+            return self.agora
+
+        async def dormir(self, segundos: float) -> None:
+            futuro = asyncio.get_running_loop().create_future()
+            self.esperas.append((segundos, futuro))
+            await futuro
+
+        def presas(self, segundos: float) -> int:
+            return sum(1 for espera, f in self.esperas if espera == segundos and not f.done())
+
+        async def soltar(self, segundos: float) -> int:
+            """Wakes everything waiting for that many seconds and answers how many woke.
+
+            Acorda tudo que espera por aqueles segundos e responde quantos acordaram.
+            """
+            presas = [(espera, f) for espera, f in self.esperas if espera == segundos]
+            self.esperas = [(espera, f) for espera, f in self.esperas if espera != segundos]
+            quantas = 0
+            for _, futuro in presas:
+                if not futuro.done():
+                    futuro.set_result(None)
+                    quantas += 1
+            await self.girar()
+            return quantas
+
+        async def girar(self, voltas: int = 8) -> None:
+            """Lets what was just woken run to its next stop, with no real waiting.
+
+            Deixa correr até a próxima parada o que acabou de ser acordado, sem espera real.
+            """
+            for _ in range(voltas):
+                await asyncio.sleep(0)
+
+        def avancar(self, segundos: float) -> None:
+            self.agora += segundos
+
+    return Agenda()
