@@ -109,11 +109,11 @@ ACAO_PRESET = "comando_extra"
 # The stable codes an order refuses with; the panel translates them, section 11.
 # Os códigos estáveis com que uma ordem recusa; o painel os traduz, seção 11.
 BLOCOS_DEMAIS = "blocos_demais"
-BLOCO_REPETIDA = "bloco_repetida"
+BLOCO_REPETIDO = "bloco_repetido"
 IDENTIDADE_INVALIDA = "identidade_invalida"
 CODIGOS_DE_ORDEM = (
     BLOCOS_DEMAIS,
-    BLOCO_REPETIDA,
+    BLOCO_REPETIDO,
     EQ_NAO_ENCONTRADO,
     IDENTIDADE_INVALIDA,
 )
@@ -221,7 +221,7 @@ def _identidade_em(ordem: tuple[str, ...], bloco: int) -> str:
 class Blocos:
     """The order of the blocks, the data points they publish and the group they may form.
 
-    A ordem dos blocos, os data points que elas publicam e o grupo que elas podem formar.
+    A ordem dos blocos, os data points que eles publicam e o grupo que eles podem formar.
     """
 
     def __init__(
@@ -298,7 +298,7 @@ class Blocos:
             # the bridge reads a device that contradicts itself.
             # Por que: uma caixa em dois blocos responde o volume de dois blocos no barramento,
             # e a ponte lê um aparelho que se contradiz.
-            raise OrdemInvalida(BLOCO_REPETIDA, f"the identidade {repetidas} occupies two blocks")
+            raise OrdemInvalida(BLOCO_REPETIDO, f"the identidade {repetidas} occupies two blocks")
         cadastros = self._cadastros()
         for identidade in ocupadas:
             if identidade not in cadastros:
@@ -603,25 +603,36 @@ class Blocos:
         O DP 102 de um bloco: o transporte de um driver que o tem, o liga/desliga de qualquer
         outro.
         """
-        if self._com_transporte(self.identidade(bloco)):
+        identidade = self.identidade(bloco)
+        if self._com_transporte(identidade):
             return estado.reproduzindo
-        return estado.ligado
+        if self._com_energia(identidade):
+            return estado.ligado
+        return None
 
     def _com_transporte(self, identidade: str) -> bool:
         """Section 8: DP 102 is play/pause for a driver that declares both transport
-        capabilities and power for every other equipment in a block; the manifest decides,
-        never the category, so a receiver in a block gets a power switch on the app and a
-        speaker gets play/pause.
+        capabilities and the power switch for one that declares both power capabilities; the
+        manifest decides, never the category, so a receiver in a block gets a switch on the
+        app and a speaker gets play/pause. Half of either pair is no key at all, because a
+        switch that turns on and cannot turn off is a switch the customer cannot trust.
 
         Seção 8: o DP 102 é play/pause para um driver que declara as duas capacidades de
-        transporte e liga/desliga para todo outro equipamento num bloco; o manifesto decide,
-        nunca a categoria, então um receiver num bloco ganha uma chave de ligar no app e uma
-        caixa ganha play/pause.
+        transporte e a chave de ligar para um que declara as duas de energia; o manifesto
+        decide, nunca a categoria, então um receiver num bloco ganha uma chave no app e uma
+        caixa ganha play/pause. Metade de qualquer par não é tecla nenhuma, porque uma chave
+        que liga e não desliga é uma chave em que o cliente não pode confiar.
         """
+        return self._declara(identidade, ACAO_TOCAR, ACAO_PAUSAR)
+
+    def _com_energia(self, identidade: str) -> bool:
+        return self._declara(identidade, ACAO_LIGAR, ACAO_DESLIGAR)
+
+    def _declara(self, identidade: str, *acoes: str) -> bool:
         manifesto = self._gestor.manifesto(identidade)
         if manifesto is None:
             return False
-        return ACAO_TOCAR in manifesto.capacidades and ACAO_PAUSAR in manifesto.capacidades
+        return all(acao in manifesto.capacidades for acao in acoes)
 
     def _com_nomes(self, valores: dict[int, object]) -> None:
         """DP 133 and DP 135, in the compact JSON of section 8 and inside its 255 bytes.
@@ -667,7 +678,7 @@ class Blocos:
     def _companheiras(self, bloco: int) -> tuple[int, ...]:
         """The blocks a group led by this one may hold: same tipo, and never a mixed one.
 
-        Os blocos que um grupo liderado por esta pode ter: mesmo tipo, e nunca um misto.
+        Os blocos que um grupo liderado por este pode ter: mesmo tipo, e nunca um misto.
         """
         cadastros = self._cadastros()
         mestre = cadastros.get(self.identidade(bloco))
@@ -697,11 +708,15 @@ class Blocos:
     async def _formar(self, bloco: int) -> str | None:
         """Forms the group led by one block: every speaker of its tipo joins that master.
 
-        Forma o grupo liderado por um bloco: toda caixa do tipo dela entra naquele mestre.
+        Forma o grupo liderado por um bloco: toda caixa do tipo dele entra naquele mestre.
         """
         mestre = self._multiroom(bloco)
         if mestre is None:
-            return protocolo.BLOCO_OFFLINE
+            # Why: a block whose equipment cannot group answers the code of a capability the
+            # manifest does not declare; offline is only for a block nothing answers for.
+            # Por que: um bloco cujo equipamento não agrupa responde o código de uma capacidade
+            # que o manifesto não declara; offline é só para um bloco por que ninguém responde.
+            return NAO_SUPORTADO if self._alvo(bloco) is not None else protocolo.BLOCO_OFFLINE
         if not mestre.cadastro.ip:
             return protocolo.BLOCO_OFFLINE
         companheiras = self._companheiras(bloco)
@@ -791,15 +806,27 @@ class Blocos:
         """A group whose master or whose last slave leaves the order is not a group any more,
         and it is taken down while the CURRENT order can still reach the master.
 
+        Why: the books are kept by IDENTITY and never by position, because any registered
+        equipment may take a block now; a projector put in the block of a slave would inherit
+        its role and receive, as the slave, the volume meant for a speaker.
+
         Um grupo cujo mestre ou cujo último escravo sai da ordem deixou de ser grupo, e ele é
         derrubado enquanto a ordem ATUAL ainda alcança o mestre.
+
+        Por que: os livros são mantidos por IDENTIDADE e nunca por posição, porque qualquer
+        equipamento cadastrado pode ocupar um bloco agora; um projetor posto no bloco de um
+        escravo herdaria o papel dele e receberia, como escravo, o volume de uma caixa.
         """
         if not self._mestre:
             return
-        if not _identidade_em(nova, self._mestre):
+        if _identidade_em(nova, self._mestre) != self.identidade(self._mestre):
             await self._desfazer(forcar=True)
             return
-        ficam = tuple(bloco for bloco in self._escravos if _identidade_em(nova, bloco))
+        ficam = tuple(
+            bloco
+            for bloco in self._escravos
+            if _identidade_em(nova, bloco) == self.identidade(bloco)
+        )
         self._largar(bloco for bloco in self._escravos if bloco not in ficam)
         self._escravos = ficam
         if not self._escravos:
@@ -829,9 +856,19 @@ class Blocos:
         if dp.funcao == "play":
             if self._com_transporte(alvo.cadastro.identidade):
                 return await self._transporte(alvo, ACAO_TOCAR if valor else ACAO_PAUSAR, None)
-            acao = ACAO_LIGAR if valor else ACAO_DESLIGAR
-            return await self._executar(alvo.cadastro.identidade, acao, None)
+            if self._com_energia(alvo.cadastro.identidade):
+                acao = ACAO_LIGAR if valor else ACAO_DESLIGAR
+                return await self._executar(alvo.cadastro.identidade, acao, None)
+            return NAO_SUPORTADO
         if dp.funcao == "preset":
+            # Why: a preset is "play the configured URL N", the vocabulary of a multiroom
+            # driver (section 14); a matrix that declares comando_extra would otherwise get
+            # the literal preset:N written on its wire.
+            # Por que: um preset é "toca a URL configurada N", vocabulário de um driver
+            # multiroom (seção 14); uma matriz que declara comando_extra receberia o literal
+            # preset:N escrito no fio dela.
+            if not self._e_multiroom(alvo.cadastro.identidade):
+                return NAO_SUPORTADO
             return await self._transporte(alvo, ACAO_PRESET, _preset(valor))
         # Why: the input of a speaker is its own even inside a group, and the driver is the
         # one that refuses it while grouped, because it is the driver that knows the group
@@ -863,7 +900,7 @@ class Blocos:
     def _mestre_de(self, bloco: int) -> _Alvo | None:
         """The master of a block that is a slave right now, or None when it answers for itself.
 
-        O mestre de um bloco que é escravo agora, ou None quando ela responde por si.
+        O mestre de um bloco que é escravo agora, ou None quando ele responde por si.
         """
         if bloco not in self._escravos:
             return None
@@ -1000,7 +1037,7 @@ def _nomes_json(dpid: int, nomes: Sequence[str]) -> str | None:
     # JSON really fits, because a fallback that can fail is the failure it was written against.
     # Por que: o json escapa uma aspa como \" e uma barra como \\, então um orçamento medido
     # em bytes crus mente para um nome que as carrega e a lista encurtada estoura de novo, o
-    # que tirava do barramento os nomes das seis blocos. O orçamento é apertado até o JSON
+    # que tirava do barramento os nomes dos seis blocos. O orçamento é apertado até o JSON
     # codificado caber de verdade, porque um plano B que pode falhar é a falha que ele evita.
     try:
         moldura = len(mapa.nomes_json(dpid, [VAZIA] * len(nomes)).encode("utf-8"))

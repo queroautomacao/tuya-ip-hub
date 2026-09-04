@@ -161,7 +161,7 @@
   box-shadow: inset 0 1px 0 var(--vidro-brilho);
 }
 
-.app-energia[aria-pressed="true"] {
+.app-energia-ligada {
   background: linear-gradient(180deg, color-mix(in srgb, var(--acento-botao) 84%, #ffffff), var(--acento-botao));
   border-color: color-mix(in srgb, var(--acento-botao) 70%, #ffffff);
   color: #ffffff;

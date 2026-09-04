@@ -164,7 +164,7 @@ def criar_app(
     # set that arrives over /api/dp land on the very same blocks and scenes.
     # Por que: o barramento da seção 8 não é dono de estado nenhum; ele toma a mesma porta que
     # as rotas do painel tomam (aplicar_dp e valores_dps), então um set que chega pelo socket e
-    # um que chega pelo /api/dp caem nas mesmíssimas blocos e cenas.
+    # um que chega pelo /api/dp caem nos mesmíssimos blocos e cenas.
     app[BARRAMENTO] = Barramento(
         functools.partial(aplicar_dp, app),
         functools.partial(valores_dps, app),

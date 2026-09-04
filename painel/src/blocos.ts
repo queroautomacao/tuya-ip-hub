@@ -52,7 +52,7 @@ export type FuncaoDoBloco = (typeof FUNCOES_DO_BLOCO)[number];
 // entrada nos dois dicionários, e um teste garante isso.
 export const CODIGOS_BLOCOS = [
   "blocos_demais",
-  "bloco_repetida",
+  "bloco_repetido",
   "identidade_invalida",
   "dp_desconhecido",
   "dp_somente_leitura",
@@ -171,7 +171,7 @@ export function podeAgrupar(item: ItemCatalogo | undefined): boolean {
 // that has nobody of its own tipo to lead is never offered as a group; offering a mixed one
 // is what leaves half of it playing and the other half silent.
 // Por que: seção 14, um grupo só existe entre caixas do mesmo domínio, então um bloco que não
-// tem ninguém do tipo dela para liderar nunca é oferecida como grupo; oferecer um misto é o
+// tem ninguém do tipo dele para liderar nunca é oferecido como grupo; oferecer um misto é o
 // que deixa metade dele tocando e a outra metade calada.
 export function gruposPossiveis(blocos: readonly Bloco[], catalogo: readonly ItemCatalogo[]): string[] {
   const item = (tipo: string): ItemCatalogo | undefined =>
@@ -224,7 +224,7 @@ const ESPECIES: Partial<Record<FuncaoDoBloco, EspecieDeControle>> = {
   entrada: "escolha",
 };
 
-export function controlesDaBloco(
+export function controlesDoBloco(
   bloco: Bloco,
   item: ItemCatalogo | undefined,
 ): ControleDeBloco[] {
@@ -246,6 +246,13 @@ function especieDe(funcao: FuncaoDoBloco, item: ItemCatalogo): EspecieDeControle
     if (tem(EXIGIDAS.play)) return "alternar";
     return tem(ENERGIA) ? "ligar" : undefined;
   }
+  // Why: a preset is "play the configured URL N", the vocabulary of a multiroom driver
+  // (section 14), so a matrix with comando_extra gets no preset keys; the daemon refuses the
+  // data point for it with nao_suportado, and the panel offers the same set.
+  // Por que: um preset é "toca a URL configurada N", vocabulário de um driver multiroom
+  // (seção 14), então uma matriz com comando_extra não ganha teclas de preset; o daemon
+  // recusa o data point para ela com nao_suportado, e o painel oferece o mesmo conjunto.
+  if (funcao === "preset" && !podeAgrupar(item)) return undefined;
   const especie = ESPECIES[funcao];
   return especie !== undefined && tem(EXIGIDAS[funcao]) ? especie : undefined;
 }

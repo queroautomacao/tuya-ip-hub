@@ -230,7 +230,7 @@
   "cenas_funcao_entrada": "Entrada",
   "cenas_funcao_grupo": "Grupo",
   "erro_blocos_demais": "O app mostra seis equipamentos, e não existe um sétimo número.",
-  "erro_bloco_repetida": "O mesmo equipamento não pode ocupar dois números.",
+  "erro_bloco_repetido": "O mesmo equipamento não pode ocupar dois números.",
   "erro_identidade_invalida": "A ordem dos equipamentos precisa ser uma lista de identidades.",
   "erro_dp_desconhecido": "Este data point não existe no contrato da seção 8.",
   "erro_dp_somente_leitura": "Este data point só é reportado pelo hub, e ninguém escreve nele.",
@@ -353,5 +353,6 @@
   "acao_aplicar": "Aplicar",
   "cenas_funcao_energia": "Ligar ou desligar",
   "idioma_pt_curto": "PT",
-  "idioma_en_curto": "EN"
+  "idioma_en_curto": "EN",
+  "editor_tab_ajuda": "Tab indenta. Esc e depois Tab sai do editor."
 }

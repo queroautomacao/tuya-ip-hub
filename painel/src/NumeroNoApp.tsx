@@ -21,7 +21,7 @@ import {
   type Bloco,
   type LeituraDeBlocos,
 } from "./blocos.ts";
-import type { Equipamento, ItemCatalogo } from "./equipamentos.ts";
+import { INTERVALO_MS, type Equipamento, type ItemCatalogo } from "./equipamentos.ts";
 import { t, traduzirErro } from "./i18n";
 
 function rotulo(bloco: Bloco): string {
@@ -116,6 +116,8 @@ export default function NumeroNoApp({
 
   useEffect(() => {
     void recarregar();
+    const temporizador = window.setInterval(() => void recarregar(), INTERVALO_MS);
+    return () => window.clearInterval(temporizador);
   }, [recarregar]);
 
   function chamar(trabalho: () => Promise<void>): void {
@@ -139,16 +141,26 @@ export default function NumeroNoApp({
 
   function escolher(bruto: string): void {
     const escolhido = Number(bruto);
-    const ordem = ordemDe(blocos);
-    // Why: leaving the app empties the number where it is, and taking a number takes the
-    // equipment off the one it had; a shift would renumber the app of the customer.
-    // Por que: sair do app esvazia o número onde ele está, e tomar um número tira o
-    // equipamento do que ele tinha; um empurrão renumeraria o app do cliente.
-    const nova =
-      escolhido === 0
-        ? comIdentidade(ordem, numero, "")
-        : comIdentidade(ordem, escolhido, equipamento.identidade);
-    chamar(() => salvarBlocos(nova));
+    // Why: the order is rebuilt from a fresh reading right before it is written, because the
+    // whole list of six goes on the wire and a number given in another window meanwhile
+    // would be erased by a stale copy of it.
+    // Por que: a ordem é remontada de uma leitura fresca logo antes de ser gravada, porque a
+    // lista inteira de seis vai no fio e um número dado em outra janela nesse meio-tempo
+    // seria apagado por uma cópia velha dela.
+    chamar(async () => {
+      const fresco = await lerBlocos();
+      const ordem = ordemDe(fresco.blocos);
+      const meu = fresco.blocos.find((bloco) => bloco.identidade === equipamento.identidade)?.bloco ?? 0;
+      // Why: leaving the app empties the number where it is, and taking a number takes the
+      // equipment off the one it had; a shift would renumber the app of the customer.
+      // Por que: sair do app esvazia o número onde ele está, e tomar um número tira o
+      // equipamento do que ele tinha; um empurrão renumeraria o app do cliente.
+      const nova =
+        escolhido === 0
+          ? comIdentidade(ordem, meu, "")
+          : comIdentidade(ordem, escolhido, equipamento.identidade);
+      await salvarBlocos(nova);
+    });
   }
 
   return (

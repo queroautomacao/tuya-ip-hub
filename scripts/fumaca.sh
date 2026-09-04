@@ -169,9 +169,17 @@ cadastro='{"tipo": "multiroom_linkplay", "identidade": "fumaca-uuid-1", "nome": 
 codigo="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 -X POST \
     -H 'Content-Type: application/json' "${autorizado[@]}" -d "$cadastro" "$base/api/equipamentos" || true)"
 if [ "$codigo" = "200" ]; then
-    pass "POST /api/equipamentos: a multiroom equipment was registered and took a block"
+    pass "POST /api/equipamentos: a multiroom equipment was registered"
 else
     fail "POST /api/equipamentos: expected 200, got '$codigo'"
+fi
+
+codigo="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 -X POST \
+    -H 'Content-Type: application/json' "${autorizado[@]}" -d '{"blocos": ["fumaca-uuid-1"]}' "$base/api/blocos" || true)"
+if [ "$codigo" = "200" ]; then
+    pass "POST /api/blocos: the equipment took number 1 on the app"
+else
+    fail "POST /api/blocos: expected 200, got '$codigo'"
 fi
 
 corpo="$(curl -sS --max-time 20 -X POST -H 'Content-Type: application/json' "${autorizado[@]}" \

@@ -275,7 +275,7 @@ async def test_a_mesma_caixa_nao_ocupa_dois_blocos(abrir):
         "/api/blocos", json={"blocos": ["uuid-1", "uuid-1"]}, headers=auth
     )
     assert resposta.status == 400
-    assert (await _json(resposta))["code"] == "bloco_repetida"
+    assert (await _json(resposta))["code"] == "bloco_repetido"
 
 
 async def test_o_snapshot_traz_o_reportavel_e_nunca_o_que_e_so_envio(duas):
@@ -461,11 +461,11 @@ async def test_remover_o_mestre_derruba_o_grupo(duas):
     assert [bloco["papel"] for bloco in corpo["blocos"][:2]] == ["", ""]
 
 
-async def test_uma_bloco_escrava_de_grupo_alheio_nao_e_desenhada_como_solo(duas):
+async def test_um_bloco_escravo_de_grupo_alheio_nao_e_desenhado_como_solo(duas):
     """The panel draws no role badge for a solo block, so calling this one solo left the
     operator with volume, transport and input controls that only ever answer no.
 
-    O painel não desenha selo de papel para um bloco solo, então chamar esta de solo deixava o
+    O painel não desenha selo de papel para um bloco solo, então chamar este de solo deixava o
     operador com controles de volume, transporte e entrada que só respondem não.
     """
     cliente, auth, classe = duas

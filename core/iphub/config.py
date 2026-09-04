@@ -21,9 +21,9 @@ CHAVE_EQUIPAMENTOS = "equipamentos"
 CHAVE_BLOCOS = "blocos"
 CHAVE_CENAS = "cenas"
 
-# Why: section 8 numbers six block blocks and no seventh exists, so a seventh identity here
+# Why: section 8 numbers six blocks and no seventh exists, so a seventh identity here
 # would name a block the data point contract cannot carry.
-# Por que: a seção 8 numera seis blocos de bloco e não existe um sétimo, então uma sétima
+# Por que: a seção 8 numera seis blocos e não existe um sétimo, então uma sétima
 # identidade aqui nomearia um bloco que o contrato de data points não sabe carregar.
 BLOCOS_MAXIMO = mapa.BLOCOS
 
@@ -95,10 +95,10 @@ class Config:
     # bloco 1 em toda automação que o cliente já montou na plataforma.
     blocos: tuple[str, ...] = ()
     # Why: a scene is data of section 8 and the position of one is its number, the same way a
-    # block block is a position; the module that owns the format decides what a scene is, and
+    # block is a position; the module that owns the format decides what a scene is, and
     # this file only says that the installation carries up to eight of them.
     # Por que: uma cena é dado da seção 8 e a posição de uma é o número dela, do mesmo jeito
-    # que um bloco de bloco é uma posição; o módulo dono do formato decide o que é uma cena, e
+    # que um bloco é uma posição; o módulo dono do formato decide o que é uma cena, e
     # este arquivo só diz que a instalação carrega até oito delas.
     cenas: tuple[Cena, ...] = ()
 

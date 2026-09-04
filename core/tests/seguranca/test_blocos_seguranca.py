@@ -4,16 +4,16 @@
 
 Nobody without a session commands a block, nobody from another site commands one either, and
 the four headers are on every answer, refusals included. Past the gate the attacks are the
-ones section 8 pays for: a block occupied by an equipment that is not a multiroom one, a
-scene step that writes a data point nobody may write, and a scene name that does not fit the
-255 bytes of DP 134. Each one is checked on the FILE as well, because a refusal that already
+ones section 8 pays for: an order that is not a list of registered identities, a scene step
+that writes a data point nobody may write, and a scene name that does not fit the 255 bytes
+of DP 134. Each one is checked on the FILE as well, because a refusal that already
 wrote is not a refusal.
 
 Seção 9 sobre as rotas de bloco e de cena, com todo teste atacando uma regra.
 
 Ninguém sem sessão comanda um bloco, ninguém de outro site comanda também, e os quatro
 cabeçalhos estão em toda resposta, inclusive nas recusas. Passado o portão, os ataques são os
-que a seção 8 paga: um bloco ocupado por um equipamento que não é multiroom, um passo de cena
+que a seção 8 paga: uma ordem que não é lista de identidades cadastradas, um passo de cena
 que escreve um data point que ninguém escreve, e um nome de cena que não cabe nos 255 bytes
 do DP 134. Cada um é conferido também no ARQUIVO, porque uma recusa que já gravou não é
 recusa.
@@ -114,9 +114,9 @@ class Caixa(Driver):
 
 
 class Projetor(Driver):
-    """Not a multiroom equipment, so it never occupies a block of section 8.
+    """Not a multiroom equipment: it takes a block of section 8 like any other, never a group.
 
-    Não é equipamento multiroom, então ele nunca ocupa um bloco da seção 8.
+    Não é equipamento multiroom: ocupa um bloco da seção 8 como qualquer outro, nunca um grupo.
     """
 
     MANIFESTO = _manifesto(TIPO_DE_PROJETOR, "projetor", ("ligar", "desligar"))
@@ -186,6 +186,29 @@ async def test_os_quatro_cabecalhos_estao_na_resposta_com_sessao(hub, metodo, ca
     resposta = await cliente.request(metodo, caminho, json={"v": 40}, headers=auth)
     for nome, valor in CABECALHOS.items():
         assert resposta.headers.get(nome) == valor, nome
+
+
+@pytest.mark.parametrize("ordem", [["uuid-9"], "uuid-1", [1], [["uuid-1"]], {"1": "uuid-1"}])
+async def test_uma_ordem_que_nao_e_lista_de_identidade_e_recusada(hub, amb, ordem):
+    cliente, auth = hub
+    resposta = await cliente.post("/api/blocos", json={"blocos": ordem}, headers=auth)
+    assert resposta.status in (400, 404)
+    assert (await resposta.json())["ok"] is False
+    assert _do_disco(amb).get("blocos", []) in ([], ["uuid-1"])
+
+
+@pytest.mark.parametrize("dpid", [ONLINE_1, NOMES_BLOCOS, 103, CENA + 2])
+async def test_um_passo_de_cena_nao_escreve_o_que_ninguem_escreve(hub, amb, dpid):
+    """Section 8: a report is only ever born of real state, so a scene never writes one.
+
+    Seção 8: um report só nasce de estado real, então uma cena nunca escreve um.
+    """
+    cliente, auth = hub
+    corpo = {"cenas": [{"nome": "Filme", "passos": [{"dpid": dpid, "valor": True}]}]}
+    resposta = await cliente.post("/api/cenas", json=corpo, headers=auth)
+    assert resposta.status == 400
+    assert (await resposta.json())["code"] == "cenas_invalidas"
+    assert _do_disco(amb).get("cenas", []) == []
 
 
 async def test_uma_cena_nao_dispara_uma_cena(hub, amb):

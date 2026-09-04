@@ -41,7 +41,7 @@ import {
 } from "./cenas.ts";
 import { INTERVALO_MS, type ItemCatalogo } from "./equipamentos.ts";
 import { t, traduzirErro, type Chave } from "./i18n";
-import { controlesDaBloco, type Bloco } from "./blocos.ts";
+import { controlesDoBloco, type Bloco, type ControleDeBloco } from "./blocos.ts";
 
 interface Leitura {
   cenas: Cena[];
@@ -92,22 +92,54 @@ function rotuloDaFuncao(funcao: string, energia: boolean): string {
 // speaker, from what the driver of the equipment in that number declares.
 // Por que: seção 8, o DP 102 é play/pause para um equipamento com transporte e a chave de
 // ligar para qualquer outro, então um passo se lê "Ligar ou desligar: ligar" numa matriz e
-// "Play ou pause: play" numa caixa, a partir do que o driver do equipamento naquele número
+// "Tocar ou pausar: tocar" numa caixa, a partir do que o driver do equipamento naquele número
 // declara.
-function energiaNoBloco(
+function controlesNoBloco(
   numero: number,
   blocos: readonly Bloco[],
   catalogo: readonly ItemCatalogo[],
-): boolean {
+): ControleDeBloco[] {
   const bloco = blocos.find((candidato) => candidato.bloco === numero);
-  if (bloco === undefined) return false;
-  const item = catalogo.find((candidato) => candidato.tipo === bloco.tipo);
-  return controlesDaBloco(bloco, item).some(
-    (controle) => controle.funcao === "play" && controle.especie === "ligar",
+  if (bloco === undefined) return [];
+  return controlesDoBloco(bloco, catalogo.find((candidato) => candidato.tipo === bloco.tipo));
+}
+
+// Why: the interval is typed over, so the field keeps what is being typed as a draft and only
+// a number that passes reaches the scene; an empty field is a refusal shown in the footer and
+// never a zero written in silence, and leaving the field puts the last good value back.
+// Por que: o intervalo é digitado por cima, então o campo guarda o que está sendo digitado como
+// rascunho e só um número que passa chega à cena; um campo vazio é recusa mostrada no rodapé e
+// nunca um zero gravado em silêncio, e sair do campo devolve o último valor bom.
+function CampoIntervalo({
+  valor,
+  maximo,
+  aoMudar,
+}: {
+  valor: number;
+  maximo: number;
+  aoMudar: (novo: number | null, codigo: string | null) => void;
+}) {
+  const [rascunho, setRascunho] = useState<string | null>(null);
+  return (
+    <input
+      className="curto"
+      type="number"
+      inputMode="numeric"
+      min={0}
+      max={maximo}
+      aria-label={t("cenas_intervalo")}
+      value={rascunho ?? String(valor)}
+      onChange={(evento) => {
+        setRascunho(evento.target.value);
+        const preparo = prepararIntervalo(evento.target.value, maximo);
+        aoMudar(preparo.ok ? (preparo.valor as number) : null, preparo.ok ? null : preparo.codigo);
+      }}
+      onBlur={() => setRascunho(null)}
+    />
   );
 }
 
-function rotuloDaBloco(numero: number, blocos: readonly Bloco[]): string {
+function rotuloDoBloco(numero: number, blocos: readonly Bloco[]): string {
   if (numero === 0) return t("cenas_global");
   const bloco = blocos.find((candidata) => candidata.bloco === numero);
   const nome = bloco === undefined ? "" : bloco.nome || bloco.identidade;
@@ -208,8 +240,12 @@ function Passo({
       </li>
     );
   }
-  const funcoes = mapa.filter((candidato) => candidato.bloco === item.bloco);
-  const energia = energiaNoBloco(item.bloco, blocos, catalogo);
+  const controles = controlesNoBloco(item.bloco, blocos, catalogo);
+  const energia = controles.some((controle) => controle.funcao === "play" && controle.especie === "ligar");
+  const temPreset = controles.some((controle) => controle.funcao === "preset");
+  const funcoes = mapa.filter(
+    (candidato) => candidato.bloco === item.bloco && (candidato.funcao !== "preset" || temPreset),
+  );
   const trocar = (escolhido: ItemDoMapa | undefined): void => {
     if (escolhido === undefined) return;
     aoMudar({ ...passo, dpid: escolhido.dpid, valor: valorPadrao(escolhido) }, null);
@@ -233,7 +269,7 @@ function Passo({
         >
           {blocosDoMapa(mapa).map((bloco) => (
             <option key={bloco} value={String(bloco)}>
-              {rotuloDaBloco(bloco, blocos)}
+              {rotuloDoBloco(bloco, blocos)}
             </option>
           ))}
         </select>
@@ -333,19 +369,10 @@ function CartaoCena({
       ) : (
         <label className="cena-intervalo">
           <span>{t("cenas_intervalo")}</span>
-          <input
-            className="curto"
-            type="number"
-            inputMode="numeric"
-            min={0}
-            max={leitura.espera_maxima_ms}
-            aria-label={t("cenas_intervalo")}
-            value={String(cena.intervalo_ms)}
-            onChange={(evento) => {
-              const preparo = prepararIntervalo(evento.target.value, leitura.espera_maxima_ms);
-              const intervalo = preparo.ok ? (preparo.valor as number) : cena.intervalo_ms;
-              aoMudar({ ...cena, intervalo_ms: intervalo }, preparo.ok ? null : preparo.codigo);
-            }}
+          <CampoIntervalo
+            valor={cena.intervalo_ms}
+            maximo={leitura.espera_maxima_ms}
+            aoMudar={(intervalo, codigo) => aoMudar({ ...cena, intervalo_ms: intervalo ?? cena.intervalo_ms }, codigo)}
           />
           <span>{t("cenas_ms")}</span>
           <span className="texto-suave cena-intervalo-ajuda">{t("cenas_intervalo_ajuda")}</span>

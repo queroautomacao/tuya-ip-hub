@@ -2,11 +2,12 @@
 # Copyright (C) 2026 Quero Automação Ltda
 """Section 8 over HTTP: the order of the six blocks, the data points and the group.
 
-A block is what section 6 says it is, a multiroom equipment occupying one of the six blocks,
-so these routes carry no second registry: the order is a list of identities already
-registered as equipment, and the module of the blocks is the one that judges it and answers a
-stable code. Nothing here decides where a set goes either; aplicar_dp of the common module
-does, so the panel and the bus of the same hub cannot disagree about it.
+A block is what section 6 says it is, one of the six equipment numbers of the app that any
+registered equipment may occupy, so these routes carry no second registry: the order is a
+list of identities already registered as equipment, and the module of the blocks is the one
+that judges it and answers a stable code. Nothing here decides where a set goes either;
+aplicar_dp of the common module does, so the panel and the bus of the same hub cannot
+disagree about it.
 
 The numbers of section 8 leave the daemon in the answers instead of being written a second
 time in the panel: each block carries the data point of each of its functions, and the
@@ -15,11 +16,12 @@ second copy of the contract, and the day the contract moved only one of them wou
 
 Seção 8 sobre HTTP: a ordem dos seis blocos, os data points e o grupo.
 
-Um bloco é o que a seção 6 diz que ela é, um equipamento multiroom ocupando um dos seis
-blocos, então estas rotas não carregam segundo cadastro: a ordem é uma lista de identidades
-já cadastradas como equipamento, e o módulo dos blocos é quem a julga e responde um código
-estável. Nada aqui decide para onde vai um set tampouco; quem decide é o aplicar_dp do módulo
-comum, para o painel e o barramento do mesmo hub não poderem discordar disso.
+Um bloco é o que a seção 6 diz que ele é, um dos seis números de equipamento do app que
+qualquer equipamento cadastrado pode ocupar, então estas rotas não carregam segundo cadastro:
+a ordem é uma lista de identidades já cadastradas como equipamento, e o módulo dos blocos é
+quem a julga e responde um código estável. Nada aqui decide para onde vai um set tampouco;
+quem decide é o aplicar_dp do módulo comum, para o painel e o barramento do mesmo hub não
+poderem discordar disso.
 
 Os números da seção 8 saem do daemon nas respostas em vez de serem escritos uma segunda vez
 no painel: cada bloco carrega o data point de cada função dele, e a rota de snapshot carrega
@@ -68,7 +70,7 @@ PAPEL_SOLO = ""
 STATUS_POR_CODIGO = {
     CORPO_INVALIDO: 400,
     modulo.BLOCOS_DEMAIS: 400,
-    modulo.BLOCO_REPETIDA: 400,
+    modulo.BLOCO_REPETIDO: 400,
     modulo.IDENTIDADE_INVALIDA: 400,
     "eq_nao_encontrado": 404,
     protocolo.DP_DESCONHECIDO: 404,
@@ -129,7 +131,7 @@ def _entradas(blocos: modulo.Blocos, bloco: int) -> tuple[str, ...]:
 
     As entradas que o barramento realmente aceita para um bloco, que o hardware decide.
     """
-    for dp in mapa.da_bloco(bloco):
+    for dp in mapa.do_bloco(bloco):
         if dp.funcao == mapa.FUNCAO_ENTRADA:
             return blocos.valores_de(dp)
     return ()

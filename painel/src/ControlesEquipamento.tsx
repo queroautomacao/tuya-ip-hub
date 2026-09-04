@@ -11,7 +11,7 @@
 // apertada é uma ação no daemon, e o estado lido de volta é o que a tela mostra, nunca a
 // apertada.
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   paineis,
   prepararTexto,
@@ -21,6 +21,14 @@ import {
   type Transporte,
 } from "./equipamentos.ts";
 import { t } from "./i18n";
+
+// Why: the slider shows the value it was released at until the equipment reads it back, or
+// for this long when it never does, so the thumb does not bounce to the old volume during the
+// request and a device that ignored the command still lets go of the value.
+// Por que: o slider mostra o valor em que foi solto até o equipamento o ler de volta, ou por
+// este tempo quando nunca lê, então o cursor não pula para o volume antigo durante a
+// requisição e um aparelho que ignorou o comando ainda solta o valor.
+const ESPERA_DE_LEITURA_MS = 4_000;
 
 const ICONES: Record<Transporte, string> = {
   anterior: "M6 6h2v12H6zm3.5 6 8.5 6V6z",
@@ -50,14 +58,26 @@ export default function Controles({
   aoExecutar: (acao: string, preparo: Preparo) => void;
 }) {
   const [arrastando, setArrastando] = useState<number | null>(null);
+  const [pendente, setPendente] = useState<number | null>(null);
   const [fonteLivre, setFonteLivre] = useState("");
   const [extra, setExtra] = useState("");
+  useEffect(() => {
+    setPendente(null);
+  }, [estado.volume]);
+  useEffect(() => {
+    if (pendente === null) return undefined;
+    const temporizador = window.setTimeout(() => setPendente(null), ESPERA_DE_LEITURA_MS);
+    return () => window.clearTimeout(temporizador);
+  }, [pendente]);
   const painel = paineis(capacidades);
   if (!painel.algum) return null;
   const simples = (acao: Capacidade): void => aoExecutar(acao, { ok: true, valor: null });
-  const volume = arrastando ?? estado.volume ?? 0;
+  const volume = arrastando ?? pendente ?? estado.volume ?? 0;
   const soltar = (): void => {
-    if (arrastando !== null) aoExecutar("volume", { ok: true, valor: arrastando });
+    if (arrastando !== null) {
+      setPendente(arrastando);
+      aoExecutar("volume", { ok: true, valor: arrastando });
+    }
     setArrastando(null);
   };
   return (
@@ -90,7 +110,6 @@ export default function Controles({
                   min={0}
                   max={100}
                   value={volume}
-                  disabled={ocupado}
                   aria-label={t("acao_volume")}
                   onChange={(evento) => setArrastando(Number(evento.target.value))}
                   onPointerUp={soltar}

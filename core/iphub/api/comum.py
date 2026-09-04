@@ -102,16 +102,14 @@ def montar_dpbus(app: web.Application, cfg: Config) -> None:
 
     Os seis blocos da seção 8 e as cenas da instalação, numa ligação só.
     """
-    # Why: the route validates the order and config.json does not, so an order edited by hand,
-    # or left behind by an equipment that changed tipo, boots a hub whose blocks name a device
-    # that is not multiroom, or is not registered at all. The blocks module is the one that
-    # judges an order, so it judges this one too, and a block it refuses is left empty instead
-    # of publishing a block nothing can command.
-    # Por que: a rota valida a ordem e o config.json não, então uma ordem editada na mão, ou
-    # deixada por um equipamento que trocou de tipo, sobe um hub cujos blocos nomeiam um
-    # aparelho que não é multiroom, ou que nem está cadastrado. O módulo dos blocos é quem julga
-    # uma ordem, então ele julga esta também, e um bloco que ele recusa fica vazio em vez de
-    # publicar um bloco que ninguém comanda.
+    # Why: the route validates the order and config.json does not, so an order edited by hand
+    # boots a hub whose blocks name an identity that is not registered at all, or the same one
+    # twice. The blocks module is the one that judges an order, so it judges this one too, and
+    # a block it refuses is left empty instead of publishing a block nothing can command.
+    # Por que: a rota valida a ordem e o config.json não, então uma ordem editada na mão sobe
+    # um hub cujos blocos nomeiam uma identidade que nem está cadastrada, ou a mesma duas
+    # vezes. O módulo dos blocos é quem julga uma ordem, então ele julga esta também, e um bloco
+    # que ele recusa fica vazio em vez de publicar um bloco que ninguém comanda.
     app[BLOCOS] = Blocos(app[GESTOR], _ordem_confiavel(app[GESTOR], cfg.blocos))
     # Why: a scene sets data points and the blocks are what a data point reaches, so the
     # executor is handed the same door the bus and the panel use; a scene may not set DP 131

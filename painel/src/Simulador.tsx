@@ -17,7 +17,7 @@ import { ajustarDp, codigoDoErro, lerCatalogo, lerCenas, lerDps, lerBlocos } fro
 import { FUNCAO_DA_CENA, type Cena, type ItemDoMapa } from "./cenas.ts";
 import { type ItemCatalogo } from "./equipamentos.ts";
 import { t, traduzirErro } from "./i18n";
-import { SOLO, controlesDaBloco, gruposPossiveis, type LeituraDeBlocos, type Bloco } from "./blocos.ts";
+import { SOLO, controlesDoBloco, gruposPossiveis, type LeituraDeBlocos, type Bloco } from "./blocos.ts";
 
 interface Leitura {
   blocos: LeituraDeBlocos | null;
@@ -66,7 +66,7 @@ function CartaoBloco({
   // Por que: seção 8, o DP 102 é play/pause para um equipamento com transporte e a chave de
   // ligar para qualquer outro, então a mesma tecla é desenhada como play ou como energia a
   // partir do que o driver declara.
-  const controles = controlesDaBloco(bloco, item);
+  const controles = controlesDoBloco(bloco, item);
   const play = controles.find((controle) => controle.funcao === "play");
   const temVolume = controles.some((controle) => controle.funcao === "volume");
   const online = dps[String(bloco.dps.online)] === true;
@@ -74,7 +74,8 @@ function CartaoBloco({
   const tocando = dps[String(bloco.dps.play)] === true;
   const titulo = texto(dps[String(bloco.dps.tocando)]);
   const entrada = texto(dps[String(bloco.dps.entrada)]);
-  const presets = mapa.find((item) => item.dpid === bloco.dps.preset)?.valores ?? [];
+  const temPreset = controles.some((controle) => controle.funcao === "preset");
+  const presets = temPreset ? (mapa.find((item) => item.dpid === bloco.dps.preset)?.valores ?? []) : [];
   const nome = bloco.nome || bloco.identidade;
   const mostrado = arrastando ?? volume;
   return (
@@ -89,9 +90,8 @@ function CartaoBloco({
         {play?.especie === "ligar" && (
           <button
             type="button"
-            className="app-play app-energia"
+            className={`app-play app-energia ${tocando ? "app-energia-ligada" : ""}`}
             disabled={!online || ocupado}
-            aria-pressed={tocando}
             aria-label={tocando ? t("simulador_desligar") : t("simulador_ligar")}
             onClick={() => aoAjustar(bloco.dps.play, !tocando)}
           >

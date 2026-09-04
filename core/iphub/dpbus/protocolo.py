@@ -224,7 +224,7 @@ def snapshot(valores: Mapping[int, object]) -> dict:
     Tudo que o barramento guarda e pode ser reportado, na ordem da seção 8.
 
     Um data point ainda sem valor fica ausente em vez de nulo, porque uma ponte que lesse um
-    nulo o tomaria por estado e tornaria um bloco de bloco vazio numa caixa desligada.
+    nulo o tomaria por estado e tornaria um bloco vazio numa caixa desligada.
     """
     # Why: a JSON object key is a string, so the number travels as text and a bridge reads
     # dps["101"] in any language instead of depending on how one of them parses a key.

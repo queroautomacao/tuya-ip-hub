@@ -43,8 +43,8 @@ NOMES_BLOCOS = 133
 NOMES_CENAS = 134
 NOMES_GRUPOS = 135
 
-# The five DPs of a block block, in the order section 8 numbers them.
-# Os cinco DPs de um bloco de bloco, na ordem em que a seção 8 os numera.
+# The five DPs of a block, in the order section 8 numbers them.
+# Os cinco DPs de um bloco, na ordem em que a seção 8 os numera.
 FUNCOES_DO_BLOCO = ("volume", "play", "preset", "online", "tocando")
 FUNCAO_ENTRADA = "entrada"
 FUNCOES_BLOCO = (*FUNCOES_DO_BLOCO, FUNCAO_ENTRADA)
@@ -269,7 +269,7 @@ def vazio_de(dp: Dp) -> object | None:
     return None
 
 
-def da_bloco(bloco: int) -> tuple[Dp, ...]:
+def do_bloco(bloco: int) -> tuple[Dp, ...]:
     return tuple(dp for dp in DPS if dp.bloco == bloco)
 
 

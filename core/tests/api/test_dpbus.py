@@ -53,6 +53,7 @@ FONTES = ("wifi", "line-in")
 # The numbers of section 8, written by hand on purpose.
 # Os números da seção 8, escritos na mão de propósito.
 VOLUME_1, PRESET_1, ONLINE_1, TOCANDO_1, ENTRADA_1 = 101, 103, 104, 105, 141
+PLAY_1 = 102
 VOLUME_2 = 106
 CENA, GRUPO, NOMES_BLOCOS, NOMES_CENAS = 131, 132, 133, 134
 
@@ -391,7 +392,7 @@ async def test_o_grupo_do_dp_132_forma_pelo_barramento(hub, caixas):
     await ws.close()
 
 
-async def test_a_entrada_da_bloco_aceita_so_o_que_o_hardware_declara(hub, caixas):
+async def test_a_entrada_do_bloco_aceita_so_o_que_o_hardware_declara(hub, caixas):
     cliente = await hub()
     ws = await _abrir(cliente)
     await _ler(ws)
@@ -469,7 +470,7 @@ async def test_o_estado_que_o_aparelho_muda_sozinho_e_publicado_no_tique(hub, ca
     await ws.close()
 
 
-async def test_o_titulo_da_bloco_respeita_o_limite_de_cinco_segundos(hub, caixas, agenda):
+async def test_o_titulo_do_bloco_respeita_o_limite_de_cinco_segundos(hub, caixas, agenda):
     cliente = await hub()
     ws = await _abrir(cliente)
     await _ler(ws)
@@ -537,7 +538,7 @@ def _pendentes(dpid: int) -> int:
     return len([t for t in asyncio.all_tasks() if t.get_name() == nome and not t.done()])
 
 
-async def test_uma_bloco_esvaziada_corrige_o_que_ja_tinha_reportado(hub, agenda):
+async def test_um_bloco_esvaziado_corrige_o_que_ja_tinha_reportado(hub, agenda):
     """Section 8: a block whose speaker was removed stops producing values, and the last
     thing published about it must not stand forever.
 
@@ -573,4 +574,60 @@ async def test_uma_bloco_esvaziada_corrige_o_que_ja_tinha_reportado(hub, agenda)
     # O DP 105 já era a string vazia, e a seção 8 nunca reporta valor que não mudou, então é
     # certo ele estar ausente aqui.
     assert reportados.get(TOCANDO_1, "") == ""
+    await ws.close()
+
+
+async def test_o_dp_de_play_como_ligar_nao_ganha_um_false_inventado_na_releitura(
+    fabrica_cliente, agenda
+):
+    """Section 8: a report is only ever born of real state. A TV in a block has DP 102 as
+    its power switch; when its driver cannot say whether it is on, the optimistic report of
+    a set stands and the reread publishes nothing, instead of a False the bus made up
+    because the value was absent.
+
+    Seção 8: um report só nasce de estado real. Uma TV num bloco tem o DP 102 como chave de
+    ligar; quando o driver dela não sabe dizer se está ligada, o report otimista de um set
+    fica de pé e a releitura não publica nada, em vez de um False que o barramento inventou
+    porque o valor estava ausente.
+    """
+    tipo = "tv_falsa"
+    textos = {"descricao": "TV de teste"}
+
+    class Tv(Driver):
+        MANIFESTO = Manifesto(
+            tipo=tipo,
+            rotulo={"pt": "TV", "en": "TV"},
+            categoria="tv",
+            capacidades=("ligar", "desligar"),
+            textos={"pt": dict(textos), "en": dict(textos)},
+        )
+        chamadas: list[tuple[str, object]] = []
+
+        def __init__(self, cadastro: Cadastro) -> None:
+            super().__init__(cadastro)
+            self._defina(online=True)
+
+        async def executar(self, acao: str, valor: object = None) -> str | None:
+            type(self).chamadas.append((acao, valor))
+            return None
+
+    config = Config(
+        equipamentos=(Cadastro(identidade="uuid-tv", tipo=tipo, nome="TV", ip=IP_1),),
+        blocos=("uuid-tv",),
+    )
+    cliente = await fabrica_cliente(
+        config=config,
+        segredos=Segredos(api_token=TOKEN),
+        catalogo={tipo: Tv},
+        dormir=agenda.dormir,
+        agora=agenda,
+    )
+    ws = await _abrir(cliente)
+    snapshot = await _ler(ws)
+    assert str(PLAY_1) not in snapshot["dps"]
+    await _ajustar(ws, PLAY_1, True)
+    assert [q["v"] for q in _reports(await _tudo(ws), PLAY_1)] == [True]
+    assert Tv.chamadas == [("ligar", None)]
+    assert await agenda.soltar(RELEITURA_S) == 1
+    assert _reports(await _tudo(ws), PLAY_1) == []
     await ws.close()

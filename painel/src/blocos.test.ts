@@ -8,7 +8,7 @@ import type { ItemCatalogo } from "./equipamentos.ts";
 import {
   CODIGOS_BLOCOS,
   comIdentidade,
-  controlesDaBloco,
+  controlesDoBloco,
   gruposPossiveis,
   lerLeituraDeBlocos,
   lerBloco,
@@ -149,9 +149,9 @@ test("podeAgrupar reads multiroom from the manifest alone (lê multiroom só do 
 // Por que: seção 8, o DP 102 é play/pause para um driver com transporte e a chave de ligar para
 // qualquer outro equipamento no app, então um projetor num bloco ganha uma tecla de energia e um
 // driver com só metade de qualquer par não ganha nada.
-test("controlesDaBloco gives DP 102 to power when there is no transport (dá o DP 102 ao ligar quando não há transporte)", () => {
+test("controlesDoBloco gives DP 102 to power when there is no transport (dá o DP 102 ao ligar quando não há transporte)", () => {
   const play = (capacidades: string[]) =>
-    controlesDaBloco(blocoDe(), itemDe({ capacidades })).find((controle) => controle.funcao === "play")?.especie;
+    controlesDoBloco(blocoDe(), itemDe({ capacidades })).find((controle) => controle.funcao === "play")?.especie;
   assert.equal(play(["tocar", "pausar", "ligar", "desligar"]), "alternar");
   assert.equal(play(["ligar", "desligar", "fonte"]), "ligar");
   assert.equal(play(["ligar", "fonte"]), undefined);
@@ -180,8 +180,14 @@ test("gruposPossiveis never offers a mixed group (nunca oferece um grupo misto)"
 // daemon answers nao_suportado before the driver is touched.
 // Por que: seção 6, uma capacidade que o manifesto não declara não ganha botão, porque o
 // daemon responde nao_suportado antes de tocar no driver.
-test("controlesDaBloco offers only what the manifest declares (oferece só o que o manifesto declara)", () => {
-  const todos = controlesDaBloco(blocoDe(), itemDe());
+test("controlesDoBloco gives presets to multiroom alone (dá presets só ao multiroom)", () => {
+  const matriz = itemDe({ categoria: "matriz", capacidades: ["ligar", "desligar", "comando_extra"] });
+  assert.ok(!controlesDoBloco(blocoDe(), matriz).some((controle) => controle.funcao === "preset"));
+  assert.ok(controlesDoBloco(blocoDe(), itemDe()).some((controle) => controle.funcao === "preset"));
+});
+
+test("controlesDoBloco offers only what the manifest declares (oferece só o que o manifesto declara)", () => {
+  const todos = controlesDoBloco(blocoDe(), itemDe());
   assert.deepEqual(
     todos.map((controle) => [controle.funcao, controle.dpid, controle.especie]),
     [
@@ -191,15 +197,15 @@ test("controlesDaBloco offers only what the manifest declares (oferece só o que
       ["entrada", 141, "escolha"],
     ],
   );
-  const semTransporte = controlesDaBloco(blocoDe(), itemDe({ capacidades: ["volume", "tocar"] }));
+  const semTransporte = controlesDoBloco(blocoDe(), itemDe({ capacidades: ["volume", "tocar"] }));
   assert.deepEqual(
     semTransporte.map((controle) => controle.funcao),
     ["volume"],
   );
-  const semEntradas = controlesDaBloco(blocoDe({ entradas: [] }), itemDe());
+  const semEntradas = controlesDoBloco(blocoDe({ entradas: [] }), itemDe());
   assert.ok(!semEntradas.some((controle) => controle.funcao === "entrada"));
-  assert.deepEqual(controlesDaBloco(vazia(2), itemDe()), []);
-  assert.deepEqual(controlesDaBloco(blocoDe(), undefined), []);
+  assert.deepEqual(controlesDoBloco(vazia(2), itemDe()), []);
+  assert.deepEqual(controlesDoBloco(blocoDe(), undefined), []);
 });
 
 test("prepararVolume refuses what the data point does not take (recusa o que o data point não aceita)", () => {

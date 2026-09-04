@@ -34,7 +34,7 @@ Tuya app  -->  Tuya cloud  -->  Tuya device (bridge)
 When complete, the hub is three parts, and only three:
 
 1. A daemon in Python (asyncio + aiohttp): talks to the devices, keeps the configuration, exposes a local REST API and the DP-bus WebSocket.
-2. A web panel (React + Vite) for the integrator: first-run assistant, audio blocks, equipment, drivers, scenes.
+2. A web panel (React + Vite) for the integrator: first-run assistant, equipment (each with its number on the app and, when the driver groups, multiroom), drivers, scenes.
 3. A single Docker image, published on GHCR, with the panel built inside.
 
 ### Project status
@@ -43,7 +43,7 @@ Milestones 0 to 4 are delivered, so the hub controls equipment today and publish
 
 A driver for a new device is written as a JSON file, with no programming. The file says how to reach the device (a line of text on a TCP port, a simple HTTP request, or UDP), which commands it takes and how to read its state back. The panel opens a starting template per transport, validates the file field by field and loads it without restarting the hub; a file dropped by hand into the `drivers` directory of the data volume is loaded on the next boot and wins over an embedded driver of the same type. A file that does not validate is refused and logged by name: it never costs the boot, and every other driver goes on loading. The format is described in section 7 of [CLAUDE.md](CLAUDE.md).
 
-Audio blocks, scenes and the DP-bus arrived with milestone 4. Up to six multiroom speakers occupy the six data point blocks the contract numbers, a scene is a list of steps saved as data, and the bus is a WebSocket at `/dpbus` that authenticates on its first frame with the `api_token` and never from the URL. The data point scheme is public and written down in [CLAUDE.md](CLAUDE.md), so anybody may write a bridge on top of it. What is still missing are the native drivers of the receivers and the TVs and the published image, in the milestones below, one at a time, each one closed with a green CI.
+Numbers on the app, scenes and the DP-bus arrived with milestone 4. Any registered equipment may take one of the six equipment numbers the data point contract numbers (the play/pause of the app becomes on/off on a device without transport), a multiroom equipment groups with others of the same type from its own detail screen, a scene is a list of steps saved as data, with an interval between the steps, and the bus is a WebSocket at `/dpbus` that authenticates on its first frame with the `api_token` and never from the URL. The data point scheme is public and written down in [CLAUDE.md](CLAUDE.md), so anybody may write a bridge on top of it. What is still missing are the native drivers of the receivers and the TVs and the published image, in the milestones below, one at a time, each one closed with a green CI.
 
 | # | Status | Milestone | Exit gate |
 |---|---|---|---|
@@ -130,7 +130,7 @@ On Docker Desktop, where the port is published instead of shared with the host, 
 
 The hub has no password recovery over the network, on purpose: there is no mail, no second factor and no cloud to prove who the owner is, so a route that reset the password would be the way in and not the way back. What proves ownership of an appliance is reaching its data directory, which means the host that runs the container.
 
-Clearing the password hands the hub back to the first access, and keeps the equipment, the blocks and the scenes; erasing `config.json` would take those with it. Every session dies and the machine `api_token` is rotated, the same way changing the password does.
+Clearing the password hands the hub back to the first access, and keeps the equipment, their numbers on the app and the scenes; erasing `config.json` would take those with it. Every session dies and the machine `api_token` is rotated, the same way changing the password does.
 
 ```
 docker compose exec iphub python -m iphub.esquecer

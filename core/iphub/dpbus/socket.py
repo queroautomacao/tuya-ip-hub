@@ -343,6 +343,15 @@ class Barramento:
             dp = mapa.de_dp(dpid)
             if dp is None or not dp.reportavel:
                 continue
+            # Why: only a block that produces NOTHING was emptied. A block whose equipment is
+            # there but cannot say whether it is on leaves DP 102 out of its values, and the
+            # optimistic report of a set must not be followed by a False the bus invented.
+            # Por que: só um bloco que não produz NADA foi esvaziado. Um bloco cujo equipamento
+            # está lá mas não sabe dizer se está ligado deixa o DP 102 fora dos valores, e o
+            # report otimista de um set não pode ser seguido por um False que o barramento
+            # inventou.
+            if dp.bloco and any(outro.dpid in atuais for outro in mapa.do_bloco(dp.bloco)):
+                continue
             vazio = mapa.vazio_de(dp)
             if vazio is not None and self._ultimos.get(dpid, _AUSENTE) != vazio:
                 await self._reportar(dp, vazio)
@@ -515,7 +524,7 @@ class Barramento:
             # Why: a client that went away between the comparison and the send is a socket
             # that is gone and not a failure of the bus, and the other blocks keep publishing.
             # Por que: um cliente que sumiu entre a comparação e o envio é um socket que foi
-            # embora e não uma falha do barramento, e as outros blocos seguem publicando.
+            # embora e não uma falha do barramento, e os outros blocos seguem publicando.
             log.debug("a dpbus client did not take a frame: %s", _causa(erro))
             self._clientes.discard(ws)
 

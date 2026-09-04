@@ -221,7 +221,7 @@ plataforma, string DP até 255 bytes, enum até 10 valores.
 | 141..146 | enum | R/W | entrada do equipamento n |
 
 Um bloco n é o equipamento de número n no app; qualquer equipamento cadastrado
-ocupa um, e o DP 102 segue o manifesto do driver. Uma cena tem `intervalo_ms`
+pode ocupar um, e o DP 102 segue o manifesto do driver. Uma cena tem `intervalo_ms`
 (padrão 1000, editável), dormido depois de todo passo sem `espera_ms` própria,
 porque um aparelho de AV precisa de um instante entre um comando e o próximo.
 

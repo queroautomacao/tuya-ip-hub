@@ -271,6 +271,86 @@ async def test_o_dp_de_play_de_um_equipamento_sem_transporte_e_a_chave_de_ligar(
     assert _chamadas(gestor, "uuid-1") == []
 
 
+async def test_metade_do_par_de_energia_nao_e_chave_nenhuma(monta):
+    """Section 8: DP 102 is a switch, and half a switch is no switch: a driver that declares
+    ligar without desligar reports nothing on it and a set answers nao_suportado.
+
+    Seção 8: o DP 102 é uma chave, e meia chave não é chave: um driver que declara ligar sem
+    desligar não reporta nada nele e um set responde nao_suportado.
+    """
+    meio = _fabrica(TIPO_DE_PROJETOR, categoria="projetor", capacidades=("ligar", "fonte"))
+    cadastro = _cadastro("uuid-projetor", tipo=TIPO_DE_PROJETOR)
+    gestor = await monta({TIPO_DE_PROJETOR: meio}, (cadastro,))
+    blocos = Blocos(gestor, ("uuid-projetor",))
+    _caixa(gestor, "uuid-projetor").estado_de_teste(ligado=True)
+    assert PLAY_1 not in blocos.valores()
+    assert await blocos.aplicar(PLAY_1, True) == "nao_suportado"
+    assert _chamadas(gestor, "uuid-projetor") == []
+
+
+async def test_o_preset_so_existe_para_um_equipamento_multiroom(monta):
+    """Section 14: a preset is "play the configured URL N", the vocabulary of a multiroom
+    driver; a matrix that declares comando_extra must never get the literal preset:N.
+
+    Seção 14: um preset é "toca a URL configurada N", vocabulário de um driver multiroom; uma
+    matriz que declara comando_extra nunca pode receber o literal preset:N.
+    """
+    matriz = _fabrica(
+        TIPO_DE_PROJETOR, categoria="matriz", capacidades=("ligar", "desligar", "comando_extra")
+    )
+    gestor = await monta(
+        {TIPO: _fabrica(), TIPO_DE_PROJETOR: matriz},
+        (_cadastro("uuid-1"), _cadastro("uuid-matriz", tipo=TIPO_DE_PROJETOR, ip=IP_2)),
+    )
+    blocos = Blocos(gestor, ("uuid-1", "uuid-matriz"))
+    assert await blocos.aplicar(PRESET_2, "cmd3") == "nao_suportado"
+    assert _chamadas(gestor, "uuid-matriz") == []
+    assert await blocos.aplicar(PRESET_1, "cmd3") is None
+    assert _chamadas(gestor, "uuid-1") == [("comando_extra", "preset:3")]
+
+
+async def test_um_grupo_num_bloco_que_nao_agrupa_e_nao_suportado_e_nunca_offline(monta):
+    """An online TV in a block cannot lead a group, and the code says so; offline is only for
+    a block nothing answers for.
+
+    Uma TV online num bloco não pode liderar grupo, e o código diz isso; offline é só para um
+    bloco por que ninguém responde.
+    """
+    tv = _fabrica(TIPO_DE_PROJETOR, categoria="tv", capacidades=("ligar", "desligar"))
+    gestor = await monta({TIPO_DE_PROJETOR: tv}, (_cadastro("uuid-tv", tipo=TIPO_DE_PROJETOR),))
+    assert await Blocos(gestor, ("uuid-tv",)).aplicar(GRUPO, "grupo1") == "nao_suportado"
+    assert await Blocos(gestor).aplicar(GRUPO, "grupo1") == "bloco_offline"
+
+
+async def test_reordenar_mantem_o_grupo_pela_identidade_e_nunca_pela_posicao(monta):
+    """A projector put in the block of a slave must not inherit its role: the books follow
+    the identity, so the group falls and the volume of that block reaches the projector.
+
+    Um projetor posto no bloco de um escravo não pode herdar o papel dele: os livros seguem a
+    identidade, então o grupo cai e o volume daquele bloco chega ao projetor.
+    """
+    projetor = _fabrica(
+        TIPO_DE_PROJETOR, categoria="projetor", capacidades=("volume", "ligar", "desligar")
+    )
+    gestor = await monta(
+        {TIPO: _fabrica(), TIPO_DE_PROJETOR: projetor},
+        (
+            _cadastro("uuid-1"),
+            _cadastro("uuid-2", ip=IP_2),
+            _cadastro("uuid-p", tipo=TIPO_DE_PROJETOR, ip="192.0.2.13"),
+        ),
+    )
+    blocos = Blocos(gestor, ("uuid-1", "uuid-2"))
+    assert await blocos.aplicar(GRUPO, "grupo1") is None
+    assert blocos.grupo() == "grupo1"
+    await blocos.definir_ordem(["uuid-1", "uuid-p", "uuid-2"])
+    assert blocos.grupo() == "solo"
+    assert _chamadas(gestor, "uuid-p") == []
+    assert await blocos.aplicar(VOLUME_2, 30) is None
+    assert _chamadas(gestor, "uuid-p") == [("volume", 30)]
+    assert ("volume", 30) not in _chamadas(gestor, "uuid-1")
+
+
 async def test_multiroom_sem_a_capacidade_de_agrupar_ocupa_um_bloco(monta):
     """The manifest decides what the equipment can do, never whether it has a number.
 
@@ -300,7 +380,7 @@ async def test_a_mesma_caixa_em_dois_blocos_e_recusada(duas):
     _gestor, blocos = duas
     with pytest.raises(modulo.OrdemInvalida) as erro:
         await blocos.definir_ordem(["uuid-1", "uuid-1"])
-    assert erro.value.codigo == "bloco_repetida"
+    assert erro.value.codigo == "bloco_repetido"
 
 
 @pytest.mark.parametrize("ordem", [["uuid-1", 2], "uuid-1", [None], [{"identidade": "uuid-1"}]])
@@ -773,16 +853,18 @@ async def test_nenhuma_excecao_escapa_do_aplicar(duas):
 
 
 async def test_um_driver_multiroom_sem_os_movimentos_de_grupo_nao_derruba_o_barramento(monta):
-    """A driver that declares agrupar and offers no move is refused, never crashed into.
+    """A driver that declares agrupar and offers no move is refused, never crashed into, and
+    the code is the one of a capability it cannot fulfil, because the speaker is there.
 
-    Um driver que declara agrupar e não oferece movimento é recusado, nunca quebrado.
+    Um driver que declara agrupar e não oferece movimento é recusado, nunca quebrado, e o
+    código é o de uma capacidade que ele não cumpre, porque a caixa está lá.
     """
     gestor = await monta(
         {TIPO: _fabrica(com_movimentos=False)},
         (_cadastro("uuid-1", ip=IP_1), _cadastro("uuid-2", ip=IP_2)),
     )
     blocos = Blocos(gestor, ("uuid-1", "uuid-2"))
-    assert await blocos.aplicar(GRUPO, "grupo1") == "bloco_offline"
+    assert await blocos.aplicar(GRUPO, "grupo1") == "nao_suportado"
     await blocos.sanear()
 
 
@@ -817,7 +899,7 @@ async def test_um_nome_que_o_json_escapa_nao_tira_os_nomes_do_barramento(monta, 
     these names, the shortened list overflowed again, and the data point was dropped whole.
 
     Seção 8: um nome de aspas ou de barras é entrada comum e não pode tirar do barramento os
-    nomes das seis blocos.
+    nomes dos seis blocos.
 
     Por que: o json escapa aspa e barra, então um orçamento medido em bytes crus mentia para
     estes nomes, a lista encurtada estourava de novo, e o data point sumia inteiro.
@@ -890,7 +972,7 @@ def test_esvaziar_uma_vaga_nunca_encurta_a_ordem():
 
 
 @pytest.mark.parametrize(("bloco", "valor"), [(0, "solo"), (1, "grupo1"), (6, "grupo6")])
-def test_o_grupo_da_bloco_e_o_nome_no_fio(bloco, valor):
+def test_o_grupo_do_bloco_e_o_nome_no_fio(bloco, valor):
     assert modulo.valor_do_grupo(bloco) == valor
     assert modulo.bloco_do_grupo(valor) == bloco
 

@@ -46,8 +46,8 @@ from iphub.dpbus.mapa import (
     NomesInvalidos,
     Sentido,
     Tipo,
-    da_bloco,
     de_dp,
+    do_bloco,
     dp_de,
     nomes_cabem,
     nomes_json,
@@ -139,11 +139,11 @@ def test_os_codigos_de_nomes_sao_estaveis_e_nenhum_e_uma_frase():
         assert " " not in codigo
 
 
-def test_toda_bloco_tem_seis_data_points_e_sao_seis_blocos():
+def test_todo_bloco_tem_seis_data_points_e_sao_seis_blocos():
     assert BLOCOS == 6
     for bloco in range(1, BLOCOS + 1):
-        assert len(da_bloco(bloco)) == 6
-    assert not da_bloco(7)
+        assert len(do_bloco(bloco)) == 6
+    assert not do_bloco(7)
 
 
 def test_o_numero_vai_e_volta():

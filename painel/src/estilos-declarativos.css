@@ -115,6 +115,13 @@
   outline: none;
 }
 
+.editor-ajuda {
+  grid-column: 1 / -1;
+  padding: 0.35rem 0.8rem 0.45rem;
+  border-top: 1px solid #2a2f3a;
+  color: #8b93a3;
+}
+
 .problemas {
   margin-top: 0.75rem;
   color: var(--erro);

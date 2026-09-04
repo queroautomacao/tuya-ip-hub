@@ -507,7 +507,7 @@ async def test_um_cliente_que_para_de_ler_nao_congela_o_barramento(cliente):
     of an appliance. A socket that does not take a frame within the deadline is dropped.
 
     Uma ponte que para de ler não pode congelar a única tarefa que publica todo report e
-    reconcilia o grupo das seis blocos.
+    reconcilia o grupo dos seis blocos.
 
     Por que: o send_str espera pelo buffer do kernel, então um socket travado segurava o laço
     de publicação do hub inteiro para todo mundo, e os quadros que ele nunca pegou cresciam

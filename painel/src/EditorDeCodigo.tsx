@@ -11,6 +11,7 @@
 // biblioteca de realce, porque biblioteca é dependência que a imagem carregaria (seção 10).
 
 import { useLayoutEffect, useRef, type KeyboardEvent, type UIEvent } from "react";
+import { t } from "./i18n";
 
 const RECUO = "  ";
 const LINHAS_MINIMAS = 16;
@@ -38,6 +39,7 @@ export default function EditorDeCodigo({
   const calha = useRef<HTMLPreElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
   const cursor = useRef<number | null>(null);
+  const escapou = useRef(false);
 
   // Why: React re-renders the textarea with the new text before the caret can be placed, so
   // the position is kept until the layout is done and set then, or Tab would jump to the end.
@@ -50,9 +52,28 @@ export default function EditorDeCodigo({
     }
   });
 
+  // Why: Tab indents, which is what a code editor does, but a keyboard has to be able to
+  // leave: Shift+Tab always moves focus out, and Esc followed by Tab does too, the escape
+  // hatch the accessibility guidance names for a Tab that types.
+  // Por que: Tab indenta, que é o que um editor de código faz, mas um teclado precisa poder
+  // sair: Shift+Tab sempre move o foco para fora, e Esc seguido de Tab também, a saída que a
+  // orientação de acessibilidade nomeia para um Tab que digita.
   function aoTeclar(evento: KeyboardEvent<HTMLTextAreaElement>): void {
-    if (evento.key !== "Tab") return;
+    if (evento.key === "Escape") {
+      escapou.current = true;
+      return;
+    }
+    const sai = evento.key !== "Tab" || evento.shiftKey || escapou.current;
+    escapou.current = false;
+    if (sai) return;
     evento.preventDefault();
+    // Why: insertText goes through the editing commands of the browser, so the indent lands
+    // on the undo stack like typed text; setting the value from state would clear that stack.
+    // Por que: insertText passa pelos comandos de edição do navegador, então o recuo entra na
+    // pilha de desfazer como texto digitado; pôr o valor pelo estado limparia essa pilha.
+    if (typeof document.execCommand === "function" && document.execCommand("insertText", false, RECUO)) {
+      return;
+    }
     const { selectionStart, selectionEnd } = evento.currentTarget;
     const novo = comRecuo(valor, selectionStart, selectionEnd);
     cursor.current = novo.cursor;
@@ -81,8 +102,12 @@ export default function EditorDeCodigo({
         value={valor}
         onChange={(evento) => aoMudar(evento.target.value)}
         onKeyDown={aoTeclar}
+        onBlur={() => {
+          escapou.current = false;
+        }}
         onScroll={aoRolar}
       />
+      <p className="dica editor-ajuda">{t("editor_tab_ajuda")}</p>
     </div>
   );
 }
