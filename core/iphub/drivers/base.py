@@ -94,6 +94,24 @@ class Driver:
             )
         return PAREADO
 
+    @classmethod
+    async def identificar(cls, ip: str) -> str | None:
+        """The identity of the device at that address, asked with no registration at all.
+
+        Why: discovery finds an address, and section 6 registers an identity; a driver that
+        can ask the device who it is turns a finding into a registration the operator does
+        not have to type. None means this driver cannot ask, and the sweep says so instead.
+
+        A identidade do aparelho naquele endereço, perguntada sem cadastro nenhum.
+
+        Por que: a descoberta acha um endereço, e a seção 6 cadastra uma identidade; um driver
+        que sabe perguntar ao aparelho quem ele é transforma um achado num cadastro que o
+        operador não precisa digitar. None diz que este driver não sabe perguntar, e a
+        varredura diz isso em vez dele.
+        """
+        del ip
+        return None
+
     async def atualizar(self) -> None:
         """One poll. The manager calls it on its own interval, never the driver.
 

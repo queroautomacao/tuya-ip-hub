@@ -35,6 +35,9 @@ def _confere(resposta):
         ("POST", "/api/sair", None, 401),
         ("GET", "/api/sessao", None, 401),
         ("POST", "/api/senha", None, 401),
+        ("POST", "/api/instalacao", None, 401),
+        ("POST", "/api/reiniciar", None, 401),
+        ("GET", "/api/atualizacao", None, 401),
         ("GET", "/api/estado", "evil.example.com", 421),
     ],
 )

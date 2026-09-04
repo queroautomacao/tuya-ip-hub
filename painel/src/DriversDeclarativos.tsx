@@ -85,7 +85,9 @@ function LinhaDriver({
           <h3>{rotuloDoTipo(manifesto, idioma, driver.tipo)}</h3>
           <p className="texto-suave">{driver.tipo}</p>
         </div>
-        <p className="etiqueta">{t(`drivers_origem_${driver.origem}` as const)}</p>
+        {driver.origem === "integrador" && (
+          <p className="etiqueta">{t("drivers_personalizado")}</p>
+        )}
       </div>
       <dl>
         <dt>{t("drivers_categoria")}</dt>
@@ -286,6 +288,7 @@ function Editor({
 export default function DriversDeclarativos({ idioma }: { idioma: Idioma }) {
   const [lista, setLista] = useState<DriverDeclarativo[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [editorAberto, setEditorAberto] = useState(false);
 
   const recarregar = useCallback(async (): Promise<void> => {
     try {
@@ -327,7 +330,22 @@ export default function DriversDeclarativos({ idioma }: { idioma: Idioma }) {
           </ul>
         )}
       </section>
-      <Editor drivers={lista ?? []} aoSalvar={() => void recarregar()} />
+      {/* Why: the editor is a wall of JSON most visits never need, so it opens on request */}
+      {/* and the list stays the screen. */}
+      {/* Por que: o editor é uma parede de JSON de que a maioria das visitas não precisa, */}
+      {/* então ele abre a pedido e a lista continua sendo a tela. */}
+      {editorAberto ? (
+        <>
+          <Editor drivers={lista ?? []} aoSalvar={() => void recarregar()} />
+          <button type="button" className="botao secundario" onClick={() => setEditorAberto(false)}>
+            {t("editor_fechar")}
+          </button>
+        </>
+      ) : (
+        <button type="button" className="botao" onClick={() => setEditorAberto(true)}>
+          {t("editor_abrir")}
+        </button>
+      )}
     </>
   );
 }

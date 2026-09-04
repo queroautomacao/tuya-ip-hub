@@ -22,6 +22,7 @@ from math import isfinite
 from aiohttp import web
 
 from iphub.api.comum import (
+    CATALOGO,
     GESTOR,
     VARREDURA,
     com_sessao,
@@ -476,7 +477,41 @@ async def _varrer(app: web.Application) -> tuple[descoberta.Achado, ...] | str:
     except TimeoutError as erro:
         log.warning("discovery sweep failed: %s", erro)
         return ERRO_INTERNO
-    return _juntar(ssdp, mdns)
+    juntos = _juntar(ssdp, mdns)
+    if isinstance(juntos, str):
+        return juntos
+    return await _identificar(app, juntos)
+
+
+# Why: the mDNS answer of a speaker carries its name and its address and not its uuid, and
+# section 6 registers the uuid; without this the sweep found the speaker and the panel still
+# asked the operator to type its identity by hand.
+# Por que: a resposta mDNS de uma caixa leva o nome e o endereço e não o uuid, e a seção 6
+# cadastra o uuid; sem isto a varredura achava a caixa e o painel ainda pedia ao operador
+# que digitasse a identidade na mão.
+LIMITE_IDENTIFICACAO_S = 4.0
+IDENTIFICACOES_AO_MESMO_TEMPO = 8
+
+
+async def _identificar(
+    app: web.Application, achados: tuple[descoberta.Achado, ...]
+) -> tuple[descoberta.Achado, ...]:
+    classes = app[CATALOGO].drivers
+    vaga = asyncio.Semaphore(IDENTIFICACOES_AO_MESMO_TEMPO)
+
+    async def um(achado: descoberta.Achado) -> descoberta.Achado:
+        classe = classes.get(achado.tipo) if achado.tipo and not achado.identidade else None
+        if classe is None:
+            return achado
+        try:
+            async with vaga, asyncio.timeout(LIMITE_IDENTIFICACAO_S):
+                identidade = await classe.identificar(achado.ip)
+        except Exception as erro:
+            log.warning("could not identify %s at %s: %s", achado.tipo, achado.ip, erro)
+            return achado
+        return achado if not identidade else replace(achado, identidade=identidade)
+
+    return tuple(await asyncio.gather(*(um(achado) for achado in achados)))
 
 
 def _juntar(

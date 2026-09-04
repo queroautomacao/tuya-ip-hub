@@ -12,7 +12,7 @@ import time
 from aiohttp import web
 
 from iphub.ambiente import Ambiente
-from iphub.api import registrar_rotas
+from iphub.api import registrar_rotas, sistema
 from iphub.api.comum import (
     AMBIENTE,
     CATALOGO,
@@ -115,6 +115,8 @@ def criar_app(
     catalogo: dict[str, type[Driver]] | None = None,
     dormir: Dormir = asyncio.sleep,
     agora: Relogio = time.time,
+    encerrar: sistema.Encerrar = sistema.encerrar_processo,
+    buscar_versao: sistema.BuscarVersao = sistema.buscar_ultima_versao_no_github,
 ) -> web.Application:
     # Why: the bus is the only piece of the daemon that waits (five seconds for the first
     # frame, a second and a half for the reread of section 8), so a test moves those two by
@@ -174,6 +176,13 @@ def criar_app(
         agora=agora,
     )
     app[VARREDURA] = Mutavel(None)
+    # Why: what stops the process and what reaches the internet are the two things a test
+    # must never do for real, so both come in as pieces the way the clock does.
+    # Por que: o que para o processo e o que alcança a internet são as duas coisas que um
+    # teste nunca pode fazer de verdade, então as duas entram como peças, como o relógio.
+    app[sistema.ENCERRAR] = encerrar
+    app[sistema.BUSCAR_ULTIMA_VERSAO] = buscar_versao
+    app[sistema.CACHE_ATUALIZACAO] = Mutavel(None)
     app[TRAVA_POSSE] = asyncio.Lock()
     app[TRAVA_DRIVERS] = asyncio.Lock()
     app.on_startup.append(_subir_gestor)

@@ -689,3 +689,75 @@ async def test_trocar_o_tipo_para_um_que_nao_e_multiroom_esvazia_o_bloco_de_zona
     assert resposta.status == 200, await resposta.text()
     corpo = await (await cliente.get("/api/zonas", headers=auth)).json()
     assert corpo["zonas"][0]["identidade"] == ""
+
+
+async def test_a_varredura_pergunta_o_uuid_a_caixa_que_o_mdns_achou(
+    abrir, varredura_curta, monkeypatch
+):
+    """Section 6 registers the uuid, and the mDNS answer of a speaker carries only its name
+    and its address; the sweep asks the speaker who it is, so the finding registers itself.
+
+    Why: without this the sweep found the speaker and the panel still asked the operator to
+    type the identity by hand, which is the one thing discovery exists to spare them.
+
+    A seção 6 cadastra o uuid, e a resposta mDNS de uma caixa leva só o nome e o endereço; a
+    varredura pergunta à caixa quem ela é, então o achado se cadastra sozinho.
+
+    Por que: sem isto a varredura achava a caixa e o painel ainda pedia ao operador que
+    digitasse a identidade na mão, que é a única coisa que a descoberta existe para poupar.
+    """
+    from iphub.drivers.nativos import linkplay
+    from iphub.drivers.simulado import ServidorHttp
+
+    uuid = "FF31F09E1A5020554E1CD9F1"
+    rotas = {
+        "/httpapi.asp?command=getStatusEx": (200, json.dumps({"uuid": uuid, "plm_support": "0x6"}))
+    }
+    servico = "_linkplay._tcp"
+    entrada = {
+        "servico": servico,
+        "instancia": f"Sala.{servico}.local",
+        "host": "sala.local",
+        "ip": "127.0.0.1",
+        "porta": 80,
+    }
+    async with ServidorHttp(rotas) as caixa, RespondedorMdns((entrada,)) as servidor:
+        monkeypatch.setattr(linkplay, "PORTA_HTTP", caixa.endereco[1])
+        varredura_curta(servidor.endereco)
+        cliente, auth = await abrir({linkplay.LinkPlay.MANIFESTO.tipo: linkplay.LinkPlay})
+        corpo = await (await cliente.post("/api/descoberta", headers=auth)).json()
+    (achado,) = corpo["achados"]
+    assert achado["tipo"] == linkplay.LinkPlay.MANIFESTO.tipo
+    assert achado["identidade"] == uuid
+    assert achado["ip"] == "127.0.0.1"
+
+
+async def test_uma_caixa_que_nao_responde_o_uuid_ainda_e_um_achado(
+    abrir, varredura_curta, monkeypatch
+):
+    """A speaker that answers mDNS and not HTTP is still on the network; the finding stays,
+    without identity, and the panel says the identity has to be typed.
+
+    Uma caixa que responde mDNS e não HTTP ainda está na rede; o achado fica, sem identidade,
+    e o painel diz que a identidade precisa ser digitada.
+    """
+    from iphub.drivers.nativos import linkplay
+
+    servico = "_linkplay._tcp"
+    entrada = {
+        "servico": servico,
+        "instancia": f"Sala.{servico}.local",
+        "host": "sala.local",
+        "ip": "127.0.0.1",
+        "porta": 80,
+    }
+    async with RespondedorMdns((entrada,)) as servidor:
+        # A port nobody listens on: the identification fails fast and the sweep goes on.
+        # Uma porta em que ninguém escuta: a identificação falha rápido e a varredura segue.
+        monkeypatch.setattr(linkplay, "PORTA_HTTP", 1)
+        varredura_curta(servidor.endereco)
+        cliente, auth = await abrir({linkplay.LinkPlay.MANIFESTO.tipo: linkplay.LinkPlay})
+        corpo = await (await cliente.post("/api/descoberta", headers=auth)).json()
+    (achado,) = corpo["achados"]
+    assert achado["identidade"] == ""
+    assert achado["ip"] == "127.0.0.1"

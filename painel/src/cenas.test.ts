@@ -231,7 +231,7 @@ test("every code of a scene has a phrase in both dictionaries (todo código de c
 // quebra em vez de empurrar o cartão para o lado.
 test("a step wraps instead of scrolling sideways (um passo quebra em vez de rolar de lado)", () => {
   const css = readFileSync(new URL("./estilos-cenas.css", import.meta.url), "utf-8");
-  const inicio = css.indexOf(".cena-passo {");
+  const inicio = css.indexOf(".passo {");
   assert.ok(inicio > 0, "no rule for a step");
   const bloco = css.slice(inicio, css.indexOf("}", inicio));
   assert.ok(bloco.includes("flex-wrap: wrap"), "flex-wrap");

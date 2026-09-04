@@ -5,6 +5,7 @@
 @import "./estilos-zonas.css";
 @import "./estilos-cenas.css";
 @import "./estilos-concha.css";
+@import "./estilos-simulador.css";
 
 :root {
   color-scheme: light dark;
@@ -34,8 +35,77 @@
   }
 }
 
+/* Why: the operator may pin the theme, so the pinned one wins over the system in both
+   directions; color-scheme follows it so the native controls and scrollbars agree.
+   Por que: o operador pode fixar o tema, então o fixado vence o sistema nos dois sentidos;
+   o color-scheme o acompanha para os controles nativos e as barras de rolagem concordarem. */
+:root[data-tema="light"] {
+  color-scheme: light;
+  --fundo: #f4f5f7;
+  --cartao: #ffffff;
+  --texto: #1c1f26;
+  --texto-suave: #5b6270;
+  --borda: #d9dde3;
+  --destaque: #2f6fed;
+  --erro: #b32626;
+  --sucesso: #17794a;
+}
+
+:root[data-tema="dark"] {
+  color-scheme: dark;
+  --fundo: #14161b;
+  --cartao: #1e2129;
+  --texto: #e8eaee;
+  --texto-suave: #a3a9b4;
+  --borda: #2f343e;
+  --destaque: #6b9cff;
+  --erro: #ff8b8b;
+  --sucesso: #67d6a2;
+}
+
 * {
   box-sizing: border-box;
+}
+
+/* Why: every field and every list of choices in the panel is one of these, wherever it is
+   drawn, so the shape is written once here and no screen styles its own; on a phone the size
+   keeps iOS from zooming on focus and the height keeps the thumb from missing.
+   Por que: todo campo e toda lista de escolha do painel é um destes, onde quer que seja
+   desenhado, então a forma é escrita uma vez aqui e nenhuma tela estiliza a sua; no celular o
+   tamanho impede o iOS de ampliar ao focar e a altura impede o polegar de errar. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+select,
+textarea {
+  font: inherit;
+  font-size: max(1rem, 16px);
+  min-height: 2.75rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  background: var(--fundo);
+  color: var(--texto);
+  max-width: 100%;
+}
+
+select {
+  appearance: none;
+  padding-right: 2.2rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a919c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 1.1rem;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--destaque);
+  outline-offset: 1px;
+}
+
+input[disabled],
+select[disabled] {
+  opacity: 0.6;
 }
 
 body {
@@ -263,6 +333,12 @@ main {
   margin-top: auto;
   color: var(--texto-suave);
   font-size: 0.9rem;
+}
+
+.rodape.miudo {
+  font-size: 0.72rem;
+  line-height: 1.4;
+  opacity: 0.85;
 }
 
 .rodape p {

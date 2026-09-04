@@ -185,6 +185,37 @@ export async function lerSessao(): Promise<Sessao> {
   return { expira_em_s: dados.expira_em_s };
 }
 
+export async function renomearInstalacao(nome: string): Promise<string> {
+  const dados = await pedir("/api/instalacao", "POST", { nome });
+  if (typeof dados.nome_instalacao !== "string") throw new ErroApi(CODIGO_CORPO_INVALIDO);
+  return dados.nome_instalacao;
+}
+
+export async function reiniciar(): Promise<void> {
+  await pedir("/api/reiniciar", "POST");
+}
+
+export interface Atualizacao {
+  atual: string;
+  ultima: string | null;
+  disponivel: boolean;
+  verificada: boolean;
+}
+
+export async function lerAtualizacao(): Promise<Atualizacao> {
+  const dados = await pedir("/api/atualizacao", "GET", undefined, PRAZO_VARREDURA_MS);
+  const ultima = dados.ultima;
+  if (
+    typeof dados.atual !== "string" ||
+    (ultima !== null && typeof ultima !== "string") ||
+    typeof dados.disponivel !== "boolean" ||
+    typeof dados.verificada !== "boolean"
+  ) {
+    throw new ErroApi(CODIGO_CORPO_INVALIDO);
+  }
+  return { atual: dados.atual, ultima, disponivel: dados.disponivel, verificada: dados.verificada };
+}
+
 export async function sair(): Promise<void> {
   // Why: the daemon revoking the token is the point, but a failure to reach it
   // must not leave the browser holding a credential the user asked to drop.

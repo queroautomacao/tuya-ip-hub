@@ -6,6 +6,7 @@ Rotas de primeiro uso e de sessão: estado, posse, entrada, saída e troca de se
 """
 
 import asyncio
+import re
 from dataclasses import replace
 
 from aiohttp import web
@@ -88,6 +89,34 @@ async def _revogar_barramento(app: web.Application) -> None:
     barramento = app.get(BARRAMENTO)
     if barramento is not None:
         await barramento.revogar()
+
+
+# Why: the name reaches the bridge inside the JSON of a string data point and the top of
+# every panel, so it is short and carries no control character; anything else is the
+# integrator's, in any alphabet.
+# Por que: o nome chega à ponte dentro do JSON de um data point string e ao topo de todo
+# painel, então é curto e não leva caractere de controle; o resto é do integrador, em
+# qualquer alfabeto.
+NOME_INSTALACAO_MAXIMO = 60
+_CONTROLE = re.compile(r"[\x00-\x1f\x7f]")
+
+
+@com_sessao
+async def instalacao(request: web.Request) -> web.Response:
+    """Renames the installation; the name is the only thing about it the owner edits.
+
+    Renomeia a instalação; o nome é a única coisa dela que o dono edita.
+    """
+    app = request.app
+    dados = await ler_corpo(request)
+    nome = campo(dados, "nome") if dados is not None else None
+    if nome is None:
+        return resposta_erro(400, "corpo_invalido")
+    nome = nome.strip()
+    if len(nome) > NOME_INSTALACAO_MAXIMO or _CONTROLE.search(nome):
+        return resposta_erro(400, "nome_invalido")
+    trocar_config(app, replace(config_de(app), nome_instalacao=nome))
+    return resposta_ok(nome_instalacao=nome)
 
 
 async def estado(request: web.Request) -> web.Response:

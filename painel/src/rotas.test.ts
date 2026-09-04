@@ -51,3 +51,15 @@ test("an address nobody knows lands on the home screen instead of a blank page (
     assert.deepEqual(lerRota(hash), { tela: "inicio" }, hash);
   }
 });
+
+test("the zone, scene and simulator tabs exist only with a multiroom equipment (as abas de zona, cena e simulador só existem com equipamento multiroom)", async () => {
+  const { abasVisiveis } = await import("./rotas.ts");
+  assert.deepEqual(
+    abasVisiveis(false).map(({ aba }) => aba),
+    ["inicio", "drivers", "conta"],
+  );
+  assert.deepEqual(
+    abasVisiveis(true).map(({ aba }) => aba),
+    ABAS.map(({ aba }) => aba),
+  );
+});

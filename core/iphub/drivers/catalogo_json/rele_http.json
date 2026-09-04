@@ -2,12 +2,21 @@
   "manifesto": {
     "tipo": "rele_http",
     "rotulo": {
-      "pt": "Placa de relés por HTTP",
-      "en": "HTTP relay board"
+      "pt": "Placa de relés por HTTP (exemplo)",
+      "en": "HTTP relay board (example)"
     },
     "categoria": "rele",
-    "capacidades": ["ligar", "desligar"],
-    "config_campos": [{"nome": "chave", "tipo": "segredo", "obrigatorio": true}],
+    "capacidades": [
+      "ligar",
+      "desligar"
+    ],
+    "config_campos": [
+      {
+        "nome": "chave",
+        "tipo": "segredo",
+        "obrigatorio": true
+      }
+    ],
     "textos": {
       "pt": {
         "descricao": "Placa de relés que aceita HTTP e responde o estado em JSON. Este driver comanda o canal 1.",
@@ -24,17 +33,30 @@
       "base": "http://{ip}",
       "metodo": "GET",
       "timeout_s": 4,
-      "cabecalhos": {"X-Api-Key": "chave"}
+      "cabecalhos": {
+        "X-Api-Key": "chave"
+      }
     }
   },
   "comandos": {
-    "ligar": {"envia": "/relay/1/on"},
-    "desligar": {"envia": "/relay/1/off"}
+    "ligar": {
+      "envia": "/relay/1/on"
+    },
+    "desligar": {
+      "envia": "/relay/1/off"
+    }
   },
   "estado": {
-    "pede": [{"envia": "/status.json"}],
+    "pede": [
+      {
+        "envia": "/status.json"
+      }
+    ],
     "le": {
-      "ligado": {"json": "rele1", "verdadeiro": "on"}
+      "ligado": {
+        "json": "rele1",
+        "verdadeiro": "on"
+      }
     }
   }
 }

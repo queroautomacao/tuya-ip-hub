@@ -27,7 +27,12 @@ def _quase_a_validade(segundos: int) -> bool:
 
 
 OUTRA_SENHA = "outra-senha-boa"
-COM_SESSAO = (("POST", "/api/sair"), ("GET", "/api/sessao"), ("POST", "/api/senha"))
+COM_SESSAO = (
+    ("POST", "/api/sair"),
+    ("GET", "/api/sessao"),
+    ("POST", "/api/senha"),
+    ("POST", "/api/instalacao"),
+)
 
 
 class LimiteEspiao(Limite):
@@ -281,3 +286,52 @@ async def test_o_pbkdf2_nao_roda_no_laco_de_eventos(cliente, senha, monkeypatch)
     # placa ARM de referência, então a derivação fica num fio próprio.
     assert len(fios) == 2
     assert threading.main_thread() not in fios
+
+
+async def test_o_dono_renomeia_a_instalacao_e_o_nome_chega_ao_disco(cliente, posse, bearer, amb):
+    """The name is the only thing about the installation the owner edits, and it survives a
+    restart because it is written where the daemon reads it from.
+
+    O nome é a única coisa da instalação que o dono edita, e ele sobrevive a um reinício
+    porque é gravado onde o daemon o lê.
+    """
+    token = await posse(cliente)
+    resposta = await cliente.post(
+        "/api/instalacao", json={"nome": "  Casa da Praia  "}, headers=bearer(token)
+    )
+    assert resposta.status == 200, await resposta.text()
+    assert (await resposta.json())["nome_instalacao"] == "Casa da Praia"
+    assert (await (await cliente.get("/api/estado")).json())["nome_instalacao"] == "Casa da Praia"
+    gravado = json.loads((amb.dir_data / ARQUIVO_CONFIG).read_text(encoding="utf-8"))
+    assert gravado["nome_instalacao"] == "Casa da Praia"
+
+
+@pytest.mark.parametrize(
+    ("corpo", "codigo"),
+    [
+        ({"nome": "x" * 61}, "nome_invalido"),
+        ({"nome": "linha\nquebrada"}, "nome_invalido"),
+        ({"nome": "tab\tulado"}, "nome_invalido"),
+        ({"nome": 7}, "corpo_invalido"),
+        ({}, "corpo_invalido"),
+    ],
+)
+async def test_um_nome_fora_do_contrato_e_recusado_com_codigo(
+    cliente, posse, bearer, corpo, codigo
+):
+    # Why: the name travels to the bridge inside the JSON of a string data point and to the top
+    # of every panel, so a control character or a novel would break one of the two.
+    # Por que: o nome viaja para a ponte dentro do JSON de um data point string e para o topo
+    # de todo painel, então um caractere de controle ou um romance quebraria um dos dois.
+    token = await posse(cliente)
+    resposta = await cliente.post("/api/instalacao", json=corpo, headers=bearer(token))
+    assert resposta.status == 400
+    assert (await resposta.json())["code"] == codigo
+
+
+async def test_um_nome_vazio_apaga_o_nome(cliente, posse, bearer):
+    token = await posse(cliente)
+    await cliente.post("/api/instalacao", json={"nome": "Sala"}, headers=bearer(token))
+    resposta = await cliente.post("/api/instalacao", json={"nome": "   "}, headers=bearer(token))
+    assert resposta.status == 200
+    assert (await (await cliente.get("/api/estado")).json())["nome_instalacao"] == ""

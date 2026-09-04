@@ -3,74 +3,205 @@
 
 /* Why: the eight slots are always on the screen, empty ones included, because the number of a
    scene is its position and a slot with no step is a number held open for the automations
-   already built on it.
+   already built on it. A step reads left to right in the order it happens: which zone, what to
+   do, which value, how long to wait after; on a phone the line folds and keeps that order.
    Por que: as oito vagas estão sempre na tela, inclusive as vazias, porque o número de uma
    cena é a posição dela e uma vaga sem passo é um número guardado para as automações já
-   montadas nela. */
+   montadas nela. Um passo se lê da esquerda para a direita na ordem em que acontece: que zona,
+   o que fazer, que valor, quanto esperar depois; no celular a linha dobra e mantém essa ordem. */
 .cenas {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 12px;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr));
 }
 
 .cena {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
   border: 1px solid var(--borda);
-  border-radius: 8px;
-  padding: 12px;
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
   background: var(--cartao);
+}
+
+.cena-vazia {
+  border-style: dashed;
 }
 
 .cena-cabeca {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
 }
 
-.cena-cabeca h3 {
-  margin: 0;
-  font-size: 1rem;
+.cena-numero {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--destaque);
+  color: #ffffff;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .cena-nome {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 8px 0;
-  max-width: 320px;
+  flex: 1 1 10rem;
+  min-width: 0;
+  font-weight: 600;
 }
 
-.cena-passos {
+.cena-executar {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.9rem;
+}
+
+.cena-executar svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.cena-dica {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.passos {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: grid;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  counter-reset: passo;
 }
 
-/* Why: a step is one line that reads in the order it happens (which data point, which value,
-   how long to wait after it), and it wraps on a narrow screen instead of scrolling sideways.
-   Por que: um passo é uma linha que se lê na ordem em que acontece (qual data point, qual
-   valor, quanto esperar depois), e ela quebra numa tela estreita em vez de rolar de lado. */
-.cena-passo {
+.passo {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
   align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 2.75rem 0.6rem 2.1rem;
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  background: var(--fundo);
+  counter-increment: passo;
 }
 
-.cena-passo .valor {
-  max-width: 200px;
+.passo::before {
+  content: counter(passo);
+  position: absolute;
+  left: 0.65rem;
+  top: 0.9rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--texto-suave);
+}
+
+.passo-alvo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.passo-alvo select {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.passo select,
+.passo .curto {
+  background: var(--cartao);
+}
+
+.curto {
+  width: 6.5rem;
+}
+
+.passo-espera {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.passo-remover {
+  position: absolute;
+  right: 0.35rem;
+  top: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--texto-suave);
+  cursor: pointer;
+}
+
+.passo-remover svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.passo-remover:hover,
+.passo-remover:focus-visible {
+  background: var(--borda);
+  color: var(--texto);
+  outline: none;
+}
+
+/* Why: the save bar sticks over the bottom navigation while there is a draft, so on a phone
+   the operator never scrolls eight cards to find the button.
+   Por que: a barra de salvar gruda sobre a navegação de baixo enquanto há rascunho, então no
+   celular o operador nunca rola oito cartões para achar o botão. */
+.cenas-rodape {
+  position: sticky;
+  bottom: calc(3.75rem + env(safe-area-inset-bottom));
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+  background: var(--cartao);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+}
+
+.cenas-rodape .sucesso,
+.cenas-rodape .erro {
+  margin: 0;
 }
 
 .problemas {
-  margin: 8px 0 0;
-  padding-left: 20px;
+  margin: 0;
+  padding-left: 1.2rem;
   color: var(--erro);
 }
 
 .problemas code {
   overflow-wrap: anywhere;
+}
+
+@media (min-width: 900px) {
+  .cenas-rodape {
+    bottom: 1rem;
+  }
 }

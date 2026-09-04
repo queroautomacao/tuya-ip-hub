@@ -355,7 +355,7 @@ export default function Zonas({ idioma }: { idioma: Idioma }) {
         <p className="carregando">{t("carregando")}</p>
       )}
       {candidatos.length === 0 && leitura.equipamentos !== null && (
-        <p className="texto-suave">{t("zonas_sem_caixa")}</p>
+        <p className="texto-suave">{t("zonas_exclusivo")}</p>
       )}
       {leitura.leitura !== null && (
         <>

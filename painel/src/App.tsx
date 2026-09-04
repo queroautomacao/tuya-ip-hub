@@ -4,22 +4,26 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Assistente from "./Assistente";
 import Cenas from "./Cenas.tsx";
-import Concha from "./Concha.tsx";
+import Concha, { BotaoTema, Idiomas, Marca } from "./Concha.tsx";
 import Conta from "./Conta.tsx";
 import DetalheEquipamento from "./DetalheEquipamento.tsx";
 import DriversDeclarativos from "./DriversDeclarativos.tsx";
+import { usarEquipamentos } from "./Equipamentos.tsx";
 import Inicio from "./Inicio.tsx";
 import Login from "./Login";
 import NovoEquipamento from "./NovoEquipamento.tsx";
+import Simulador from "./Simulador.tsx";
 import Zonas from "./Zonas.tsx";
 import { lerEstado, lerSessao, sair, type Estado } from "./api";
-import { IDIOMAS, definirIdioma, idiomaAtual, t, type Idioma } from "./i18n";
-import { rotaAtual, type Rota } from "./rotas.ts";
+import { definirIdioma, idiomaAtual, t, type Idioma } from "./i18n";
+import { abasVisiveis, rotaAtual, type Rota } from "./rotas.ts";
 import { ler as lerToken } from "./sessao";
+import { aplicarTema, definirTema, lerTema, proximoTema, type Tema } from "./tema.ts";
+import { podeOcuparBloco } from "./zonas.ts";
 
 const REPOSITORIO = "https://github.com/queroautomacao/tuya-ip-hub";
 
-type Tela = "carregando" | "indisponivel" | "assistente" | "login" | "painel";
+type TelaDaPorta = "carregando" | "indisponivel" | "assistente" | "login" | "painel";
 
 // Why: the address after the hash is the only state of navigation, so the back button, a
 // reload and a bookmark all agree with what is on the screen.
@@ -40,11 +44,13 @@ function Tela({
   estado,
   idioma,
   aoSair,
+  aoRenomear,
 }: {
   rota: Rota;
   estado: Estado;
   idioma: Idioma;
   aoSair: () => void;
+  aoRenomear: (nome: string) => void;
 }) {
   switch (rota.tela) {
     case "inicio":
@@ -57,26 +63,75 @@ function Tela({
       return <Zonas idioma={idioma} />;
     case "cenas":
       return <Cenas />;
+    case "simulador":
+      return <Simulador nomeInstalacao={estado.nome_instalacao} />;
     case "drivers":
       return <DriversDeclarativos idioma={idioma} />;
     case "conta":
-      return <Conta estado={estado} idioma={idioma} aoSair={aoSair} />;
+      return <Conta estado={estado} idioma={idioma} aoSair={aoSair} aoRenomear={aoRenomear} />;
   }
 }
 
+// Why: the licence and the source belong on every page and matter to nobody in a hurry, so
+// they are the smallest text on it.
+// Por que: a licença e o fonte pertencem a toda página e não importam a ninguém com pressa,
+// então são o menor texto dela.
 function Rodape() {
   return (
-    <footer className="rodape">
-      <p>{t("licenca")}</p>
+    <footer className="rodape miudo">
       <p>
+        {t("licenca")}{" "}
         <a href={REPOSITORIO} rel="noreferrer">
           {t("repositorio")}
         </a>
       </p>
-      <p className="discreto">
+      <p>
         {t("marca")} {t("copyright")}
       </p>
     </footer>
+  );
+}
+
+function Painel({
+  estado,
+  idioma,
+  tema,
+  aoTrocarIdioma,
+  aoTrocarTema,
+  aoSair,
+  aoRenomear,
+}: {
+  estado: Estado;
+  idioma: Idioma;
+  tema: Tema;
+  aoTrocarIdioma: (idioma: Idioma) => void;
+  aoTrocarTema: () => void;
+  aoSair: () => void;
+  aoRenomear: (nome: string) => void;
+}) {
+  const rota = usarRota();
+  const { catalogo, lista } = usarEquipamentos();
+  // Why: section 6, a zone is a multiroom equipment, so the tabs about zones exist once one is
+  // registered; until then a screen of empty blocks would be a question nobody can answer.
+  // Por que: seção 6, uma zona é um equipamento multiroom, então as abas sobre zonas existem
+  // quando um está cadastrado; até lá uma tela de blocos vazios seria pergunta que ninguém
+  // responde.
+  const temMultiroom = (lista ?? []).some((equipamento) =>
+    podeOcuparBloco((catalogo ?? []).find((item) => item.tipo === equipamento.tipo)),
+  );
+  return (
+    <Concha
+      rota={rota}
+      idioma={idioma}
+      tema={tema}
+      abas={abasVisiveis(temMultiroom)}
+      subtitulo={estado.nome_instalacao || t("empresa")}
+      aoTrocarIdioma={aoTrocarIdioma}
+      aoTrocarTema={aoTrocarTema}
+    >
+      <Tela rota={rota} estado={estado} idioma={idioma} aoSair={aoSair} aoRenomear={aoRenomear} />
+      <Rodape />
+    </Concha>
   );
 }
 
@@ -86,32 +141,25 @@ function Rodape() {
 // a página inteira, sem nada em volta que pudesse ser tocado por engano.
 function Porta({
   idioma,
+  tema,
   aoTrocarIdioma,
+  aoTrocarTema,
   children,
 }: {
   idioma: Idioma;
+  tema: Tema;
   aoTrocarIdioma: (idioma: Idioma) => void;
+  aoTrocarTema: () => void;
   children: ReactNode;
 }) {
   return (
     <div className="pagina">
       <header className="cabecalho">
-        <div>
-          <h1>{t("titulo")}</h1>
-          <p className="subtitulo">{t("subtitulo")}</p>
+        <Marca subtitulo={t("subtitulo")} />
+        <div className="barra-acoes">
+          <BotaoTema tema={tema} aoTrocar={aoTrocarTema} />
+          <Idiomas idioma={idioma} aoTrocar={aoTrocarIdioma} />
         </div>
-        <nav className="idiomas" aria-label={t("idioma")}>
-          {IDIOMAS.map((opcao) => (
-            <button
-              key={opcao}
-              type="button"
-              aria-pressed={opcao === idioma}
-              onClick={() => aoTrocarIdioma(opcao)}
-            >
-              {t(`idioma_${opcao}` as const)}
-            </button>
-          ))}
-        </nav>
       </header>
       <main>{children}</main>
       <Rodape />
@@ -121,9 +169,13 @@ function Porta({
 
 export default function App() {
   const [idioma, setIdioma] = useState<Idioma>(idiomaAtual);
-  const [tela, setTela] = useState<Tela>("carregando");
+  const [tema, setTema] = useState<Tema>(lerTema);
+  const [tela, setTela] = useState<TelaDaPorta>("carregando");
   const [estado, setEstado] = useState<Estado | null>(null);
-  const rota = usarRota();
+
+  useEffect(() => {
+    aplicarTema(tema);
+  }, [tema]);
 
   const carregar = useCallback(async (): Promise<void> => {
     setTela("carregando");
@@ -164,6 +216,12 @@ export default function App() {
     setIdioma(novo);
   }
 
+  function trocarTema(): void {
+    const novo = proximoTema(tema);
+    definirTema(novo);
+    setTema(novo);
+  }
+
   async function encerrar(): Promise<void> {
     try {
       await sair();
@@ -178,15 +236,20 @@ export default function App() {
 
   if (tela === "painel" && estado) {
     return (
-      <Concha rota={rota} idioma={idioma} aoTrocarIdioma={trocarIdioma}>
-        <Tela rota={rota} estado={estado} idioma={idioma} aoSair={() => void encerrar()} />
-        <Rodape />
-      </Concha>
+      <Painel
+        estado={estado}
+        idioma={idioma}
+        tema={tema}
+        aoTrocarIdioma={trocarIdioma}
+        aoTrocarTema={trocarTema}
+        aoSair={() => void encerrar()}
+        aoRenomear={(nome) => setEstado({ ...estado, nome_instalacao: nome })}
+      />
     );
   }
 
   return (
-    <Porta idioma={idioma} aoTrocarIdioma={trocarIdioma}>
+    <Porta idioma={idioma} tema={tema} aoTrocarIdioma={trocarIdioma} aoTrocarTema={trocarTema}>
       {tela === "carregando" && <p className="carregando">{t("carregando")}</p>}
       {tela === "indisponivel" && (
         <section className="cartao">

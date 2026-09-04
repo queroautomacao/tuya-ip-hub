@@ -314,7 +314,7 @@ class LinkPlay(Driver):
     # este protocolo fixa as duas, e um campo que ninguém precisa é um campo que alguém quebra.
     MANIFESTO = Manifesto(
         tipo="multiroom_linkplay",
-        rotulo={"pt": "Caixa multiroom LinkPlay", "en": "LinkPlay multiroom speaker"},
+        rotulo={"pt": "Multiroom LinkPlay", "en": "LinkPlay multiroom"},
         categoria="multiroom",
         capacidades=(
             ACAO_VOLUME,
@@ -359,6 +359,32 @@ class LinkPlay(Driver):
         self._no_grupo = False
         self._espelho: str | None = None
         self._espelho_reproduzindo: bool | None = None
+
+    @classmethod
+    async def identificar(cls, ip: str) -> str | None:
+        """Section 6: the uuid the speaker at that address answers, for a finding of the sweep.
+
+        Seção 6: o uuid que a caixa naquele endereço responde, para um achado da varredura.
+        """
+        endereco = ip_literal(ip)
+        if endereco is None:
+            return None
+        url = f"http://{_hospedeiro(endereco)}:{PORTA_HTTP}{CAMINHO}{PEDE_IDENTIDADE}"
+        try:
+            async with ClientSession(timeout=ClientTimeout(total=TEMPO_LIMITE_S)) as sessao:
+                async with sessao.get(url, allow_redirects=False) as resposta:
+                    if resposta.status >= 400:
+                        return None
+                    bruto = await corpo.inteiro(resposta.content, CORPO_MAXIMO)
+        except (TimeoutError, ClientError, OSError, ValueError):
+            return None
+        try:
+            dados = json.loads(bruto.decode("utf-8", errors="replace"))
+        except ValueError:
+            return None
+        if not isinstance(dados, dict):
+            return None
+        return _texto(dados.get(CHAVE_UUID)) or None
 
     async def iniciar(self) -> None:
         await self._abrir()

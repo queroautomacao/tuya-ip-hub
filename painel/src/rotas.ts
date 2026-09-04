@@ -16,10 +16,11 @@ export type Rota =
   | { tela: "equipamento"; identidade: string }
   | { tela: "zonas" }
   | { tela: "cenas" }
+  | { tela: "simulador" }
   | { tela: "drivers" }
   | { tela: "conta" };
 
-export type Aba = "inicio" | "zonas" | "cenas" | "drivers" | "conta";
+export type Aba = "inicio" | "zonas" | "cenas" | "simulador" | "drivers" | "conta";
 
 // The tabs of the navigation, in the order they are drawn; the label is an i18n key.
 // As abas da navegação, na ordem em que são desenhadas; o rótulo é uma chave de i18n.
@@ -27,9 +28,23 @@ export const ABAS: readonly { aba: Aba; rota: Rota; chave: `nav_${Aba}` }[] = [
   { aba: "inicio", rota: { tela: "inicio" }, chave: "nav_inicio" },
   { aba: "zonas", rota: { tela: "zonas" }, chave: "nav_zonas" },
   { aba: "cenas", rota: { tela: "cenas" }, chave: "nav_cenas" },
+  { aba: "simulador", rota: { tela: "simulador" }, chave: "nav_simulador" },
   { aba: "drivers", rota: { tela: "drivers" }, chave: "nav_drivers" },
   { aba: "conta", rota: { tela: "conta" }, chave: "nav_conta" },
 ];
+
+// Why: section 6, a zone is a multiroom equipment, and the scenes and the simulator only set
+// zone data points, so the three tabs exist once a multiroom equipment is registered and not
+// before; a screen full of empty blocks is a question the operator cannot yet answer.
+// Por que: seção 6, uma zona é um equipamento multiroom, e as cenas e o simulador só ajustam
+// data points de zona, então as três abas existem quando há um equipamento multiroom
+// cadastrado e não antes; uma tela cheia de blocos vazios é uma pergunta que o operador ainda
+// não consegue responder.
+export const ABAS_DE_MULTIROOM: readonly Aba[] = ["zonas", "cenas", "simulador"];
+
+export function abasVisiveis(temMultiroom: boolean): readonly (typeof ABAS)[number][] {
+  return ABAS.filter(({ aba }) => temMultiroom || !ABAS_DE_MULTIROOM.includes(aba));
+}
 
 const INICIO: Rota = { tela: "inicio" };
 
@@ -68,7 +83,13 @@ export function lerRota(hash: string): Rota {
     return { tela: "equipamento", identidade };
   }
   if (segundo !== undefined) return INICIO;
-  if (primeiro === "zonas" || primeiro === "cenas" || primeiro === "drivers" || primeiro === "conta") {
+  if (
+    primeiro === "zonas" ||
+    primeiro === "cenas" ||
+    primeiro === "simulador" ||
+    primeiro === "drivers" ||
+    primeiro === "conta"
+  ) {
     return { tela: primeiro };
   }
   return INICIO;

@@ -2,11 +2,16 @@
   "manifesto": {
     "tipo": "amplificador_udp",
     "rotulo": {
-      "pt": "Amplificador de áudio por UDP",
-      "en": "Audio amplifier over UDP"
+      "pt": "Amplificador de áudio por UDP (exemplo)",
+      "en": "Audio amplifier over UDP (example)"
     },
     "categoria": "audio",
-    "capacidades": ["ligar", "desligar", "volume", "fonte"],
+    "capacidades": [
+      "ligar",
+      "desligar",
+      "volume",
+      "fonte"
+    ],
     "textos": {
       "pt": {
         "descricao": "Amplificador que aceita por UDP as mesmas linhas de texto da porta serial dele. O volume do aparelho vai de 0 a 79 e o hub o converte para 0 a 100."
@@ -24,22 +29,52 @@
       "intervalo_min_ms": 100
     }
   },
-  "escala_volume": {"min": 0, "max": 79},
+  "escala_volume": {
+    "min": 0,
+    "max": 79
+  },
   "comandos": {
-    "ligar": {"envia": "PWR ON"},
-    "desligar": {"envia": "PWR OFF"},
-    "volume": {"envia": "VOL {valor_escala}"},
+    "ligar": {
+      "envia": "PWR ON"
+    },
+    "desligar": {
+      "envia": "PWR OFF"
+    },
+    "volume": {
+      "envia": "VOL {valor_escala}"
+    },
     "fonte": {
       "envia": "SRC {valor}",
-      "valores": {"Streaming": "NET", "Bluetooth": "BT", "AUX": "AUX"}
+      "valores": {
+        "Streaming": "NET",
+        "Bluetooth": "BT",
+        "AUX": "AUX"
+      }
     }
   },
   "estado": {
-    "pede": [{"envia": "PWR?"}, {"envia": "VOL?"}, {"envia": "SRC?"}],
+    "pede": [
+      {
+        "envia": "PWR?"
+      },
+      {
+        "envia": "VOL?"
+      },
+      {
+        "envia": "SRC?"
+      }
+    ],
     "le": {
-      "ligado": {"regex": "PWR (ON|OFF)", "verdadeiro": "ON"},
-      "volume": {"regex": "VOL ([0-9]{1,2})"},
-      "fonte": {"regex": "SRC (NET|BT|AUX)"}
+      "ligado": {
+        "regex": "PWR (ON|OFF)",
+        "verdadeiro": "ON"
+      },
+      "volume": {
+        "regex": "VOL ([0-9]{1,2})"
+      },
+      "fonte": {
+        "regex": "SRC (NET|BT|AUX)"
+      }
     }
   }
 }

@@ -283,6 +283,10 @@ driver existir:
   carrega, gerado no build.
 - **Marca**: "Tuya IP Hub" e "Quero Automação" não são licenciadas. Fork adota
   nome próprio. "Tuya" é marca da Tuya Inc., citada de forma nominativa.
+  O painel carrega a marca da empresa (decisão de 4/set/2026): o produto se
+  apresenta como **"QA IP Hub"**, com o logotipo da Quero Automação no
+  cabeçalho; o software continua "Tuya IP Hub" na licença, no README e no
+  código. Um fork troca o bloco `Marca` do painel e mais nada.
 - Nomes de fabricante dos aparelhos controlados (Denon, Samsung, LG, Sony,
   Onkyo, Yamaha, Roku, Sonos, LinkPlay, Tuya) são uso nominativo e ficam.
   **Não cite** outros projetos ou produtos de automação em código, comentário

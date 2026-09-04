@@ -2,11 +2,16 @@
   "manifesto": {
     "tipo": "matriz_hdmi_ascii",
     "rotulo": {
-      "pt": "Matriz HDMI de comando em texto",
-      "en": "HDMI matrix with text commands"
+      "pt": "Matriz HDMI de comando em texto (exemplo)",
+      "en": "HDMI matrix with text commands (example)"
     },
     "categoria": "matriz",
-    "capacidades": ["ligar", "desligar", "fonte", "comando_extra"],
+    "capacidades": [
+      "ligar",
+      "desligar",
+      "fonte",
+      "comando_extra"
+    ],
     "textos": {
       "pt": {
         "descricao": "Matriz HDMI que fala uma linha de texto na porta 23: liga, desliga e escolhe a entrada que vai para a saída 1. Aceita um comando por vez, com 200 ms entre eles."
@@ -25,19 +30,42 @@
     }
   },
   "comandos": {
-    "ligar": {"envia": "SET POWER ON"},
-    "desligar": {"envia": "SET POWER OFF"},
+    "ligar": {
+      "envia": "SET POWER ON"
+    },
+    "desligar": {
+      "envia": "SET POWER OFF"
+    },
     "fonte": {
       "envia": "SET OUT1 VS {valor}",
-      "valores": {"HDMI 1": "IN1", "HDMI 2": "IN2", "HDMI 3": "IN3", "HDMI 4": "IN4"}
+      "valores": {
+        "HDMI 1": "IN1",
+        "HDMI 2": "IN2",
+        "HDMI 3": "IN3",
+        "HDMI 4": "IN4"
+      }
     },
-    "comando_extra": {"envia": "{valor}"}
+    "comando_extra": {
+      "envia": "{valor}"
+    }
   },
   "estado": {
-    "pede": [{"envia": "GET POWER"}, {"envia": "GET OUT1 VS"}],
+    "pede": [
+      {
+        "envia": "GET POWER"
+      },
+      {
+        "envia": "GET OUT1 VS"
+      }
+    ],
     "le": {
-      "ligado": {"regex": "POWER (ON|OFF)", "verdadeiro": "ON"},
-      "fonte": {"regex": "OUT1 VS (IN[1-8])"}
+      "ligado": {
+        "regex": "POWER (ON|OFF)",
+        "verdadeiro": "ON"
+      },
+      "fonte": {
+        "regex": "OUT1 VS (IN[1-8])"
+      }
     }
   }
 }
