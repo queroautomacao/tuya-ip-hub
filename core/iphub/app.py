@@ -43,6 +43,7 @@ from iphub.dpbus.socket import (
     baixar_barramento,
     subir_barramento,
 )
+from iphub.drivers import catalogo as modulo_catalogo
 from iphub.drivers.base import Driver
 from iphub.drivers.catalogo import Catalogo
 from iphub.drivers.gestor import Gestor
@@ -86,7 +87,7 @@ def _catalogo_do_app(amb: Ambiente, catalogo: dict[str, type[Driver]] | None) ->
     # imagem responderiam à listagem dele com drivers que ele nunca cadastrou; o JSON do
     # diretório de dados segue carregando, porque é nele que o próprio teste grava.
     if catalogo is None:
-        return Catalogo(amb.dir_data)
+        return Catalogo(amb.dir_data, pasta_embarcada=modulo_catalogo.PASTA_EMBARCADA)
     return Catalogo(amb.dir_data, nativos=dict(catalogo), pasta_embarcada=None)
 
 

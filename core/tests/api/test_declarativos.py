@@ -91,8 +91,16 @@ def plantar(pasta: Path):
     return gravar
 
 
+# Why: the image ships an empty embedded catalogue, and these routes are tested against an
+# embedded driver too, so the examples of milestone 3 stand in for it.
+# Por que: a imagem embarca um catálogo vazio, e estas rotas são testadas também contra um
+# driver embarcado, então os exemplos do marco 3 fazem as vezes dele.
+EXEMPLOS = Path(__file__).resolve().parents[1] / "drivers" / "exemplos"
+
+
 @pytest.fixture
-def abrir(fabrica_cliente, posse, bearer):
+def abrir(fabrica_cliente, posse, bearer, monkeypatch):
+    monkeypatch.setattr(modulo_catalogo, "PASTA_EMBARCADA", EXEMPLOS)
     """Boots a hub with the drivers of the image, already owned, and its session header.
 
     A test that plants a file first calls this itself, because a driver of the data directory

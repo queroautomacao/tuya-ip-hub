@@ -36,7 +36,6 @@ import pytest
 from iphub import regex_seguro
 from iphub.config import Cadastro
 from iphub.drivers.base import CODIGOS, DETALHES, Driver
-from iphub.drivers.catalogo import PASTA_EMBARCADA
 from iphub.drivers.declarativo import transporte
 from iphub.drivers.declarativo.formato import validar
 from iphub.drivers.declarativo.motor import construir
@@ -44,6 +43,12 @@ from iphub.drivers.gestor import Gestor
 from iphub.drivers.manifesto import Estado
 from iphub.drivers.manifesto import validar as validar_manifesto
 from iphub.drivers.simulado import ServidorLinha
+
+# Why: the three examples of milestone 3 prove the engine and never ship, so they live with
+# the tests and not in the catalogue of the image.
+# Por que: os três exemplos do marco 3 provam o motor e nunca embarcam, então vivem com os
+# testes e não no catálogo da imagem.
+EXEMPLOS = Path(__file__).resolve().parent / "exemplos"
 
 ESPERA_MAXIMA_S = 2.0
 ESTADO_LIGADO = b"POWER ON VS IN2 VOL 30\r"
@@ -707,7 +712,7 @@ def _embarcado(nome: str) -> dict:
 
     Um exemplo do catálogo que embarca na imagem, lido do próprio arquivo.
     """
-    return json.loads((Path(PASTA_EMBARCADA) / nome).read_text(encoding="utf-8"))
+    return json.loads((EXEMPLOS / nome).read_text(encoding="utf-8"))
 
 
 async def test_o_exemplo_embarcado_de_tcp_fala_com_o_aparelho_simulado():

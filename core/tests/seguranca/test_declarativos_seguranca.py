@@ -84,8 +84,16 @@ def pasta(amb) -> Path:
     return amb.dir_data / modulo_catalogo.PASTA_INTEGRADOR
 
 
+# Why: the image ships an empty embedded catalogue, and these attacks need one embedded
+# driver to aim at, so the examples of milestone 3 stand in for it.
+# Por que: a imagem embarca um catálogo vazio, e estes ataques precisam de um driver embarcado
+# para mirar, então os exemplos do marco 3 fazem as vezes dele.
+EXEMPLOS = Path(__file__).resolve().parents[1] / "drivers" / "exemplos"
+
+
 @pytest.fixture
-async def cliente_dr(fabrica_cliente):
+async def cliente_dr(fabrica_cliente, monkeypatch):
+    monkeypatch.setattr(modulo_catalogo, "PASTA_EMBARCADA", EXEMPLOS)
     return await fabrica_cliente()
 
 
@@ -340,8 +348,7 @@ async def test_um_driver_da_imagem_nao_e_apagado_pelo_painel(com_dono):
     resposta = await cliente.delete("/api/drivers/matriz_hdmi_ascii", headers=auth)
     assert resposta.status == 404
     assert (await resposta.json())["code"] == "decl_nao_encontrado"
-    embarcado = modulo_catalogo.PASTA_EMBARCADA / "matriz_hdmi_ascii.json"
-    assert embarcado.is_file()
+    assert (EXEMPLOS / "matriz_hdmi_ascii.json").is_file()
     drivers = (await (await cliente.get("/api/drivers", headers=auth)).json())["drivers"]
     assert "matriz_hdmi_ascii" in {driver["tipo"] for driver in drivers}
 

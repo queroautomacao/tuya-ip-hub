@@ -52,14 +52,16 @@ test("an address nobody knows lands on the home screen instead of a blank page (
   }
 });
 
-test("the zone, scene and simulator tabs exist only with a multiroom equipment (as abas de zona, cena e simulador só existem com equipamento multiroom)", async () => {
-  const { abasVisiveis } = await import("./rotas.ts");
+test("the zone, scene and simulator tabs are drawn dimmed until a multiroom equipment exists (as abas de zona, cena e simulador ficam apagadas até existir equipamento multiroom)", async () => {
+  const { abasDoMenu } = await import("./rotas.ts");
+  const sem = abasDoMenu(false);
   assert.deepEqual(
-    abasVisiveis(false).map(({ aba }) => aba),
-    ["inicio", "drivers", "conta"],
-  );
-  assert.deepEqual(
-    abasVisiveis(true).map(({ aba }) => aba),
+    sem.map(({ aba }) => aba),
     ABAS.map(({ aba }) => aba),
   );
+  assert.deepEqual(
+    sem.filter(({ ativa }) => !ativa).map(({ aba }) => aba),
+    ["zonas", "cenas", "simulador"],
+  );
+  assert.ok(abasDoMenu(true).every(({ ativa }) => ativa));
 });

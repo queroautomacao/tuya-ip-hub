@@ -348,5 +348,7 @@
   "simulador_grupo": "Group",
   "simulador_offline": "offline",
   "simulador_sem_cena": "No scene configured.",
-  "conta_atualizacao_sem_release": "No version has been published yet; this is the installed one."
+  "conta_atualizacao_sem_release": "No version has been published yet; this is the installed one.",
+  "conta_manutencao": "Maintenance",
+  "conta_manutencao_texto": "Check for a newer version and restart the hub when needed. The speakers keep playing during the restart."
 }

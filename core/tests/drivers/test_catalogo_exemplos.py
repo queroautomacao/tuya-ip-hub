@@ -18,6 +18,7 @@ seção 6 voltando.
 import asyncio
 from collections.abc import Callable
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -27,6 +28,12 @@ from iphub.drivers.base import Driver
 from iphub.drivers.declarativo.formato import Definicao, Http
 from iphub.drivers.declarativo.motor import construir
 from iphub.drivers.simulado import ServidorDatagrama, ServidorHttp, ServidorLinha
+
+# Why: the three examples of milestone 3 prove the engine and never ship, so they live with
+# the tests and not in the catalogue of the image.
+# Por que: os três exemplos do marco 3 provam o motor e nunca embarcam, então vivem com os
+# testes e não no catálogo da imagem.
+EXEMPLOS = Path(__file__).resolve().parent / "exemplos"
 
 TIPO_TCP = "matriz_hdmi_ascii"
 TIPO_HTTP = "rele_http"
@@ -63,11 +70,11 @@ async def _ate(condicao: Callable[[], bool], prazo_s: float = 2.0) -> None:
 
 
 def _definicao(tipo: str) -> Definicao:
-    """The example as the image carries it, straight out of the embedded catalog.
+    """The example loaded the way the image would load an embedded file.
 
-    O exemplo como a imagem o carrega, direto do catálogo embarcado.
+    O exemplo carregado do jeito que a imagem carregaria um arquivo embarcado.
     """
-    montado = catalogo.Catalogo()
+    montado = catalogo.Catalogo(pasta_embarcada=EXEMPLOS)
     assert montado.recusados == ()
     declarativo = montado.declarativos[tipo]
     assert declarativo.origem == catalogo.ORIGEM_IMAGEM

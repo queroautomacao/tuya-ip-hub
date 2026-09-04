@@ -10,8 +10,11 @@
 
 import type { ReactNode } from "react";
 import { IDIOMAS, t, type Idioma } from "./i18n";
-import { ABAS, abaDa, caminhoDa, type Aba, type Rota } from "./rotas.ts";
+import marca from "./marca.png";
+import { abaDa, caminhoDa, type Aba, type AbaDoMenu, type Rota } from "./rotas.ts";
+import { formatarUptime } from "./saude";
 import type { Tema } from "./tema.ts";
+import { usarSaude } from "./usarSaude.ts";
 
 const TRACO = {
   viewBox: "0 0 24 24",
@@ -103,14 +106,12 @@ function IconeTema({ tema }: { tema: Tema }) {
 
 export function Marca({ subtitulo }: { subtitulo: string }) {
   // Why: the brand of the company that sells the appliance, above the name of the
-  // installation it serves; the monogram stands where the logo goes.
+  // installation it serves.
   // Por que: a marca da empresa que vende o appliance, sobre o nome da instalação que ele
-  // serve; o monograma fica onde entra o logotipo.
+  // serve.
   return (
     <a className="marca" href={caminhoDa({ tela: "inicio" })} aria-label={t("produto")}>
-      <span className="marca-monograma" aria-hidden="true">
-        QA
-      </span>
+      <img className="marca-logo" src={marca} alt="" width={40} height={40} />
       <span className="marca-texto">
         <strong>{t("produto")}</strong>
         <small>{subtitulo}</small>
@@ -152,6 +153,31 @@ export function BotaoTema({ tema, aoTrocar }: { tema: Tema; aoTrocar: () => void
   );
 }
 
+// Why: the state of the daemon and the way out live at the foot of the rail on a desktop,
+// where they are always in view; a phone has no rail, so the account screen carries them.
+// Por que: o estado do daemon e a saída moram no pé do trilho no desktop, onde estão sempre à
+// vista; um celular não tem trilho, então a tela de conta os carrega.
+function RodapeDoTrilho({ aoSair }: { aoSair: () => void }) {
+  const { fase, saude } = usarSaude();
+  return (
+    <div className="trilho-rodape">
+      <p className={`trilho-estado cartao-${fase}`}>
+        <span className="ponto" aria-hidden="true" />
+        <span>
+          {t("conta_firmware")} {saude ? saude.versao : t("indisponivel")}
+        </span>
+      </p>
+      <p className="trilho-detalhe">
+        {t(`estado_${fase}` as const)}
+        {saude ? ` · ${t("uptime")} ${formatarUptime(saude.uptime_s)}` : ""}
+      </p>
+      <button type="button" className="botao secundario" onClick={aoSair}>
+        {t("sair")}
+      </button>
+    </div>
+  );
+}
+
 export default function Concha({
   rota,
   idioma,
@@ -160,15 +186,17 @@ export default function Concha({
   subtitulo,
   aoTrocarIdioma,
   aoTrocarTema,
+  aoSair,
   children,
 }: {
   rota: Rota;
   idioma: Idioma;
   tema: Tema;
-  abas: readonly (typeof ABAS)[number][];
+  abas: readonly AbaDoMenu[];
   subtitulo: string;
   aoTrocarIdioma: (idioma: Idioma) => void;
   aoTrocarTema: () => void;
+  aoSair: () => void;
   children: ReactNode;
 }) {
   const ativa = abaDa(rota);
@@ -182,12 +210,20 @@ export default function Concha({
         </div>
       </header>
       <nav className="navegacao" aria-label={t("nav_menu")}>
-        {abas.map(({ aba, rota: destino, chave }) => (
-          <a key={aba} href={caminhoDa(destino)} aria-current={aba === ativa ? "page" : undefined}>
-            <Icone aba={aba} />
-            <span>{t(chave)}</span>
-          </a>
-        ))}
+        {abas.map(({ aba, rota: destino, chave, ativa: podeAbrir }) =>
+          podeAbrir ? (
+            <a key={aba} href={caminhoDa(destino)} aria-current={aba === ativa ? "page" : undefined}>
+              <Icone aba={aba} />
+              <span>{t(chave)}</span>
+            </a>
+          ) : (
+            <span key={aba} className="desativada" aria-disabled="true" title={t("zonas_exclusivo")}>
+              <Icone aba={aba} />
+              <span>{t(chave)}</span>
+            </span>
+          ),
+        )}
+        <RodapeDoTrilho aoSair={aoSair} />
       </nav>
       <main className="tela">{children}</main>
     </div>

@@ -44,23 +44,11 @@
   border-radius: 8px;
 }
 
-/* Why: the monogram stands where the logo of the company goes, at the size a logo would take;
-   swapping it for the image touches this block and nothing else.
-   Por que: o monograma fica onde entra o logotipo da empresa, no tamanho que um logotipo
-   ocuparia; trocá-lo pela imagem mexe neste bloco e em mais nada. */
-.marca-monograma {
+.marca-logo {
   flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.1rem;
-  height: 2.1rem;
-  border-radius: 9px;
-  background: var(--destaque);
-  color: #ffffff;
-  font-weight: 800;
-  font-size: 0.85rem;
-  letter-spacing: 0.04em;
+  width: 2.4rem;
+  height: 2.4rem;
+  object-fit: contain;
 }
 
 .marca-texto {
@@ -202,7 +190,8 @@
   border-top: 1px solid var(--borda);
 }
 
-.navegacao a {
+.navegacao > a,
+.navegacao > .desativada {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -229,6 +218,19 @@
 .navegacao svg {
   width: 1.5rem;
   height: 1.5rem;
+}
+
+/* Why: a tab that exists but cannot be used yet is dimmed and not taken away, so the operator
+   learns what the hub does before the first speaker is registered.
+   Por que: uma aba que existe mas ainda não pode ser usada fica apagada e não é tirada, para o
+   operador saber o que o hub faz antes de a primeira caixa ser cadastrada. */
+.navegacao > .desativada {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.trilho-rodape {
+  display: none;
 }
 
 /* The home: one card per equipment, the whole card being the link into it.
@@ -395,17 +397,50 @@
     position: sticky;
     top: 3.6rem;
     align-self: start;
-    grid-auto-flow: row;
-    grid-auto-columns: auto;
+    display: flex;
+    flex-direction: column;
     height: calc(100dvh - 3.6rem);
     padding: 0.75rem 0.5rem;
     border-top: 0;
     border-right: 1px solid var(--borda);
-    align-content: start;
     gap: 0.15rem;
   }
 
-  .navegacao a {
+  .trilho-rodape {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-top: auto;
+    padding: 0.9rem 0.6rem 0.4rem;
+    border-top: 1px solid var(--borda);
+    font-size: 0.8rem;
+    color: var(--texto-suave);
+  }
+
+  .trilho-rodape p {
+    margin: 0;
+  }
+
+  .trilho-estado {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-weight: 600;
+    color: var(--texto);
+  }
+
+  .trilho-estado .ponto {
+    width: 0.6rem;
+    height: 0.6rem;
+  }
+
+  .trilho-rodape .botao {
+    margin-top: 0.5rem;
+    align-self: stretch;
+  }
+
+  .navegacao > a,
+  .navegacao > .desativada {
     flex-direction: row;
     justify-content: flex-start;
     gap: 0.7rem;

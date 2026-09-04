@@ -8,7 +8,7 @@
 // operador confere quando algo está errado: o firmware e se existe um mais novo, o reinício,
 // depois o nome da instalação, a sessão e a senha.
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import TrocarSenha from "./TrocarSenha";
 import {
   codigoDoErro,
@@ -19,15 +19,8 @@ import {
   type Estado,
 } from "./api";
 import { t, traduzirErro, type Idioma } from "./i18n";
-import { INTERVALO_MS, formatarUptime, lerSaude, type Saude } from "./saude";
-
-type Fase = "verificando" | "online" | "offline";
-
-interface Leitura {
-  fase: Fase;
-  saude: Saude | null;
-  em: Date | null;
-}
+import { formatarUptime, lerSaude } from "./saude";
+import { usarSaude } from "./usarSaude.ts";
 
 const NOME_MAXIMO = 60;
 const COMANDO_DE_ATUALIZACAO = "docker compose pull && docker compose up -d";
@@ -38,34 +31,6 @@ const COMANDO_DE_ATUALIZACAO = "docker compose pull && docker compose up -d";
 // desistir.
 const ESPERA_DE_VOLTA_MS = 2_000;
 const TENTATIVAS_DE_VOLTA = 30;
-
-function usarSaude(): Leitura {
-  const [leitura, setLeitura] = useState<Leitura>({ fase: "verificando", saude: null, em: null });
-
-  useEffect(() => {
-    let ativo = true;
-
-    async function verificar(): Promise<void> {
-      let proxima: Leitura;
-      try {
-        const saude = await lerSaude();
-        proxima = { fase: saude.ok ? "online" : "offline", saude, em: new Date() };
-      } catch {
-        proxima = { fase: "offline", saude: null, em: new Date() };
-      }
-      if (ativo) setLeitura(proxima);
-    }
-
-    void verificar();
-    const temporizador = window.setInterval(() => void verificar(), INTERVALO_MS);
-    return () => {
-      ativo = false;
-      window.clearInterval(temporizador);
-    };
-  }, []);
-
-  return leitura;
-}
 
 function Atualizar() {
   const [resultado, setResultado] = useState<Atualizacao | null>(null);
@@ -195,11 +160,15 @@ function Reiniciar() {
   );
 }
 
+// Why: on a desktop the rail of the shell shows this at its foot, always in view; a phone has
+// no rail, so the card exists there and nowhere else.
+// Por que: no desktop o trilho da casca mostra isto no pé, sempre à vista; um celular não tem
+// trilho, então o cartão existe lá e em mais lugar nenhum.
 function CartaoFirmware({ idioma }: { idioma: Idioma }) {
   const { fase, saude, em } = usarSaude();
   const locale = idioma === "pt" ? "pt-BR" : "en-US";
   return (
-    <section className={`cartao cartao-${fase}`} aria-live="polite">
+    <section className={`cartao cartao-${fase} so-celular`} aria-live="polite">
       <h2>{t("conta_firmware")}</h2>
       <p className="estado">
         <span className="ponto" aria-hidden="true" />
@@ -208,14 +177,21 @@ function CartaoFirmware({ idioma }: { idioma: Idioma }) {
       <dl>
         <dt>{t("conta_firmware_atual")}</dt>
         <dd>{saude ? saude.versao : t("indisponivel")}</dd>
-        <dt>{t("esquema")}</dt>
-        <dd>{saude ? String(saude.schema_version) : t("indisponivel")}</dd>
         <dt>{t("uptime")}</dt>
         <dd>{saude ? formatarUptime(saude.uptime_s) : t("indisponivel")}</dd>
         <dt>{t("ultima_verificacao")}</dt>
         <dd>{em ? em.toLocaleTimeString(locale) : t("indisponivel")}</dd>
       </dl>
-      <div className="acoes-largas">
+    </section>
+  );
+}
+
+function CartaoManutencao() {
+  return (
+    <section className="cartao">
+      <h2>{t("conta_manutencao")}</h2>
+      <p className="texto-suave">{t("conta_manutencao_texto")}</p>
+      <div className="manutencao">
         <Atualizar />
         <Reiniciar />
       </div>
@@ -308,15 +284,16 @@ export default function Conta({
         </div>
       </div>
       <CartaoFirmware idioma={idioma} />
+      <CartaoManutencao />
       <CartaoInstalacao nome={estado.nome_instalacao} aoRenomear={aoRenomear} />
-      <section className="cartao">
+      <TrocarSenha />
+      <section className="cartao so-celular">
         <h2>{t("conta_sessao")}</h2>
         <p className="texto-suave">{t("conta_sessao_texto")}</p>
         <button type="button" className="botao secundario" onClick={aoSair}>
           {t("sair")}
         </button>
       </section>
-      <TrocarSenha />
     </>
   );
 }

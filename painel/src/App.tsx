@@ -16,7 +16,7 @@ import Simulador from "./Simulador.tsx";
 import Zonas from "./Zonas.tsx";
 import { lerEstado, lerSessao, sair, type Estado } from "./api";
 import { definirIdioma, idiomaAtual, t, type Idioma } from "./i18n";
-import { abasVisiveis, rotaAtual, type Rota } from "./rotas.ts";
+import { abasDoMenu, rotaAtual, type Rota } from "./rotas.ts";
 import { ler as lerToken } from "./sessao";
 import { aplicarTema, definirTema, lerTema, proximoTema, type Tema } from "./tema.ts";
 import { podeOcuparBloco } from "./zonas.ts";
@@ -124,7 +124,8 @@ function Painel({
       rota={rota}
       idioma={idioma}
       tema={tema}
-      abas={abasVisiveis(temMultiroom)}
+      abas={abasDoMenu(temMultiroom)}
+      aoSair={aoSair}
       subtitulo={estado.nome_instalacao || t("empresa")}
       aoTrocarIdioma={aoTrocarIdioma}
       aoTrocarTema={aoTrocarTema}

@@ -148,10 +148,10 @@ autorizado=(-H "Authorization: Bearer $token")
 
 corpo="$(curl -sS --max-time 10 "${autorizado[@]}" "$base/api/catalogo" || true)"
 if printf '%s' "$corpo" | grep -q '"multiroom_linkplay"' \
-    && printf '%s' "$corpo" | grep -q '"matriz_hdmi_ascii"'; then
-    pass "GET /api/catalogo: the native drivers and the embedded json catalogue both loaded"
+    && printf '%s' "$corpo" | grep -q '"projetor_pjlink"'; then
+    pass "GET /api/catalogo: the native drivers of the image loaded"
 else
-    fail "GET /api/catalogo: expected the native and the embedded json drivers, got '$corpo'"
+    fail "GET /api/catalogo: expected the native drivers of the image, got '$corpo'"
 fi
 
 codigo="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 60 -X POST "${autorizado[@]}" "$base/api/descoberta" || true)"

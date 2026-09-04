@@ -42,8 +42,22 @@ export const ABAS: readonly { aba: Aba; rota: Rota; chave: `nav_${Aba}` }[] = [
 // não consegue responder.
 export const ABAS_DE_MULTIROOM: readonly Aba[] = ["zonas", "cenas", "simulador"];
 
-export function abasVisiveis(temMultiroom: boolean): readonly (typeof ABAS)[number][] {
-  return ABAS.filter(({ aba }) => temMultiroom || !ABAS_DE_MULTIROOM.includes(aba));
+export interface AbaDoMenu {
+  aba: Aba;
+  rota: Rota;
+  chave: `nav_${Aba}`;
+  ativa: boolean;
+}
+
+// Why: a tab that exists but cannot be used yet is drawn dimmed and not taken away, so the
+// operator learns what the hub does before the first speaker is registered.
+// Por que: uma aba que existe mas ainda não pode ser usada é desenhada apagada e não é
+// tirada, para o operador saber o que o hub faz antes de a primeira caixa ser cadastrada.
+export function abasDoMenu(temMultiroom: boolean): AbaDoMenu[] {
+  return ABAS.map((entrada) => ({
+    ...entrada,
+    ativa: temMultiroom || !ABAS_DE_MULTIROOM.includes(entrada.aba),
+  }));
 }
 
 const INICIO: Rota = { tela: "inicio" };

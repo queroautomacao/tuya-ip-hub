@@ -189,7 +189,11 @@ daemon inteiro.
 
 Carregamento: `drivers/catalogo_json/*.json` (embarcado, versionado, revisado)
 mais `/data/drivers/*.json` (do integrador), o segundo vence em conflito de
-`tipo`. Recarrega quando o painel salva, sem reiniciar.
+`tipo`. Recarrega quando o painel salva, sem reiniciar. Os três JSON de exemplo
+do marco 3 (TCP, HTTP, UDP) vivem em `core/tests/drivers/exemplos/` e **não
+embarcam** (decisão de 4/set/2026): protocolo inventado para provar o motor não
+é produto, e a lista de tipos do painel só oferece o que controla um aparelho de
+verdade. O catálogo embarcado nasce vazio e recebe driver revisado da comunidade.
 
 ---
 

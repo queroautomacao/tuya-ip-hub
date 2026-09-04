@@ -14,7 +14,7 @@
   --texto: #1c1f26;
   --texto-suave: #5b6270;
   --borda: #d9dde3;
-  --destaque: #2f6fed;
+  --destaque: #c8423a;
   --online: #1e9e5a;
   --offline: #d13b3b;
   --verificando: #8a919c;
@@ -29,7 +29,7 @@
     --texto: #e8eaee;
     --texto-suave: #a3a9b4;
     --borda: #2f343e;
-    --destaque: #6b9cff;
+    --destaque: #f2837b;
     --erro: #ff8b8b;
     --sucesso: #67d6a2;
   }
@@ -46,7 +46,7 @@
   --texto: #1c1f26;
   --texto-suave: #5b6270;
   --borda: #d9dde3;
-  --destaque: #2f6fed;
+  --destaque: #c8423a;
   --erro: #b32626;
   --sucesso: #17794a;
 }
@@ -58,7 +58,7 @@
   --texto: #e8eaee;
   --texto-suave: #a3a9b4;
   --borda: #2f343e;
-  --destaque: #6b9cff;
+  --destaque: #f2837b;
   --erro: #ff8b8b;
   --sucesso: #67d6a2;
 }
@@ -301,6 +301,34 @@ main {
 .botao[disabled] {
   opacity: 0.6;
   cursor: progress;
+}
+
+/* Why: a row of actions under the readings of a card needs air above it, or the buttons read
+   as part of the last line.
+   Por que: uma fileira de ações sob as leituras de um cartão precisa de ar em cima, senão os
+   botões se leem como parte da última linha. */
+.cartao .acoes-largas,
+.cartao .manutencao {
+  margin-top: 1.1rem;
+}
+
+.manutencao {
+  display: grid;
+  gap: 1rem;
+}
+
+.pilha {
+  gap: 0.75rem;
+}
+
+/* Why: what the rail of the shell shows on a desktop is not repeated on the account screen
+   there, and exists on the account screen only where there is no rail.
+   Por que: o que o trilho da casca mostra no desktop não se repete na tela de conta lá, e
+   existe na tela de conta só onde não há trilho. */
+@media (min-width: 900px) {
+  .so-celular {
+    display: none;
+  }
 }
 
 .botao.secundario {

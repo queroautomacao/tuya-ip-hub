@@ -30,6 +30,7 @@ ROTAS = RAIZ / "core" / "iphub" / "api" / "__init__.py"
 APP = RAIZ / "core" / "iphub" / "app.py"
 
 CATALOGO_EMBARCADO = "core/iphub/drivers/catalogo_json/"
+EXEMPLOS = "core/tests/drivers/exemplos/"
 
 METADES = {"en": "## English", "pt": "## Português"}
 TITULO_STATUS = {"en": "### Project status", "pt": "### Estado do projeto"}
@@ -187,12 +188,12 @@ def test_contribuir_aponta_a_pasta_do_catalogo_embarcado():
         )
 
 
-def test_contribuir_nomeia_todo_transporte_que_o_catalogo_embarcado_traz():
-    pasta = RAIZ / CATALOGO_EMBARCADO
+def test_contribuir_nomeia_todo_transporte_que_os_exemplos_trazem():
+    pasta = RAIZ / EXEMPLOS
     transportes = set()
     for arquivo in sorted(pasta.glob("*.json")):
         transportes |= set(json.loads(_ler(arquivo))["transporte"])
-    assert transportes, f"no embedded driver in {CATALOGO_EMBARCADO}"
+    assert transportes, f"no example driver in {EXEMPLOS}"
     for idioma, metade in _metades(CONTRIBUIR).items():
         faltando = [t for t in sorted(transportes) if t.upper() not in metade]
         assert not faltando, f"{idioma}: CONTRIBUTING names no example for {faltando}"

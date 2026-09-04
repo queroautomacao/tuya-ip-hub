@@ -94,11 +94,19 @@ def pasta(dir_data: Path) -> Path:
     return dir_data / catalogo.PASTA_INTEGRADOR
 
 
+# Why: the image ships an empty embedded catalogue, so the tests of section 7 load the three
+# examples of milestone 3 as if they were embedded, from the folder where they live.
+# Por que: a imagem embarca um catálogo vazio, então os testes da seção 7 carregam os três
+# exemplos do marco 3 como se embarcados, da pasta onde eles vivem.
+EXEMPLOS = Path(__file__).resolve().parents[1] / "drivers" / "exemplos"
+
+
 def _montar(dir_data: Path | None = None, *, regex: object = None) -> catalogo.Catalogo:
     return catalogo.Catalogo(
         dir_data,
         regex=_SemFogo() if regex is None else regex,
         fabrica=_fabrica_falsa,
+        pasta_embarcada=EXEMPLOS,
     )
 
 
@@ -118,7 +126,7 @@ def _codigos(catalogo_montado: catalogo.Catalogo, nome: str) -> tuple[str, ...]:
 def _embarcados() -> dict[str, dict]:
     return {
         arquivo.name: json.loads(arquivo.read_text(encoding="utf-8"))
-        for arquivo in sorted(catalogo.PASTA_EMBARCADA.glob(catalogo.PADRAO_ARQUIVO))
+        for arquivo in sorted(EXEMPLOS.glob(catalogo.PADRAO_ARQUIVO))
     }
 
 
@@ -131,7 +139,7 @@ def test_o_catalogo_embarcado_traz_um_exemplo_por_transporte():
     Seção 13: três arquivos de exemplo, TCP, HTTP e UDP, e cada um valida de verdade.
     """
     arquivos = _embarcados()
-    assert len(arquivos) >= 3, "the embedded catalog must carry the three examples"
+    assert len(arquivos) >= 3, "milestone 3 asks for the three examples"
     transportes = []
     for nome, dados in arquivos.items():
         # The real fire test, the same one the API runs before saving a file of the panel.
@@ -482,3 +490,19 @@ def test_recarregar_traz_o_arquivo_novo_e_esquece_o_apagado(dir_data: Path, past
     montado.recarregar()
     assert TIPO_DE_TESTE not in montado.drivers
     assert set(montado.nativos) <= set(montado.drivers)
+
+
+def test_a_imagem_embarca_um_catalogo_vazio_e_os_exemplos_nunca_embarcam():
+    """The list of types the panel offers is what controls a real device, so an invented
+    protocol never ships; the examples live with the tests.
+
+    A lista de tipos que o painel oferece é o que controla um aparelho de verdade, então um
+    protocolo inventado nunca embarca; os exemplos vivem com os testes.
+    """
+    assert sorted(catalogo.PASTA_EMBARCADA.glob(catalogo.PADRAO_ARQUIVO)) == []
+    assert catalogo.PASTA_EMBARCADA.is_dir()
+    assert {arquivo.name for arquivo in EXEMPLOS.glob(catalogo.PADRAO_ARQUIVO)} == {
+        "matriz_hdmi_ascii.json",
+        "rele_http.json",
+        "amplificador_udp.json",
+    }

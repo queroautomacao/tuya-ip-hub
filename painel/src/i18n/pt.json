@@ -348,5 +348,7 @@
   "simulador_grupo": "Grupo",
   "simulador_offline": "offline",
   "simulador_sem_cena": "Nenhuma cena configurada.",
-  "conta_atualizacao_sem_release": "Nenhuma versão foi publicada ainda; esta é a instalada."
+  "conta_atualizacao_sem_release": "Nenhuma versão foi publicada ainda; esta é a instalada.",
+  "conta_manutencao": "Manutenção",
+  "conta_manutencao_texto": "Verifique se há uma versão mais nova e reinicie o hub quando precisar. As caixas seguem tocando durante o reinício."
 }
