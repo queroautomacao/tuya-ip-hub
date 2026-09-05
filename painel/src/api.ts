@@ -1,14 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Quero Automação Ltda
 
-import {
-  corpoDeCenas,
-  lerLeituraDeCenas,
-  lerSnapshot,
-  type Cena,
-  type LeituraDeCenas,
-  type Snapshot,
-} from "./cenas.ts";
+import { corpoDeCenas, lerLeituraDeCenas, type Cena, type LeituraDeCenas } from "./cenas.ts";
 import {
   lerDriverDeclarativo,
   lerModelo,
@@ -29,8 +22,18 @@ import {
   type ResultadoAutenticacao,
 } from "./equipamentos.ts";
 import type { CorpoCadastro } from "./formulario.ts";
+import {
+  lerLeituraDeLicencas,
+  lerLicenca,
+  lerQr,
+  lerSnapshot,
+  type CorpoDeLicenca,
+  type LeituraDeLicencas,
+  type Licenca,
+  type Qr,
+  type Snapshot,
+} from "./licencas.ts";
 import { guardar, ler, limpar } from "./sessao.ts";
-import { lerLeituraDeBlocos, type LeituraDeBlocos } from "./blocos.ts";
 
 export const SENHA_MINIMA = 8;
 
@@ -329,34 +332,74 @@ export async function lerModeloDriver(
   return modelo;
 }
 
-export async function lerBlocos(): Promise<LeituraDeBlocos> {
-  const leitura = lerLeituraDeBlocos(await pedir("/api/blocos", "GET"));
+// Why: the id of a licence is a short identifier the daemon refuses before it becomes a path,
+// and encoding it keeps a hand written one from addressing another route anyway.
+// Por que: o id de uma licença é um identificador curto que o daemon recusa antes de virar
+// caminho, e codificá-lo impede que um escrito à mão enderece outra rota de todo jeito.
+function rotaDaLicenca(id: string): string {
+  return `/api/licencas/${encodeURIComponent(id)}`;
+}
+
+export async function lerLicencas(): Promise<LeituraDeLicencas> {
+  const leitura = lerLeituraDeLicencas(await pedir("/api/licencas", "GET"));
   if (leitura === null) throw new ErroApi(CODIGO_CORPO_INVALIDO);
   return leitura;
 }
 
-// Why: the whole order travels, because the POSITION of a block is the data point block of
-// section 8; sending one slot alone would need an index anyway and a shorter list would move
-// a speaker from block 2 to block 1 in every automation the customer already built.
-// Por que: a ordem inteira viaja, porque a POSIÇÃO de um bloco é o bloco de data points da
-// seção 8; mandar uma vaga sozinha precisaria de um índice de todo jeito e uma lista mais
-// curta moveria uma caixa do bloco 2 para o bloco 1 em toda automação que o cliente já montou.
-export async function salvarBlocos(blocos: readonly string[]): Promise<void> {
-  await pedir("/api/blocos", "POST", { blocos });
+function aceitarLicenca(dados: Objeto): Licenca {
+  const licenca = lerLicenca(dados.licenca);
+  if (licenca === null) throw new ErroApi(CODIGO_CORPO_INVALIDO);
+  return licenca;
 }
 
-export async function lerDps(): Promise<Snapshot> {
-  const snapshot = lerSnapshot(await pedir("/api/dps", "GET"));
+export async function criarLicenca(corpo: CorpoDeLicenca): Promise<Licenca> {
+  return aceitarLicenca(await pedir("/api/licencas", "POST", corpo));
+}
+
+// Why: a field the body omits keeps the stored value, the chave included, so an edit that only
+// fixes the name never erases the credential of the device.
+// Por que: um campo que o corpo omite mantém o valor guardado, a chave inclusive, então uma
+// edição que só conserta o nome nunca apaga a credencial do dispositivo.
+export async function atualizarLicenca(id: string, corpo: CorpoDeLicenca): Promise<Licenca> {
+  return aceitarLicenca(await pedir(rotaDaLicenca(id), "POST", corpo));
+}
+
+export async function removerLicenca(id: string): Promise<void> {
+  await pedir(rotaDaLicenca(id), "DELETE");
+}
+
+// Why: the whole order travels, because the POSITION of a number is the contract of section 8;
+// sending one slot alone would need an index anyway and a shorter list would move an equipment
+// from number 2 to number 1 in every automation the customer already built.
+// Por que: a ordem inteira viaja, porque a POSIÇÃO de um número é o contrato da seção 8; mandar
+// uma vaga sozinha precisaria de um índice de todo jeito e uma lista mais curta moveria um
+// equipamento do número 2 para o número 1 em toda automação que o cliente já montou.
+// Why: a set on a licence may reach a whole group of speakers, each with a deadline of its
+// own on the daemon, so these three wait the long deadline instead of giving up first.
+// Por que: um set numa licença pode alcançar um grupo inteiro de caixas, cada uma com prazo
+// próprio no daemon, então estes três esperam o prazo longo em vez de desistir antes.
+export async function salvarNumeros(id: string, numeros: readonly string[]): Promise<void> {
+  await pedir(`${rotaDaLicenca(id)}/numeros`, "POST", { numeros }, PRAZO_VARREDURA_MS);
+}
+
+export async function lerDps(id: string): Promise<Snapshot> {
+  const snapshot = lerSnapshot(await pedir(`${rotaDaLicenca(id)}/dps`, "GET"));
   if (snapshot === null) throw new ErroApi(CODIGO_CORPO_INVALIDO);
   return snapshot;
 }
 
-export async function ajustarDp(dpid: number, valor: unknown): Promise<void> {
-  await pedir(`/api/dp/${dpid}`, "POST", { v: valor });
+export async function ajustarDp(id: string, dpid: number, valor: unknown): Promise<void> {
+  await pedir(`${rotaDaLicenca(id)}/dp/${dpid}`, "POST", { v: valor }, PRAZO_VARREDURA_MS);
 }
 
-export async function definirGrupo(valor: string): Promise<void> {
-  await pedir("/api/grupo", "POST", { v: valor });
+export async function definirGrupo(id: string, valor: number): Promise<void> {
+  await pedir(`${rotaDaLicenca(id)}/grupo`, "POST", { v: valor }, PRAZO_VARREDURA_MS);
+}
+
+export async function lerQrDaLicenca(id: string): Promise<Qr> {
+  const qr = lerQr(await pedir(`${rotaDaLicenca(id)}/qr`, "GET"));
+  if (qr === null) throw new ErroApi(CODIGO_CORPO_INVALIDO);
+  return qr;
 }
 
 export async function lerCenas(): Promise<LeituraDeCenas> {

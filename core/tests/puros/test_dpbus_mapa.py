@@ -1,367 +1,353 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Quero Automação Ltda
-"""Section 8 under attack: the numbering is written here by hand and the code has to match.
+"""Section 8 under attack: the numbering of the two products is written here by hand and the
+code has to match.
 
-The table below is transcribed from the document, not generated from the module, because a
+The tables below are transcribed from the document, not generated from the module, because a
 test that built the numbers the same way the code does would agree with a wrong formula.
-The rest attacks the three platform rules: the chip never echoes a received DP, an enum
-takes at most ten values, and a string DP carries 255 bytes and not one more.
+The rest attacks the platform rules: the chip never echoes a received DP, an enum takes at
+most ten values, a string carries 255 bytes and not one more, and every data point carries
+the report class the policy of section 8 reads.
 
-Seção 8 sob ataque: a numeração está escrita aqui à mão e o código tem de casar com ela.
+Seção 8 sob ataque: a numeração dos dois produtos está escrita aqui à mão e o código tem de
+casar com ela.
 
-A tabela abaixo é transcrita do documento, não gerada do módulo, porque um teste que
+As tabelas abaixo são transcritas do documento, não geradas do módulo, porque um teste que
 montasse os números do mesmo jeito que o código concordaria com uma fórmula errada. O resto
-ataca as três regras de plataforma: o chip nunca ecoa um DP recebido, um enum aceita no
-máximo dez valores, e um DP string carrega 255 bytes e nem um a mais.
+ataca as regras de plataforma: o chip nunca ecoa um DP recebido, um enum aceita no máximo dez
+valores, uma string carrega 255 bytes e nem um a mais, e todo data point carrega a classe de
+report que a política da seção 8 lê.
 """
 
 import json
 
 import pytest
 
+from iphub.dpbus import mapa
 from iphub.dpbus.mapa import (
-    AJUSTAVEIS,
-    BLOCOS,
-    CENA,
-    CODIGOS_DE_NOMES,
-    DPS,
+    CENAS,
     ENUM_MAXIMO,
-    FUNCOES_BLOCO,
-    FUNCOES_GLOBAIS,
-    GRUPO,
-    GRUPOS,
-    MAPA,
-    NOME_NAO_GRAVAVEL,
-    NOMES_BLOCOS,
-    NOMES_CENAS,
-    NOMES_DEMAIS,
-    NOMES_GRUPOS,
-    NOMES_LONGOS,
-    REPORTAVEIS,
+    NUMEROS,
+    PRODUTO_AR,
+    PRODUTO_AV,
     TEXTO_MAXIMO_BYTES,
-    THROTTLE_TOCANDO_S,
-    VALORES_CENA,
-    VALORES_GRUPO,
-    VALORES_PRESET,
+    Classe,
     NomesInvalidos,
     Sentido,
     Tipo,
+    bits,
     de_dp,
-    do_bloco,
+    desempacotar,
     dp_de,
+    dps_de,
+    empacotar,
     nomes_cabem,
-    nomes_json,
-    texto_de_dp,
-    valores_de_enum,
+    nomes_das_cenas,
+    nomes_das_maquinas,
+    numero_de_cena,
+    pares,
+    titulos,
 )
 
-# The whole of the section 8 table, copied from CLAUDE.md; bloco 0 is a global data point.
-# A tabela inteira da seção 8, copiada do CLAUDE.md; o bloco 0 é um data point global.
-SECAO_8 = {
-    101: (1, "volume"),
-    102: (1, "play"),
-    103: (1, "preset"),
-    104: (1, "online"),
-    105: (1, "tocando"),
-    106: (2, "volume"),
-    107: (2, "play"),
-    108: (2, "preset"),
-    109: (2, "online"),
-    110: (2, "tocando"),
-    111: (3, "volume"),
-    112: (3, "play"),
-    113: (3, "preset"),
-    114: (3, "online"),
-    115: (3, "tocando"),
-    116: (4, "volume"),
-    117: (4, "play"),
-    118: (4, "preset"),
-    119: (4, "online"),
-    120: (4, "tocando"),
-    121: (5, "volume"),
-    122: (5, "play"),
-    123: (5, "preset"),
-    124: (5, "online"),
-    125: (5, "tocando"),
-    126: (6, "volume"),
-    127: (6, "play"),
-    128: (6, "preset"),
-    129: (6, "online"),
-    130: (6, "tocando"),
-    131: (0, "cena"),
-    132: (0, "grupo"),
-    133: (0, "nomes_blocos"),
-    134: (0, "nomes_cenas"),
-    135: (0, "nomes_grupos"),
-    141: (1, "entrada"),
-    142: (2, "entrada"),
-    143: (3, "entrada"),
-    144: (4, "entrada"),
-    145: (5, "entrada"),
-    146: (6, "entrada"),
+# The product of air, copied from section 8: machine k starts at 101 + 5(k - 1).
+# O produto de ar, copiado da seção 8: a máquina k começa em 101 + 5(k - 1).
+AR = {
+    **{101 + 5 * (k - 1): (k, "ligado") for k in range(1, 9)},
+    **{102 + 5 * (k - 1): (k, "temperatura") for k in range(1, 9)},
+    **{103 + 5 * (k - 1): (k, "modo") for k in range(1, 9)},
+    **{104 + 5 * (k - 1): (k, "vento") for k in range(1, 9)},
+    171: (0, "cena"),
+    172: (0, "online"),
+    173: (0, "nomes"),
+    174: (0, "nomes_cenas"),
+    175: (0, "nomes_cenas"),
 }
 
-SOMENTE_ENVIO = (103, 108, 113, 118, 123, 128, 131)
-SOMENTE_REPORTE = (104, 105, 109, 110, 114, 115, 119, 120, 124, 125, 129, 130, 133, 134, 135)
+# The product of audio and video: ligado at 100 + n, nivel at 120 + n, the installation at 141.
+# O produto de áudio e vídeo: ligado em 100 + n, nível em 120 + n, a instalação no 141.
+AV = {
+    **{100 + n: (n, "ligado") for n in range(1, 13)},
+    **{120 + n: (n, "nivel") for n in range(1, 13)},
+    141: (0, "cena"),
+    142: (0, "grupo"),
+    143: (0, "comando"),
+    144: (0, "online"),
+    145: (0, "mudos"),
+    146: (0, "entradas"),
+    147: (0, "modos"),
+    148: (0, "titulos"),
+    149: (0, "perfis"),
+    150: (0, "perfis"),
+    151: (0, "perfis"),
+    152: (0, "perfis"),
+    153: (0, "perfis"),
+    154: (0, "nomes_cenas"),
+    155: (0, "nomes_cenas"),
+}
 
-FORA_DO_CONTRATO = (0, 1, 100, 136, 137, 138, 139, 140, 147, 200, -101)
-
-# Overhead of the compact JSON of one name in DP 133: {"z":[" plus "]}.
-# Peso do JSON compacto de um nome no DP 133: {"z":[" mais "]}.
-MOLDURA_DE_UM_NOME = 10
-
-
-def _nome(tamanho: int, acentos: int = 0) -> str:
-    """A name of exactly tamanho characters, acentos of them costing two bytes in UTF-8.
-
-    Um nome de exatamente tamanho caracteres, acentos deles custando dois bytes em UTF-8.
-    """
-    return "á" * acentos + "z" * (tamanho - acentos)
-
-
-def test_a_tabela_e_a_da_secao_8():
-    assert set(MAPA) == set(SECAO_8)
-    encontrado = {dp.dpid: (dp.bloco, dp.funcao) for dp in DPS}
-    assert encontrado == SECAO_8
-
-
-def test_o_vocabulario_de_funcoes_e_o_da_tabela():
-    assert set(FUNCOES_BLOCO) == {dp.funcao for dp in DPS if dp.bloco}
-    assert set(FUNCOES_GLOBAIS) == {dp.funcao for dp in DPS if not dp.bloco}
-
-
-def test_os_codigos_de_nomes_sao_estaveis_e_nenhum_e_uma_frase():
-    # Section 11: whoever refuses a name answers a code and the panel translates it.
-    # Seção 11: quem recusa um nome responde um código e o painel o traduz.
-    assert set(CODIGOS_DE_NOMES) == {NOMES_DEMAIS, NOMES_LONGOS, NOME_NAO_GRAVAVEL}
-    for codigo in CODIGOS_DE_NOMES:
-        assert codigo == codigo.lower()
-        assert " " not in codigo
+SOMENTE_ENVIO = {PRODUTO_AR: (171,), PRODUTO_AV: (141, 143)}
+SOMENTE_REPORTE = {
+    PRODUTO_AR: (172, 173, 174, 175),
+    PRODUTO_AV: tuple(range(144, 156)),
+}
+FORA_DO_CONTRATO = {
+    PRODUTO_AR: (0, 1, 100, 105, 110, 140, 170, 176, 200, -101),
+    PRODUTO_AV: (0, 1, 100, 113, 120, 133, 140, 156, 200, -101),
+}
 
 
-def test_todo_bloco_tem_seis_data_points_e_sao_seis_blocos():
-    assert BLOCOS == 6
-    for bloco in range(1, BLOCOS + 1):
-        assert len(do_bloco(bloco)) == 6
-    assert not do_bloco(7)
+def test_as_tabelas_sao_as_da_secao_8():
+    assert {dp.dpid: (dp.numero, dp.funcao) for dp in mapa.tabela(PRODUTO_AR)} == AR
+    assert {dp.dpid: (dp.numero, dp.funcao) for dp in mapa.tabela(PRODUTO_AV)} == AV
+
+
+def test_os_produtos_e_os_numeros_sao_os_do_documento():
+    assert mapa.PRODUTOS == ("ar", "av")
+    assert NUMEROS == {"ar": 8, "av": 12}
+    assert CENAS == 32
+    assert len(mapa.tabela(PRODUTO_AR)) == 37
+    assert len(mapa.tabela(PRODUTO_AV)) == 39
 
 
 def test_o_numero_vai_e_volta():
-    for dpid, (bloco, funcao) in SECAO_8.items():
-        assert dp_de(bloco, funcao) == dpid
-        dp = de_dp(dpid)
-        assert dp is not None
-        assert (dp.bloco, dp.funcao) == (bloco, funcao)
+    for produto, tabela in ((PRODUTO_AR, AR), (PRODUTO_AV, AV)):
+        for dpid, (numero, funcao) in tabela.items():
+            dp = de_dp(produto, dpid)
+            assert dp is not None and dp.produto == produto
+            if funcao in ("perfis", "nomes_cenas"):
+                assert dp_de(produto, funcao, numero, dp.indice) == dpid
+            else:
+                assert dp_de(produto, funcao, numero) == dpid
+
+
+def test_as_partes_de_uma_string_espalhada_tem_indice():
+    assert [dp.indice for dp in dps_de(PRODUTO_AV, "perfis")] == [1, 2, 3, 4, 5]
+    assert [dp.indice for dp in dps_de(PRODUTO_AR, "nomes_cenas")] == [1, 2]
+    assert dp_de(PRODUTO_AV, "perfis", indice=3) == 151
 
 
 @pytest.mark.parametrize(
-    ("bloco", "funcao"),
+    ("produto", "funcao", "numero"),
     [
-        (0, "volume"),
-        (7, "volume"),
-        (-1, "volume"),
-        (1, "clima"),
-        (1, ""),
-        (1, "cena"),
-        (0, "entrada"),
-        (0, "volume"),
+        (PRODUTO_AR, "ligado", 0),
+        (PRODUTO_AR, "ligado", 9),
+        (PRODUTO_AR, "nivel", 1),
+        (PRODUTO_AV, "temperatura", 1),
+        (PRODUTO_AV, "nivel", 13),
+        ("tv", "ligado", 1),
     ],
 )
-def test_dp_de_recusa_um_par_fora_da_tabela(bloco, funcao):
+def test_dp_de_recusa_uma_combinacao_fora_da_tabela(produto, funcao, numero):
     with pytest.raises(ValueError):
-        dp_de(bloco, funcao)
+        dp_de(produto, funcao, numero)
 
 
-@pytest.mark.parametrize("dpid", FORA_DO_CONTRATO)
-def test_de_dp_recusa_um_numero_fora_do_contrato(dpid):
-    assert de_dp(dpid) is None
+@pytest.mark.parametrize("produto", [PRODUTO_AR, PRODUTO_AV])
+def test_de_dp_recusa_um_numero_fora_do_contrato(produto):
+    for dpid in FORA_DO_CONTRATO[produto]:
+        assert de_dp(produto, dpid) is None, (produto, dpid)
 
 
-@pytest.mark.parametrize("dpid", [True, False, 101.0, "101", None, [101], 101j])
+@pytest.mark.parametrize("dpid", [True, "101", 101.0, None, [101]])
 def test_de_dp_recusa_o_que_nao_e_um_inteiro(dpid):
-    # Why: the JSON true is an int for Python, and True would resolve to the volume of block 1.
-    # Por que: o true do JSON é int para o Python, e True resolveria o volume do bloco 1.
-    assert de_dp(dpid) is None
+    assert de_dp(PRODUTO_AV, dpid) is None
 
 
-@pytest.mark.parametrize("dpid", SOMENTE_ENVIO)
-def test_o_chip_nunca_ecoa_entao_preset_e_cena_nao_sao_reportaveis(dpid):
-    dp = de_dp(dpid)
-    assert dp.sentido is Sentido.ENVIO
-    assert not dp.reportavel
-    assert dp.ajustavel
-    assert dpid not in REPORTAVEIS
+def test_de_dp_recusa_um_produto_que_o_contrato_nao_nomeia():
+    assert de_dp("tv", 101) is None
+    assert de_dp(None, 101) is None
 
 
-@pytest.mark.parametrize("dpid", SOMENTE_REPORTE)
-def test_online_tocando_e_os_nomes_nunca_aceitam_um_set(dpid):
-    dp = de_dp(dpid)
-    assert dp.sentido is Sentido.REPORTE
-    assert not dp.ajustavel
-    assert dp.reportavel
-    assert dpid not in AJUSTAVEIS
+@pytest.mark.parametrize("produto", [PRODUTO_AR, PRODUTO_AV])
+def test_o_chip_nunca_ecoa_entao_cena_e_comando_nao_sao_reportaveis(produto):
+    for dpid in SOMENTE_ENVIO[produto]:
+        dp = de_dp(produto, dpid)
+        assert dp.sentido is Sentido.ENVIO and not dp.reportavel and dp.ajustavel
 
 
-def test_volume_play_grupo_e_entrada_vao_nos_dois_sentidos():
-    for dpid in (101, 102, 132, 141):
-        dp = de_dp(dpid)
-        assert dp.sentido is Sentido.RW
-        assert dp.reportavel and dp.ajustavel
+@pytest.mark.parametrize("produto", [PRODUTO_AR, PRODUTO_AV])
+def test_o_que_nasce_de_estado_real_nunca_aceita_um_set(produto):
+    for dpid in SOMENTE_REPORTE[produto]:
+        dp = de_dp(produto, dpid)
+        assert dp.sentido is Sentido.REPORTE and dp.reportavel and not dp.ajustavel
+
+
+def test_o_que_a_automacao_alcanca_vai_nos_dois_sentidos():
+    for dp in (*mapa.tabela(PRODUTO_AR), *mapa.tabela(PRODUTO_AV)):
+        if dp.funcao in ("ligado", "temperatura", "modo", "vento", "nivel", "grupo"):
+            assert dp.sentido is Sentido.RW, dp
+            assert dp.tipo in (Tipo.BOOL, Tipo.VALOR, Tipo.ENUM), dp
 
 
 def test_os_tipos_sao_os_da_secao_8():
-    assert de_dp(101).tipo is Tipo.VALOR
-    assert de_dp(102).tipo is Tipo.BOOL
-    assert de_dp(103).tipo is Tipo.ENUM
-    assert de_dp(104).tipo is Tipo.BOOL
-    assert de_dp(105).tipo is Tipo.TEXTO
-    assert de_dp(141).tipo is Tipo.ENUM
-    for dpid in (NOMES_BLOCOS, NOMES_CENAS, NOMES_GRUPOS):
-        assert de_dp(dpid).tipo is Tipo.TEXTO
-
-
-def test_so_o_tocando_tem_o_throttle_de_cinco_segundos():
-    assert de_dp(105).throttle_s == THROTTLE_TOCANDO_S == 5.0
-    outros = [dp.dpid for dp in DPS if dp.throttle_s and dp.funcao != "tocando"]
-    assert not outros
-
-
-def test_so_o_tocando_e_texto_livre():
-    livres = {dp.funcao for dp in DPS if dp.texto_livre}
-    assert livres == {"tocando"}
+    assert de_dp(PRODUTO_AR, 101).tipo is Tipo.BOOL
+    assert de_dp(PRODUTO_AR, 102).tipo is Tipo.VALOR
+    assert (de_dp(PRODUTO_AR, 102).minimo, de_dp(PRODUTO_AR, 102).maximo) == (16, 30)
+    assert de_dp(PRODUTO_AR, 103).valores == ("auto", "frio", "quente", "vento", "seco")
+    assert de_dp(PRODUTO_AR, 104).valores == ("auto", "baixo", "medio", "alto")
+    assert de_dp(PRODUTO_AV, 121).tipo is Tipo.VALOR
+    assert (de_dp(PRODUTO_AV, 121).minimo, de_dp(PRODUTO_AV, 121).maximo) == (0, 100)
+    assert (de_dp(PRODUTO_AV, 141).minimo, de_dp(PRODUTO_AV, 141).maximo) == (1, 32)
+    assert (de_dp(PRODUTO_AV, 142).minimo, de_dp(PRODUTO_AV, 142).maximo) == (0, 12)
+    assert de_dp(PRODUTO_AV, 143).tipo is Tipo.TEXTO
+    assert de_dp(PRODUTO_AV, 144).maximo == (1 << 12) - 1
+    assert de_dp(PRODUTO_AR, 172).maximo == (1 << 8) - 1
 
 
 def test_nenhum_enum_passa_do_teto_de_dez_valores():
-    # Why: a custom enum takes at most ten values on the platform, so an eleventh would make
-    # the platform refuse the whole DP and take the function off the bus.
-    # Por que: um enum customizado aceita no máximo dez valores na plataforma, então um
-    # décimo primeiro faria a plataforma recusar o DP inteiro e tirar a função do barramento.
-    for dp in DPS:
-        assert len(dp.valores) <= ENUM_MAXIMO
+    for dp in (*mapa.tabela(PRODUTO_AR), *mapa.tabela(PRODUTO_AV)):
+        if dp.tipo is Tipo.ENUM:
+            assert 0 < len(dp.valores) <= ENUM_MAXIMO
+            assert all(len(v) <= 15 and v.replace("_", "").isalnum() for v in dp.valores)
 
 
-def test_os_valores_fixos_sao_os_do_documento():
-    assert VALORES_PRESET == tuple(f"cmd{n}" for n in range(1, 9))
-    assert VALORES_CENA == tuple(f"cena{n}" for n in range(1, 9))
-    assert VALORES_GRUPO[0] == "solo"
-    assert VALORES_GRUPO[-1] == f"grupo{GRUPOS}"
-    # Why: a group is named after the block that leads it, so section 8 offers one per block
-    # and no more: a grupo7 would be a value the panel offers and a scene saves that no block
-    # can ever name. It stays under the ceiling of ten the platform imposes.
-    # Por que: um grupo tem o nome do bloco que o lidera, então a seção 8 oferece um por bloco e
-    # nada além: um grupo7 seria valor que o painel oferece e uma cena salva que nenhum bloco
-    # consegue nomear. Fica abaixo do teto de dez que a plataforma impõe.
-    assert len(VALORES_GRUPO) == BLOCOS + 1
-    assert len(VALORES_GRUPO) <= ENUM_MAXIMO
-    assert de_dp(103).valores == VALORES_PRESET
-    assert de_dp(CENA).valores == VALORES_CENA
-    assert de_dp(GRUPO).valores == VALORES_GRUPO
+# Why: the report policy of section 8 reads the class of every data point, so a data point
+# of the wrong class would be pushed at the wrong cadence; the classes are the document's.
+# Por que: a política de reports da seção 8 lê a classe de todo data point, então um data
+# point da classe errada seria empurrado na cadência errada; as classes são as do documento.
+def test_as_classes_de_report_sao_as_do_documento():
+    classes = {dp.funcao: dp.classe for dp in (*mapa.tabela(PRODUTO_AR), *mapa.tabela(PRODUTO_AV))}
+    assert classes["ligado"] is Classe.A
+    assert classes["temperatura"] is Classe.A
+    assert classes["modo"] is Classe.A
+    assert classes["vento"] is Classe.A
+    assert classes["nivel"] is Classe.A
+    assert classes["grupo"] is Classe.A
+    assert classes["online"] is Classe.A
+    assert classes["mudos"] is Classe.B
+    assert classes["entradas"] is Classe.B
+    assert classes["modos"] is Classe.B
+    assert classes["titulos"] is Classe.C
+    assert classes["perfis"] is Classe.C
+    assert classes["nomes"] is Classe.C
+    assert classes["nomes_cenas"] is Classe.C
+    assert mapa.JANELAS_S == {Classe.A: 2.0, Classe.B: 10.0, Classe.C: 0.0}
 
 
-def test_a_entrada_nao_declara_valores_porque_o_hardware_os_declara():
-    # Section 14: only the inputs plm_support lists exist, so the map cannot fix them.
-    # Seção 14: só existem as entradas que o plm_support lista, então o mapa não as fixa.
-    assert de_dp(141).valores == ()
+def test_so_o_titulo_nunca_e_empurrado():
+    nunca = [dp.funcao for dp in mapa.tabela(PRODUTO_AV) if not dp.empurrado]
+    assert nunca == ["titulos"]
+    assert all(dp.empurrado for dp in mapa.tabela(PRODUTO_AR))
 
 
-def test_valores_de_enum_para_no_teto_da_plataforma():
-    fontes = tuple(f"fonte{n}" for n in range(1, 15))
-    assert valores_de_enum(fontes) == fontes[:ENUM_MAXIMO]
+def test_a_politica_de_reports_e_a_da_secao_8():
+    assert mapa.REPORTS_POR_DIA == 300
+    assert mapa.AVISO_DO_DIA == 250
+    assert mapa.JANELA_APERTADA_S == 30.0
 
 
-def test_valores_de_enum_descarta_repetido_e_vazio():
-    assert valores_de_enum(["wifi", "wifi", "", "bluetooth", None, "wifi"]) == (
-        "wifi",
-        "bluetooth",
-    )
+def test_o_numero_de_cena_e_um_inteiro_de_um_a_trinta_e_dois():
+    assert numero_de_cena(1) == 1
+    assert numero_de_cena(32) == 32
+    for fora in (0, 33, True, "7", 7.0, None):
+        assert numero_de_cena(fora) is None
 
 
-def test_o_json_de_nomes_e_compacto_e_mantem_o_acento():
-    texto = nomes_json(NOMES_BLOCOS, ["Sala", "Cozinha", "Área"])
-    assert texto == '{"z":["Sala","Cozinha","Área"]}'
-    assert json.loads(texto) == {"z": ["Sala", "Cozinha", "Área"]}
+def test_os_bits_poem_o_numero_n_no_bit_n_menos_um():
+    assert bits([]) == 0
+    assert bits([1]) == 1
+    assert bits([1, 3, 12]) == 0b1000_0000_0101
+    assert bits([0, -1]) == 0
 
 
-def test_cada_dp_de_nomes_tem_a_sua_chave():
-    assert nomes_json(NOMES_BLOCOS, ["a"]).startswith('{"z"')
-    assert nomes_json(NOMES_CENAS, ["a"]).startswith('{"c"')
-    assert nomes_json(NOMES_GRUPOS, ["a"]).startswith('{"g"')
+def test_os_pares_saem_na_ordem_dos_numeros():
+    assert pares({}) == ""
+    assert pares({3: 2, 1: 1}) == "1=1;3=2"
 
 
-def test_duzentos_e_cinquenta_e_cinco_bytes_passam_e_o_byte_seguinte_nao():
-    cabe = [_nome(TEXTO_MAXIMO_BYTES - MOLDURA_DE_UM_NOME)]
-    assert len(nomes_json(NOMES_BLOCOS, cabe).encode("utf-8")) == TEXTO_MAXIMO_BYTES
-    nao_cabe = [_nome(TEXTO_MAXIMO_BYTES - MOLDURA_DE_UM_NOME + 1)]
-    with pytest.raises(NomesInvalidos) as erro:
-        nomes_json(NOMES_BLOCOS, nao_cabe)
-    assert erro.value.codigo == NOMES_LONGOS
-    assert not nomes_cabem(NOMES_BLOCOS, nao_cabe)
+def test_os_titulos_cabem_em_dezoito_caracteres_e_nunca_carregam_o_separador():
+    texto = titulos({1: "Bohemian Rhapsody, Queen; 1975", 2: "a=b"})
+    assert texto == "1=Bohemian Rhapsody,;2=a b"
+    assert len(texto.split(";")[0]) == 2 + 18
 
 
-def test_um_byte_a_mais_e_contado_em_bytes_e_nao_em_caracteres():
-    # Why: an accented letter is one character and two bytes, and a ceiling counted in
-    # characters would hand the platform a 260 byte string that it refuses whole.
-    # Por que: uma letra acentuada é um caractere e dois bytes, e um teto contado em
-    # caracteres entregaria à plataforma uma string de 260 bytes que ela recusa inteira.
-    limite = TEXTO_MAXIMO_BYTES - MOLDURA_DE_UM_NOME
-    with pytest.raises(NomesInvalidos) as erro:
-        nomes_json(NOMES_BLOCOS, [_nome(limite, acentos=1)])
-    assert erro.value.codigo == NOMES_LONGOS
-
-
-def test_seis_blocos_com_nome_longo_e_acentuado_ainda_cabem():
-    # The bench fact of section 14: block, scene and group names fit 255 bytes with six blocks.
-    # O fato de bancada da seção 14: nomes de bloco, cena e grupo cabem em 255 bytes com seis.
-    nomes = [_nome(34, acentos=4) for _ in range(BLOCOS)]
-    texto = nomes_json(NOMES_BLOCOS, nomes)
+def test_os_titulos_de_doze_equipamentos_cabem_nos_255_bytes():
+    texto = titulos({n: "ã" * 18 for n in range(1, 13)})
     assert len(texto.encode("utf-8")) <= TEXTO_MAXIMO_BYTES
-    escapado = json.dumps({"z": nomes}, ensure_ascii=True, separators=(",", ":"))
-    assert len(escapado.encode("utf-8")) > TEXTO_MAXIMO_BYTES
+    assert texto.count(";") < 12
 
 
-def test_mais_nomes_do_que_o_dp_carrega_e_recusado():
-    for dpid, quantos in ((NOMES_BLOCOS, BLOCOS), (NOMES_CENAS, 8), (NOMES_GRUPOS, GRUPOS)):
-        assert nomes_cabem(dpid, ["x"] * quantos)
-        with pytest.raises(NomesInvalidos) as erro:
-            nomes_json(dpid, ["x"] * (quantos + 1))
-        assert erro.value.codigo == NOMES_DEMAIS
+def test_empacotar_enche_cada_string_ate_os_255_bytes_e_preenche_as_vagas():
+    perfis = [f"{n}|au|Caixa {n}|Wi-Fi,Bluetooth|Radio 1,Radio 2||NMEP" for n in range(1, 13)]
+    partes = empacotar(perfis)
+    assert len(partes) == 5
+    assert all(len(parte.encode("utf-8")) <= TEXTO_MAXIMO_BYTES for parte in partes)
+    assert desempacotar(partes) == tuple(perfis)
+    assert partes[-1] == ""
+
+
+def test_empacotar_recusa_o_que_nao_cabe_em_cinco_strings():
+    with pytest.raises(NomesInvalidos) as erro:
+        empacotar(["z" * 200] * 12)
+    assert erro.value.codigo == "perfis_longos"
+
+
+def test_empacotar_recusa_um_perfil_com_o_separador_ou_maior_que_uma_string():
+    with pytest.raises(NomesInvalidos):
+        empacotar(["1|au|a;b||||N"])
+    with pytest.raises(NomesInvalidos):
+        empacotar(["z" * 256])
+
+
+def test_os_nomes_das_cenas_vao_em_duas_strings_de_dezesseis():
+    nomes = [f"Cena {n}" for n in range(1, 33)]
+    primeira, segunda = nomes_das_cenas(nomes)
+    assert json.loads(primeira) == {"c": nomes[:16]}
+    assert json.loads(segunda) == {"c": nomes[16:]}
+    assert nomes_das_cenas([]) == ('{"c":[]}', '{"c":[]}')
+    assert nomes_cabem(nomes)
+
+
+def test_mais_de_trinta_e_duas_cenas_e_recusado():
+    with pytest.raises(NomesInvalidos) as erro:
+        nomes_das_cenas([""] * 33)
+    assert erro.value.codigo == "nomes_demais"
+
+
+def test_dezesseis_nomes_que_nao_cabem_nos_255_bytes_sao_recusados_com_codigo():
+    with pytest.raises(NomesInvalidos) as erro:
+        nomes_das_cenas(["z" * 20] * 16)
+    assert erro.value.codigo == "nomes_longos"
+    assert not nomes_cabem(["z" * 20] * 16)
 
 
 def test_um_nome_que_o_utf_8_nao_escreve_e_recusado_com_codigo():
-    # Why: a lone surrogate would raise on the way out of the socket, where the honest
-    # answer is that the name is not writable and the panel has to say so.
-    # Por que: um surrogado solto estouraria na saída do socket, onde a resposta honesta é
-    # que o nome não é gravável e o painel tem de dizer isso.
     with pytest.raises(NomesInvalidos) as erro:
-        nomes_json(NOMES_CENAS, ["festa \ud800"])
-    assert erro.value.codigo == NOME_NAO_GRAVAVEL
-    assert not nomes_cabem(NOMES_CENAS, ["festa \ud800"])
+        nomes_das_cenas(["\ud800"])
+    assert erro.value.codigo == "nome_nao_gravavel"
 
 
-def test_nomes_json_recusa_um_dp_que_nao_e_de_nomes():
-    for dpid in (101, 105, CENA, GRUPO, 999):
-        with pytest.raises(ValueError):
-            nomes_json(dpid, ["x"])
-
-
-def test_nomes_json_recusa_um_nome_que_nao_e_texto():
-    with pytest.raises(ValueError):
-        nomes_json(NOMES_BLOCOS, ["Sala", 7])
+def test_os_nomes_das_maquinas_sao_compactos_e_mantem_o_acento():
+    assert nomes_das_maquinas(["Suíte", ""]) == '{"m":["Suíte",""]}'
+    with pytest.raises(NomesInvalidos):
+        nomes_das_maquinas([""] * 9)
 
 
 def test_um_texto_livre_e_encurtado_sem_partir_um_caractere():
-    titulo = "ç" * 300
-    curto = texto_de_dp(titulo)
-    bruto = curto.encode("utf-8")
-    assert len(bruto) <= TEXTO_MAXIMO_BYTES
-    assert bruto.decode("utf-8") == curto
-    assert titulo.startswith(curto)
+    texto = mapa.texto_de_dp("ã" * 200)
+    assert len(texto.encode("utf-8")) <= TEXTO_MAXIMO_BYTES
+    assert texto == "ã" * 127
+    assert mapa.texto_de_dp("abc") == "abc"
+    assert mapa.texto_de_dp("a\ud800b") == "ab"
 
 
-def test_um_texto_que_cabe_nao_e_tocado():
-    assert texto_de_dp("Fita Cassete") == "Fita Cassete"
-    assert texto_de_dp("") == ""
+def test_os_codigos_de_nomes_sao_estaveis_e_nenhum_e_uma_frase():
+    assert mapa.CODIGOS_DE_NOMES == (
+        "nomes_demais",
+        "nomes_longos",
+        "nome_nao_gravavel",
+        "perfis_longos",
+    )
+    assert all(codigo.replace("_", "").isalnum() for codigo in mapa.CODIGOS_DE_NOMES)
 
 
-def test_um_texto_livre_com_surrogado_nao_estoura():
-    assert texto_de_dp("faixa \ud800 boa") == "faixa  boa"
+def test_um_titulo_com_surrogado_solto_nunca_chega_ao_fio():
+    """A device may answer a lone surrogate in a title, which is the one thing a str holds
+    that UTF-8 cannot write; it is dropped so the snapshot of the licence always encodes.
+
+    Um aparelho pode responder um surrogado solto num título, que é a única coisa que um str
+    guarda e o UTF-8 não escreve; ele cai para o snapshot da licença sempre codificar.
+    """
+    texto = titulos({1: "Ab\ud800c", 2: "\udfff"})
+    assert texto == "1=Abc;2="
+    texto.encode("utf-8")

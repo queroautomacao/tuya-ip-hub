@@ -277,6 +277,29 @@ ATAQUES = (
         {("manifesto.capacidades", "decl_capacidade_desconhecida")},
     ),
     (
+        "teclas como string, que itera como letras",
+        _com(_tcp, "manifesto", teclas="canal_mais"),
+        {("manifesto.teclas", "decl_vocabulario_invalido")},
+    ),
+    (
+        "palavra fora do vocabulario da secao 6, com a capacidade declarada",
+        _com(
+            _tcp,
+            "manifesto",
+            capacidades=["ligar", "desligar", "fonte", "comando_extra", "tecla"],
+            teclas=["canal_mais", "voar"],
+        ),
+        {
+            ("manifesto.teclas", "decl_vocabulario_invalido"),
+            ("comandos.tecla", "decl_comando_vazio"),
+        },
+    ),
+    (
+        "palavras declaradas sem a capacidade que as fala",
+        _com(_tcp, "manifesto", ventos=["auto"]),
+        {("manifesto.ventos", "decl_vocabulario_invalido")},
+    ),
+    (
         "agrupar fora de multiroom, regra da secao 6",
         _com(_tcp, "manifesto", capacidades=["agrupar"], **{}),
         {

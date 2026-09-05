@@ -21,6 +21,11 @@ CAPACIDADES = (
     "proxima",
     "anterior",
     "agrupar",
+    "tecla",
+    "atalho",
+    "modo",
+    "vento",
+    "temperatura",
     "comando_extra",
 )
 
@@ -30,11 +35,60 @@ CATEGORIAS = (
     "tv",
     "receiver",
     "soundbar",
+    "amplificador",
     "projetor",
+    "ar_condicionado",
     "matriz",
     "rele",
     "outro",
 )
+
+# Section 6: the keys a driver may declare it sends, in the words the whole hub uses; the
+# panel and the command channel of section 8 speak these words and the driver translates
+# each one to its protocol.
+# Seção 6: as teclas que um driver pode declarar que manda, nas palavras que o hub inteiro
+# usa; o painel e o canal de comando da seção 8 falam estas palavras e o driver traduz cada
+# uma para o protocolo dele.
+TECLAS = (
+    "mais",
+    "menos",
+    "canal_mais",
+    "canal_menos",
+    "cima",
+    "baixo",
+    "esquerda",
+    "direita",
+    "ok",
+    "voltar",
+    "inicio",
+    "menu",
+    "guia",
+    "sair",
+    "info",
+    "play_pause",
+    "proxima",
+    "anterior",
+    *(f"digito_{n}" for n in range(10)),
+)
+
+# The vocabulary of an air conditioner, which is the enum of section 8 word for word.
+# O vocabulário de um ar condicionado, que é o enum da seção 8 palavra por palavra.
+MODOS_AR = ("auto", "frio", "quente", "vento", "seco")
+VENTOS = ("auto", "baixo", "medio", "alto")
+
+# Section 6: the setpoint of an air conditioner travels in whole degrees inside this range.
+# Seção 6: o setpoint de um ar condicionado viaja em graus inteiros dentro desta faixa.
+TEMPERATURA_MINIMA = 16
+TEMPERATURA_MAXIMA = 30
+
+CATEGORIA_DE_AR = "ar_condicionado"
+CATEGORIAS_DE_TV = ("tv", "projetor")
+CAPACIDADES_DE_AR = ("temperatura", "vento")
+
+PRODUTO_AR = "ar"
+PRODUTO_AV = "av"
+TEMPLATE_TV = "tv"
+TEMPLATE_AUDIO = "au"
 
 MOTORES = ("nativo", "declarativo")
 
@@ -119,6 +173,13 @@ class Manifesto:
     config_campos: tuple[Campo, ...] = ()
     textos: dict[str, dict[str, str]] = field(default_factory=dict)
     motor: str = "nativo"
+    # The words of TECLAS this driver sends, and for an air conditioner the modes and the
+    # fan speeds of its vocabulary; a driver that declares the capability declares the words.
+    # As palavras de TECLAS que este driver manda, e num ar condicionado os modos e as
+    # velocidades do vocabulário dele; um driver que declara a capacidade declara as palavras.
+    teclas: tuple[str, ...] = ()
+    modos: tuple[str, ...] = ()
+    ventos: tuple[str, ...] = ()
 
 
 @dataclass
@@ -140,13 +201,39 @@ class Estado:
     fontes: tuple = ()
     # Why: the transport and the title are different facts, and reading one from the other
     # made a speaker playing over bluetooth, over a line input, or a radio with no metadata,
-    # report paused on DP 102 while it played. A driver that cannot tell leaves it None.
+    # report paused while it played. A driver that cannot tell leaves it None.
     # Por que: o transporte e o título são fatos diferentes, e ler um do outro fazia uma caixa
     # tocando por bluetooth, por entrada de linha, ou um rádio sem metadado, reportar pausada
-    # no DP 102 enquanto tocava. Um driver que não sabe dizer deixa isto em None.
+    # enquanto tocava. Um driver que não sabe dizer deixa isto em None.
     reproduzindo: bool | None = None
     tocando: str | None = None
+    # Why: an air conditioner is one of the two products of section 8, and its setpoint,
+    # mode and fan speed are the facts the app reads; a receiver reads modo as its sound mode.
+    # Por que: um ar condicionado é um dos dois produtos da seção 8, e o setpoint, o modo e a
+    # velocidade dele são os fatos que o app lê; um receiver lê modo como o modo de som.
+    temperatura: int | None = None
+    modo: str | None = None
+    vento: str | None = None
     detalhe: str = ""
+
+
+def produto_de(categoria: str) -> str:
+    """Section 8: an air conditioner goes to the product of air, everything else to audio
+    and video.
+
+    Seção 8: um ar condicionado vai para o produto de ar, todo o resto para áudio e vídeo.
+    """
+    return PRODUTO_AR if categoria == CATEGORIA_DE_AR else PRODUTO_AV
+
+
+def template_de(categoria: str) -> str:
+    """The template the panel of section 8 draws: tv for a TV or a projector, audio for the
+    rest of the audio and video product.
+
+    O template que o painel da seção 8 desenha: tv para uma TV ou um projetor, áudio para o
+    resto do produto de áudio e vídeo.
+    """
+    return TEMPLATE_TV if categoria in CATEGORIAS_DE_TV else TEMPLATE_AUDIO
 
 
 class ManifestoInvalido(ValueError):
@@ -224,6 +311,48 @@ def _das_capacidades(manifesto: Manifesto) -> Iterator[str]:
             f"capacidades: {CAPACIDADE_DE_GRUPO!r} is only valid for categoria "
             f"{CATEGORIA_DE_GRUPO!r}, found {manifesto.categoria!r}"
         )
+    de_ar = [c for c in CAPACIDADES_DE_AR if c in capacidades]
+    if de_ar and manifesto.categoria != CATEGORIA_DE_AR:
+        yield f"capacidades: {de_ar} are only valid for categoria {CATEGORIA_DE_AR!r}"
+    yield from _do_vocabulario(manifesto, "tecla", "teclas", TECLAS)
+    # Why: section 6, an air conditioner speaks modo and vento in the words of the vocabulary,
+    # so it declares them; any other equipment takes the modo of the registration list, so it
+    # declares no word and a word it declared anyway would be a list nobody reads.
+    # Por que: seção 6, um ar condicionado fala modo e vento nas palavras do vocabulário, então
+    # os declara; todo outro equipamento recebe o modo da lista do cadastro, então não declara
+    # palavra e uma palavra declarada assim mesmo seria uma lista que ninguém lê.
+    de_ar = manifesto.categoria == CATEGORIA_DE_AR
+    yield from _do_vocabulario(manifesto, "modo", "modos", MODOS_AR, exige_palavras=de_ar)
+    yield from _do_vocabulario(manifesto, "vento", "ventos", VENTOS, exige_palavras=de_ar)
+
+
+def _do_vocabulario(
+    manifesto: Manifesto,
+    capacidade: str,
+    campo: str,
+    vocabulario: tuple[str, ...],
+    *,
+    exige_palavras: bool = True,
+) -> Iterator[str]:
+    """A capability spoken in words is declared with its words, and only with known ones.
+
+    Uma capacidade falada em palavras é declarada com as palavras dela, e só com conhecidas.
+    """
+    palavras = getattr(manifesto, campo)
+    if not isinstance(palavras, tuple) or not all(isinstance(p, str) for p in palavras):
+        yield f"{campo}: must be a tuple of strings, found {palavras!r}"
+        return
+    fora = [p for p in palavras if p not in vocabulario]
+    if fora:
+        yield f"{campo}: outside the vocabulary of section 6: {fora}"
+    repetidas = sorted({p for p in palavras if palavras.count(p) > 1})
+    if repetidas:
+        yield f"{campo}: repeated: {repetidas}"
+    declara = isinstance(manifesto.capacidades, tuple) and capacidade in manifesto.capacidades
+    if declara and not palavras and exige_palavras:
+        yield f"{campo}: capacidade {capacidade!r} needs at least one word"
+    if palavras and not (declara and exige_palavras):
+        yield f"{campo}: words declared without the capacidade {capacidade!r}"
 
 
 def _do_rotulo(manifesto: Manifesto) -> Iterator[str]:

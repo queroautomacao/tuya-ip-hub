@@ -848,12 +848,12 @@ async def test_gravacao_de_caixa_real_tocando_um_servico_de_streaming(caixa):
 async def test_gravacao_de_caixa_real_pausada_nao_reporta_tocando(caixa):
     """A recorded speaker paused on a stream whose length the firmware writes as zero.
 
-    Why: DP 102 of section 8 is read from this, so a paused speaker that still carries the
+    Why: the reproduzindo of section 6 is read from this, so a paused speaker that still carries the
     title of what it was playing must not read as playing.
 
     Uma caixa gravada pausada num fluxo cujo tamanho o firmware escreve como zero.
 
-    Por que: o DP 102 da seção 8 é lido daqui, então uma caixa pausada que ainda carrega o
+    Por que: o reproduzindo da seção 6 é lido daqui, então uma caixa pausada que ainda carrega o
     título do que estava tocando não pode ler como tocando.
     """
     async with ServidorHttp(
@@ -930,13 +930,13 @@ async def test_outra_caixa_no_mesmo_endereco_e_recusada_e_nao_comandada(caixa):
 async def test_o_play_prende_o_transporte_no_cache(caixa):
     """Section 8: the bus publishes from the cache every second, before the 1.5 s reread.
 
-    Why: a play that pinned nothing let that tick republish the old transport, so DP 102 fell
+    Why: a play that pinned nothing let that tick republish the old transport, so reproduzindo fell
     back to false one second after the command the speaker had accepted.
 
     Seção 8: o barramento publica do cache a cada segundo, antes da releitura de 1,5 s.
 
     Por que: um play que não prendia nada deixava esse tique republicar o transporte antigo,
-    então o DP 102 voltava a falso um segundo depois do comando que a caixa aceitou.
+    então o reproduzindo voltava a falso um segundo depois do comando que a caixa aceitou.
     """
     rotas = _fala(estado=_tocador(status="pause"))
     rotas.update(_rotas({"setPlayerCmd:resume": "OK", "setPlayerCmd:pause": "OK"}))

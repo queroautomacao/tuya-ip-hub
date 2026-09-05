@@ -22,7 +22,14 @@ from iphub.drivers.base import (
     TIPO_DESCONHECIDO,
     Driver,
 )
-from iphub.drivers.manifesto import CAPACIDADES, Estado, Manifesto
+from iphub.drivers.manifesto import (
+    CAPACIDADES,
+    CATEGORIA_DE_AR,
+    TEMPERATURA_MAXIMA,
+    TEMPERATURA_MINIMA,
+    Estado,
+    Manifesto,
+)
 
 log = logging.getLogger("iphub.drivers.gestor")
 
@@ -48,6 +55,7 @@ EQ_NAO_ENCONTRADO = "eq_nao_encontrado"
 EQ_OFFLINE = "eq_offline"
 ERRO_APARELHO = "erro_aparelho"
 IDENTIDADE_DUPLICADA = "identidade_duplicada"
+INVALID_VALUE = "invalid_value"
 FALHOU = "falhou"
 
 type Relogio = Callable[[], float]
@@ -162,9 +170,14 @@ class Gestor:
 
     def manifesto(self, identidade: str) -> Manifesto | None:
         cadastro = self._cadastros.get(identidade)
-        if cadastro is None:
-            return None
-        classe = self._catalogo.get(cadastro.tipo)
+        return None if cadastro is None else self.manifesto_de_tipo(cadastro.tipo)
+
+    def manifesto_de_tipo(self, tipo: str) -> Manifesto | None:
+        """The manifest of a tipo of the catalog, or None for a tipo that left the image.
+
+        O manifesto de um tipo do catálogo, ou None para um tipo que saiu da imagem.
+        """
+        classe = self._catalogo.get(tipo)
         return None if classe is None else classe.MANIFESTO
 
     async def executar(self, identidade: str, acao: str, valor: object = None) -> str | None:
@@ -181,6 +194,15 @@ class Gestor:
         # então nenhum driver escreve método só para dizer não.
         if acao not in CAPACIDADES or manifesto is None or acao not in manifesto.capacidades:
             return NAO_SUPORTADO
+        if not valor_no_vocabulario(manifesto, acao, valor):
+            # Why: section 6, a key, a mode or a fan speed is a word of the vocabulary the
+            # manifest declares, and a temperature is whole degrees in the range; a driver
+            # never sees a word it did not declare, so no driver writes a check only to say no.
+            # Por que: seção 6, uma tecla, um modo ou um vento é uma palavra do vocabulário que
+            # o manifesto declara, e uma temperatura são graus inteiros na faixa; um driver
+            # nunca vê uma palavra que não declarou, então nenhum driver escreve conferência só
+            # para dizer não.
+            return INVALID_VALUE
         driver = self._drivers.get(identidade)
         if driver is None:
             return EQ_OFFLINE
@@ -532,6 +554,25 @@ class Gestor:
         if tarefa is not self._tarefa or tarefa.cancelled():
             return
         log.error("the poll loop ended while the gestor was running: %r", tarefa.exception())
+
+
+def valor_no_vocabulario(manifesto: Manifesto, acao: str, valor: object) -> bool:
+    """True when the value of a spoken capability is a word the manifest declares, or a
+    temperature inside the range of section 6; every other action is judged by the driver.
+
+    Verdadeiro quando o valor de uma capacidade falada é uma palavra que o manifesto declara,
+    ou uma temperatura dentro da faixa da seção 6; toda outra ação é julgada pelo driver.
+    """
+    if acao == "tecla":
+        return isinstance(valor, str) and valor in manifesto.teclas
+    if acao == "temperatura":
+        return type(valor) is int and TEMPERATURA_MINIMA <= valor <= TEMPERATURA_MAXIMA
+    if manifesto.categoria == CATEGORIA_DE_AR:
+        if acao == "modo":
+            return isinstance(valor, str) and valor in manifesto.modos
+        if acao == "vento":
+            return isinstance(valor, str) and valor in manifesto.ventos
+    return True
 
 
 def _causa(erro: BaseException) -> str:

@@ -12,7 +12,7 @@ import pytest
 
 from iphub import esquecer as modulo
 from iphub import segredos
-from iphub.config import Cadastro, Config, carregar, salvar
+from iphub.config import Cadastro, Config, Licenca, carregar, salvar
 from iphub.sessoes import Sessoes
 
 SENHA_SALT = "sal"
@@ -34,7 +34,8 @@ def _com_dono(dir_data: Path) -> Config:
         senha_hash=SENHA_HASH,
         senha_iteracoes=200_000,
         equipamentos=(Cadastro(identidade="uuid-1", tipo="multiroom_linkplay", ip="192.0.2.10"),),
-        blocos=("uuid-1",),
+        licencas=(Licenca(id="av1", produto="av", uuid="uuid-tuya", pid="pid", chave="k"),),
+        numeros={"av1": ("uuid-1",)},
     )
     salvar(cfg, dir_data)
     return cfg
@@ -48,10 +49,10 @@ def test_esquecer_devolve_o_hub_ao_primeiro_acesso(dir_data: Path):
 
 
 def test_esquecer_mantem_a_instalacao_inteira(dir_data: Path):
-    # Why: erasing config.json would clear the password and take the equipment, the blocks and
-    # the scenes with it, which is a reinstallation and not a way back in.
-    # Por que: apagar o config.json zeraria a senha e levaria junto os equipamentos, os blocos e
-    # as cenas, o que é uma reinstalação e não um caminho de volta.
+    # Why: erasing config.json would clear the password and take the equipment, the licences,
+    # the numbers and the scenes with it, which is a reinstallation and not a way back in.
+    # Por que: apagar o config.json zeraria a senha e levaria junto os equipamentos, as
+    # licenças, os números e as cenas, o que é uma reinstalação e não um caminho de volta.
     antes = _com_dono(dir_data)
     modulo.esquecer(dir_data)
     depois = carregar(dir_data)

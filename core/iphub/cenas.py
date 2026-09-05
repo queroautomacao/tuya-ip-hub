@@ -1,39 +1,41 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Quero Automação Ltda
-"""A scene of section 8: DATA, a list of steps that each set one data point of the map.
+"""A scene of section 8: DATA, a list of steps that each run one action on one equipment.
 
 The rule section 7 fixes for a driver holds here for the same reason: what an integrator
-saves is data and never program. A step names one data point and one value, plus an optional
-wait in milliseconds after it, and that is the whole vocabulary. No condition, no loop, no
-expression, no arithmetic. A step that sets DP 131 is refused on top of that, because a
-scene starting a scene is a loop written in data, and two of them naming each other would be
-a hub that never stops.
+saves is data and never program. A step names one equipment, one action of section 6 and
+one value, plus an optional wait in milliseconds after it, and that is the whole vocabulary.
+No condition, no loop, no expression, no arithmetic. There is no step that runs a scene,
+because a scene starting a scene is a loop written in data, and two of them naming each other
+would be a hub that never stops.
 
-Section 8 gives the ceiling: DP 131 is an enum of cena1 to cena8, so there are eight scenes
-and the POSITION of a scene is its number. A scene that was erased leaves its slot empty
-instead of pulling the next one back, because the shift would silently move scene 3 to scene
-2 in every automation the customer already built on the platform. DP 134 carries the names
-of all of them in one string of at most 255 bytes, so a name that does not fit there is
-refused when it is saved and never cut when it is published.
+Section 8 gives the ceiling: the scene data point of every licence carries a number from 1 to
+32, so there are thirty two scenes and the POSITION of a scene is its number, the same number
+in every licence. A scene that was erased leaves its slot empty instead of pulling the next
+one back, because the shift would silently move scene 3 to scene 2 in every automation the
+customer already built on the platform. Two string data points carry the names of all of
+them, sixteen each, inside 255 bytes, so a name that does not fit there is refused when it is
+saved and never cut when it is published.
 
 Running one is fire and forget for whoever asked: the answer comes at once and the steps run
 in order on a task of their own. A step that fails is logged with its stable code and the
 scene goes on, because a projector that is off must not stop the lights of the same scene.
 
-Uma cena da seção 8: DADO, uma lista de passos que ajustam um data point do mapa cada.
+Uma cena da seção 8: DADO, uma lista de passos que rodam uma ação num equipamento cada.
 
 A regra que a seção 7 fixa para um driver vale aqui pelo mesmo motivo: o que um integrador
-salva é dado e nunca programa. Um passo nomeia um data point e um valor, mais uma espera
-opcional em milissegundos depois dele, e esse é o vocabulário inteiro. Sem condicional, sem
-laço, sem expressão, sem aritmética. Um passo que ajusta o DP 131 é recusado ainda por cima,
-porque uma cena que dispara uma cena é um laço escrito em dado, e duas delas nomeando uma à
-outra seriam um hub que nunca para.
+salva é dado e nunca programa. Um passo nomeia um equipamento, uma ação da seção 6 e um
+valor, mais uma espera opcional em milissegundos depois dele, e esse é o vocabulário inteiro.
+Sem condicional, sem laço, sem expressão, sem aritmética. Não existe passo que dispara uma
+cena, porque uma cena que dispara uma cena é um laço escrito em dado, e duas delas nomeando
+uma à outra seriam um hub que nunca para.
 
-A seção 8 dá o teto: o DP 131 é um enum de cena1 a cena8, então são oito cenas e a POSIÇÃO de
-uma cena é o número dela. Uma cena apagada deixa a vaga vazia em vez de puxar a seguinte,
-porque o empurrão moveria em silêncio a cena 3 para a cena 2 em toda automação que o cliente
-já montou na plataforma. O DP 134 carrega os nomes de todas elas numa string de no máximo 255
-bytes, então um nome que não cabe lá é recusado ao ser salvo e nunca cortado ao ser publicado.
+A seção 8 dá o teto: o data point de cena de toda licença leva um número de 1 a 32, então são
+trinta e duas cenas e a POSIÇÃO de uma cena é o número dela, o mesmo número em toda licença.
+Uma cena apagada deixa a vaga vazia em vez de puxar a seguinte, porque o empurrão moveria em
+silêncio a cena 3 para a cena 2 em toda automação que o cliente já montou na plataforma. Dois
+data points de string carregam os nomes de todas elas, dezesseis cada, dentro de 255 bytes,
+então um nome que não cabe lá é recusado ao ser salvo e nunca cortado ao ser publicado.
 
 Rodar uma é disparar e esquecer para quem pediu: a resposta sai na hora e os passos correm em
 ordem numa tarefa própria. Um passo que falha é registrado com o código estável dele e a cena
@@ -44,24 +46,33 @@ import asyncio
 import functools
 import logging
 import re
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 
-from iphub.dpbus import mapa, protocolo
+from iphub.dpbus import mapa
+from iphub.drivers.manifesto import (
+    CAPACIDADES,
+    TECLAS,
+    TEMPERATURA_MAXIMA,
+    TEMPERATURA_MINIMA,
+    VENTOS,
+)
 
 log = logging.getLogger("iphub.cenas")
 
-# Section 8 numbers cena1 to cena8 on DP 131, and there is no ninth.
-# A seção 8 numera cena1 a cena8 no DP 131, e não existe uma nona.
+# Section 8 numbers 1 to 32 on the scene data point, and there is no thirty third.
+# A seção 8 numera 1 a 32 no data point de cena, e não existe uma trigésima terceira.
 MAXIMO = mapa.CENAS
 
-# Why: the whole of section 8 one scene may set is four data points per block plus the group,
-# twenty five of them, so this ceiling holds a scene that touches everything and still
-# refuses a file that grew into a program.
-# Por que: tudo da seção 8 que uma cena pode ajustar são quatro data points por bloco mais o
-# grupo, vinte e cinco deles, então este teto cabe uma cena que toca em tudo e ainda recusa um
-# arquivo que virou programa.
-PASSOS_MAXIMOS = 32
+# Why: a scene that touches every equipment of a full installation (twelve of audio and video
+# plus eight air conditioners) with a power, a level and an input each is sixty steps, so
+# this ceiling holds a scene that touches everything and still refuses a file that grew into
+# a program.
+# Por que: uma cena que toca em todo equipamento de uma instalação cheia (doze de áudio e
+# vídeo mais oito ares condicionados) com um ligar, um nível e uma entrada cada são sessenta
+# passos, então este teto cabe uma cena que toca em tudo e ainda recusa um arquivo que virou
+# programa.
+PASSOS_MAXIMOS = 64
 
 # Why: the longest real wait inside a scene is the warmup of a projector between the power
 # command and the input one; a scene is not a scheduler, and anything longer than this is an
@@ -81,19 +92,35 @@ INTERVALO_PADRAO_MS = 1_000
 
 NOME_MAXIMO = 40
 VALOR_TEXTO_MAXIMO = 64
+IDENTIDADE_MAXIMA = 200
 
 MILISSEGUNDO_S = 0.001
 
+# The one action of a scene that is not a capability of section 6: the group of the licence
+# of audio and video the equipment sits in, led by the identity in the value, or solo.
+# A única ação de uma cena que não é capacidade da seção 6: o grupo da licença de áudio e
+# vídeo em que o equipamento está, liderado pela identidade no valor, ou solo.
+ACAO_GRUPO = "grupo"
+
+# Why: agrupar is the capability a manifest declares to say the equipment CAN group; the move
+# itself is the grupo action, so a scene never writes agrupar on a driver.
+# Por que: agrupar é a capacidade que um manifesto declara para dizer que o equipamento SABE
+# agrupar; o movimento em si é a ação grupo, então uma cena nunca escreve agrupar num driver.
+ACOES = (*(acao for acao in CAPACIDADES if acao != "agrupar"), ACAO_GRUPO)
+
+SEM_VALOR = ("ligar", "desligar", "tocar", "pausar", "proxima", "anterior")
+COM_TEXTO = ("fonte", "atalho", "modo", "comando_extra")
+
 CAMPO = "cenas"
 CHAVES_CENA = ("nome", "passos", "intervalo_ms")
-CHAVES_PASSO = ("dpid", "valor", "espera_ms")
+CHAVES_PASSO = ("equipamento", "acao", "valor", "espera_ms")
 
 # The stable codes a refusal carries, section 11: the daemon answers a code and never a
-# phrase, and the panel translates it. The two of the map come with the verdict of DP 134,
-# which belongs to the map and is not written a second time here.
+# phrase, and the panel translates it. The codes of the map come with the verdict of the
+# names, which belongs to the map and is not written a second time here.
 # Os códigos estáveis que uma recusa carrega, seção 11: o daemon responde um código e nunca
-# uma frase, e o painel o traduz. Os dois do mapa vêm com o veredito do DP 134, que é do mapa
-# e não é escrito uma segunda vez aqui.
+# uma frase, e o painel o traduz. Os códigos do mapa vêm com o veredito dos nomes, que é do
+# mapa e não é escrito uma segunda vez aqui.
 CENAS_NAO_LISTA = "cenas_nao_lista"
 CENAS_DEMAIS = "cenas_demais"
 CENA_NAO_OBJETO = "cena_nao_objeto"
@@ -102,9 +129,9 @@ CENA_NOME_INVALIDO = "cena_nome_invalido"
 CENA_PASSOS_INVALIDOS = "cena_passos_invalidos"
 CENA_PASSOS_DEMAIS = "cena_passos_demais"
 CENA_PASSO_NAO_OBJETO = "cena_passo_nao_objeto"
-CENA_DP_DESCONHECIDO = "cena_dp_desconhecido"
-CENA_DP_SOMENTE_LEITURA = "cena_dp_somente_leitura"
-CENA_DP_PROIBIDO = "cena_dp_proibido"
+CENA_EQUIPAMENTO_INVALIDO = "cena_equipamento_invalido"
+CENA_EQUIPAMENTO_DESCONHECIDO = "cena_equipamento_desconhecido"
+CENA_ACAO_DESCONHECIDA = "cena_acao_desconhecida"
 CENA_VALOR_INVALIDO = "cena_valor_invalido"
 CENA_ESPERA_INVALIDA = "cena_espera_invalida"
 CENA_INTERVALO_INVALIDO = "cena_intervalo_invalido"
@@ -118,9 +145,9 @@ CODIGOS = (
     CENA_PASSOS_INVALIDOS,
     CENA_PASSOS_DEMAIS,
     CENA_PASSO_NAO_OBJETO,
-    CENA_DP_DESCONHECIDO,
-    CENA_DP_SOMENTE_LEITURA,
-    CENA_DP_PROIBIDO,
+    CENA_EQUIPAMENTO_INVALIDO,
+    CENA_EQUIPAMENTO_DESCONHECIDO,
+    CENA_ACAO_DESCONHECIDA,
     CENA_VALOR_INVALIDO,
     CENA_ESPERA_INVALIDA,
     CENA_INTERVALO_INVALIDO,
@@ -136,20 +163,20 @@ CODIGOS_DE_EXECUCAO = (CENA_NAO_ENCONTRADA, CENA_EM_CURSO)
 
 _CONTROLE = re.compile(r"[\x00-\x1f\x7f]")
 
-type Ajuste = Callable[[int, object], Awaitable[str | None]]
+type Acionar = Callable[[str, str, object], Awaitable[str | None]]
 type Dormir = Callable[[float], Awaitable[None]]
 
 
 @dataclass(frozen=True)
 class Passo:
-    """One step: one data point, one value and the pause that follows it.
+    """One step: one equipment, one action, one value and the pause that follows it.
 
     espera_ms is the pause AFTER the step, so a file reads in the order it happens: power the
     projector, wait for it, choose the input. None takes the interval of the scene. The wait
     of the LAST step is not slept, because nothing follows it and holding the task would only
     delay a shutdown.
 
-    Um passo: um data point, um valor e a pausa que vem depois dele.
+    Um passo: um equipamento, uma ação, um valor e a pausa que vem depois dele.
 
     espera_ms é a pausa DEPOIS do passo, para um arquivo se ler na ordem em que acontece:
     liga o projetor, espera por ele, escolhe a entrada. None toma o intervalo da cena. A
@@ -157,8 +184,9 @@ class Passo:
     atrasaria um desligamento.
     """
 
-    dpid: int
-    valor: object
+    equipamento: str
+    acao: str
+    valor: object = None
     espera_ms: int | None = None
 
 
@@ -185,8 +213,12 @@ class CenasInvalidas(ValueError):
         super().__init__("; ".join(f"{campo}: {codigo}" for campo, codigo in problemas))
 
 
-def validar(dados: object) -> tuple[Cena, ...]:
+def validar(dados: object, identidades: Collection[str] | None = None) -> tuple[Cena, ...]:
     """The scenes as typed data, or CenasInvalidas listing EVERY problem at once.
+
+    With identidades, a step that names an equipment outside them is refused; without them,
+    which is how a config.json is read on boot, the equipment is judged when the step runs,
+    because a registration erased by hand must not keep the whole file from loading.
 
     Nothing but CenasInvalidas leaves here, for any input at all: this judges what a route
     received and what a hand edited config.json holds, and a validation that raised anything
@@ -194,11 +226,15 @@ def validar(dados: object) -> tuple[Cena, ...]:
 
     As cenas como dado tipado, ou CenasInvalidas listando TODO problema de uma vez.
 
+    Com identidades, um passo que nomeia um equipamento fora delas é recusado; sem elas, que
+    é como um config.json é lido no boot, o equipamento é julgado quando o passo roda, porque
+    um cadastro apagado na mão não pode impedir o arquivo inteiro de carregar.
+
     Nada além de CenasInvalidas sai daqui, para entrada nenhuma: isto julga o que uma rota
     recebeu e o que um config.json editado na mão guarda, e uma validação que estourasse
     outra coisa levaria o boot do appliance junto.
     """
-    leitor = _Leitor()
+    leitor = _Leitor(identidades)
     cenas = leitor.cenas(dados)
     if leitor.problemas:
         raise CenasInvalidas(tuple(leitor.problemas))
@@ -206,21 +242,19 @@ def validar(dados: object) -> tuple[Cena, ...]:
 
 
 def nomes(cenas: Sequence[Cena]) -> tuple[str, ...]:
-    """The names in the order of the scenes, which is what DP 134 publishes.
+    """The names in the order of the scenes, which is what the two name data points publish.
 
-    Os nomes na ordem das cenas, que é o que o DP 134 publica.
+    Os nomes na ordem das cenas, que é o que os dois data points de nomes publicam.
     """
     return tuple(cena.nome for cena in cenas)
 
 
 def numero_de(valor: object) -> int | None:
-    """The scene number of a DP 131 value, or None for anything the enum does not name.
+    """The scene number of a scene data point value, or None for anything outside 1..32.
 
-    O número de cena de um valor do DP 131, ou None para o que o enum não nomeia.
+    O número de cena de um valor do data point de cena, ou None para o que está fora de 1..32.
     """
-    if not isinstance(valor, str) or valor not in mapa.VALORES_CENA:
-        return None
-    return mapa.VALORES_CENA.index(valor) + 1
+    return mapa.numero_de_cena(valor)
 
 
 class Executor:
@@ -232,12 +266,12 @@ class Executor:
     def __init__(
         self,
         cenas: Sequence[Cena],
-        ajustar: Ajuste,
+        acionar: Acionar,
         *,
         dormir: Dormir = asyncio.sleep,
     ) -> None:
         self._cenas = tuple(cenas)
-        self._ajustar = ajustar
+        self._acionar = acionar
         self._dormir = dormir
         self._em_curso: dict[int, asyncio.Task] = {}
 
@@ -259,9 +293,9 @@ class Executor:
         return nomes(self._cenas)
 
     def cena_de(self, numero: object) -> Cena | None:
-        """The scene of a number from 1 to 8, or None for a number outside the contract.
+        """The scene of a number from 1 to 32, or None for a number outside the contract.
 
-        A cena de um número de 1 a 8, ou None para um número fora do contrato.
+        A cena de um número de 1 a 32, ou None para um número fora do contrato.
         """
         posicao = self._posicao(numero)
         return None if posicao is None else self._cenas[posicao - 1]
@@ -287,10 +321,10 @@ class Executor:
             return CENA_NAO_ENCONTRADA
         if self._rodando(posicao):
             # Why: the same scene twice at once would interleave two sequences over the same
-            # data points, and the volume the customer ends up with is whichever step landed
+            # equipment, and the volume the customer ends up with is whichever step landed
             # last; one run at a time is the only outcome that matches what was written.
             # Por que: a mesma cena duas vezes ao mesmo tempo intercalaria duas sequências
-            # sobre os mesmos data points, e o volume que o cliente recebe é o do passo que
+            # sobre os mesmos equipamentos, e o volume que o cliente recebe é o do passo que
             # chegou por último; uma execução por vez é o único resultado igual ao escrito.
             return CENA_EM_CURSO
         tarefa = asyncio.create_task(self._rodar(posicao, cena), name=f"cena:{posicao}")
@@ -314,9 +348,9 @@ class Executor:
 
         O número como uma vaga desta lista, ou None para o que não for uma.
         """
-        # Why: the number comes from a route path or from the enum of DP 131, so True and
-        # "2" reach here; neither is a scene number and neither may pick one by luck.
-        # Por que: o número vem do caminho de uma rota ou do enum do DP 131, então True e "2"
+        # Why: the number comes from a route path or from a data point, so True and "2" reach
+        # here; neither is a scene number and neither may pick one by luck.
+        # Por que: o número vem do caminho de uma rota ou de um data point, então True e "2"
         # chegam aqui; nenhum dos dois é número de cena e nenhum pode acertar uma por sorte.
         if type(numero) is not int or not 1 <= numero <= min(MAXIMO, len(self._cenas)):
             return None
@@ -336,7 +370,7 @@ class Executor:
 
     async def _passo(self, numero: int, passo: Passo) -> None:
         try:
-            codigo = await self._ajustar(passo.dpid, passo.valor)
+            codigo = await self._acionar(passo.equipamento, passo.acao, passo.valor)
         except asyncio.CancelledError:
             raise
         except BaseException as erro:
@@ -346,10 +380,22 @@ class Executor:
             # Por que: uma biblioteca de aparelho estourando fora de Exception no fundo de uma
             # chamada de socket encerraria a cena naquele passo, e as luzes da mesma cena nunca
             # seriam alcançadas; uma falha aqui só pode ser um passo que falhou.
-            log.warning("scene %s could not set dp %s: %s", numero, passo.dpid, _causa(erro))
+            log.warning(
+                "scene %s could not run %s on %s: %s",
+                numero,
+                passo.acao,
+                passo.equipamento,
+                _causa(erro),
+            )
             return
         if codigo is not None:
-            log.warning("scene %s was refused on dp %s: %s", numero, passo.dpid, codigo)
+            log.warning(
+                "scene %s was refused on %s of %s: %s",
+                numero,
+                passo.acao,
+                passo.equipamento,
+                codigo,
+            )
 
     def _fim(self, numero: int, tarefa: asyncio.Task) -> None:
         if self._em_curso.get(numero) is tarefa:
@@ -362,8 +408,9 @@ class _Leitor:
     Junta todo problema em vez de parar no primeiro, e nunca estoura.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, identidades: Collection[str] | None) -> None:
         self.problemas: list[tuple[str, str]] = []
+        self._identidades = None if identidades is None else set(identidades)
 
     def anotar(self, campo: str, codigo: str) -> None:
         self.problemas.append((campo, codigo))
@@ -380,14 +427,14 @@ class _Leitor:
         return cenas
 
     def conferir_nomes(self, cenas: tuple[Cena, ...]) -> None:
-        """DP 134 carries every name in one string, so the list is judged whole and by the
+        """The two name data points carry every name, so the list is judged whole and by the
         map, which owns the 255 bytes and the code that says why they do not fit.
 
-        O DP 134 carrega todo nome numa string só, então a lista é julgada inteira e pelo
-        mapa, que é dono dos 255 bytes e do código que diz por que eles não cabem.
+        Os dois data points de nomes carregam todo nome, então a lista é julgada inteira e
+        pelo mapa, que é dono dos 255 bytes e do código que diz por que eles não cabem.
         """
         try:
-            mapa.nomes_json(mapa.NOMES_CENAS, nomes(cenas))
+            mapa.nomes_das_cenas(nomes(cenas))
         except mapa.NomesInvalidos as erro:
             self.anotar(CAMPO, erro.codigo)
 
@@ -435,34 +482,35 @@ class _Leitor:
             return None
         self.chaves(item, CHAVES_PASSO, onde)
         espera = self.espera(item.get("espera_ms"), onde)
-        dp = self.dp(item.get("dpid"), onde)
-        if dp is None:
+        equipamento = self.equipamento(item.get("equipamento"), onde)
+        acao = self.acao(item.get("acao"), onde)
+        if equipamento is None or acao is None:
             return None
         valor = item.get("valor")
-        if not _valor_valido(dp, valor):
+        if not valor_valido(acao, valor):
             self.anotar(f"{onde}.valor", CENA_VALOR_INVALIDO)
             return None
-        return Passo(dpid=dp.dpid, valor=valor, espera_ms=espera)
+        return Passo(equipamento=equipamento, acao=acao, valor=valor, espera_ms=espera)
 
-    def dp(self, dpid: object, onde: str) -> mapa.Dp | None:
-        campo = f"{onde}.dpid"
-        dp = mapa.de_dp(dpid)
-        if dp is None:
-            self.anotar(campo, CENA_DP_DESCONHECIDO)
+    def equipamento(self, valor: object, onde: str) -> str | None:
+        campo = f"{onde}.equipamento"
+        if not _texto(valor, IDENTIDADE_MAXIMA):
+            self.anotar(campo, CENA_EQUIPAMENTO_INVALIDO)
             return None
-        if not dp.ajustavel:
-            # Why: section 8, the chip never echoes and a report is only ever born of real
-            # state; a scene writing DP 104 would publish a speaker as online because a file
-            # said so, and the bridge has no way to tell that from the truth.
-            # Por que: seção 8, o chip nunca ecoa e um report só nasce de estado real; uma cena
-            # escrevendo o DP 104 publicaria uma caixa como online porque um arquivo disse
-            # isso, e a ponte não tem como distinguir aquilo da verdade.
-            self.anotar(campo, CENA_DP_SOMENTE_LEITURA)
+        if self._identidades is not None and valor not in self._identidades:
+            # Why: a scene saved over an identity nobody registered is a button that will
+            # never do anything, and the integrator is at the keyboard right now to fix it.
+            # Por que: uma cena salva sobre uma identidade que ninguém cadastrou é um botão
+            # que nunca vai fazer nada, e o integrador está no teclado agora para consertar.
+            self.anotar(campo, CENA_EQUIPAMENTO_DESCONHECIDO)
             return None
-        if dp.dpid == mapa.CENA:
-            self.anotar(campo, CENA_DP_PROIBIDO)
+        return valor
+
+    def acao(self, valor: object, onde: str) -> str | None:
+        if not isinstance(valor, str) or valor not in ACOES:
+            self.anotar(f"{onde}.acao", CENA_ACAO_DESCONHECIDA)
             return None
-        return dp
+        return valor
 
     def espera(self, valor: object, onde: str) -> int | None:
         # Why: an absent wait is the interval of the scene, so a file only names the waits
@@ -483,35 +531,40 @@ class _Leitor:
         return valor
 
 
+def valor_valido(acao: str, valor: object) -> bool:
+    """The value against what the action of section 6 takes, and nothing wider.
+
+    O valor contra o que a ação da seção 6 recebe, e nada mais largo.
+    """
+    if acao in SEM_VALOR:
+        return valor is None
+    if acao == "volume":
+        return type(valor) is int and mapa.VALOR_MINIMO <= valor <= mapa.VALOR_MAXIMO
+    if acao == "temperatura":
+        return type(valor) is int and TEMPERATURA_MINIMA <= valor <= TEMPERATURA_MAXIMA
+    if acao == "mudo":
+        return type(valor) is bool
+    if acao == "tecla":
+        return isinstance(valor, str) and valor in TECLAS
+    if acao == "vento":
+        return isinstance(valor, str) and valor in VENTOS
+    if acao == ACAO_GRUPO:
+        # Why: the empty value is solo, so a scene can take a group down by name.
+        # Por que: o valor vazio é solo, então uma cena consegue desfazer um grupo pelo nome.
+        return isinstance(valor, str) and (valor == "" or _texto(valor, IDENTIDADE_MAXIMA))
+    return acao in COM_TEXTO and _texto(valor, VALOR_TEXTO_MAXIMO)
+
+
 def _milissegundos(valor: object) -> bool:
     # Why: the JSON true is an int for Python, and it is not a millisecond count.
     # Por que: o true do JSON é int para o Python, e não é uma contagem de milissegundos.
     return type(valor) is int and 0 <= valor <= ESPERA_MAXIMA_MS
 
 
-def _valor_valido(dp: mapa.Dp, valor: object) -> bool:
-    """The value against what the data point takes; the protocol of the bus owns the types.
-
-    O valor contra o que o data point aceita; o protocolo do barramento é dono dos tipos.
-    """
-    if dp.tipo is mapa.Tipo.ENUM and not dp.valores:
-        # Why: the values of the input of a block come from the hardware (section 14,
-        # plm_support) and the map does not know them, so a speaker that was offline when the
-        # scene was saved would have its input refused forever. The shape is judged here and
-        # the value the speaker does not have is refused by the bus when the step runs, which
-        # the scene logs with its code and walks past.
-        # Por que: os valores da entrada de um bloco vêm do hardware (seção 14, plm_support) e
-        # o mapa não os conhece, então uma caixa offline na hora de salvar teria a entrada dela
-        # recusada para sempre. A forma é julgada aqui e o valor que a caixa não tem é recusado
-        # pelo barramento quando o passo roda, o que a cena registra com o código e ultrapassa.
-        return _texto_de_valor(valor)
-    return protocolo.valor_valido(dp, valor)
-
-
-def _texto_de_valor(valor: object) -> bool:
+def _texto(valor: object, maximo: int) -> bool:
     return (
         isinstance(valor, str)
-        and 0 < len(valor) <= VALOR_TEXTO_MAXIMO
+        and 0 < len(valor) <= maximo
         and not _CONTROLE.search(valor)
         and _gravavel(valor)
     )

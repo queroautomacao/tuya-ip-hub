@@ -1,0 +1,164 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (C) 2026 Quero Automação Ltda */
+
+/* The licences of the account, the lists of the app panel and the chips the controls share.
+   As licenças da conta, as listas do painel do app e as fichas que os controles compartilham. */
+
+.licenca-lista {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.9rem;
+}
+
+.licenca-item {
+  padding: 1rem 1.1rem;
+  border-radius: calc(var(--raio) - 4px);
+  background: var(--campo);
+  border: 1px solid var(--vidro-borda);
+}
+
+.licenca-cabeca {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.licenca-cabeca h3 {
+  margin: 0 0 0.15rem;
+  font-size: 1.05rem;
+}
+
+.licenca-cabeca p {
+  margin: 0;
+}
+
+.licenca-dados {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0.9rem 0;
+  font-size: 0.92rem;
+}
+
+.licenca-dados dt {
+  color: var(--texto-suave);
+}
+
+.licenca-dados dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.licenca-formulario {
+  margin-top: 0.5rem;
+}
+
+.etiqueta-aviso {
+  color: var(--aviso, #b26a00);
+}
+
+.qr-caixa {
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+  margin: 0 0 1rem;
+  padding: 1rem;
+  border-radius: calc(var(--raio) - 4px);
+  background: #fff;
+  color: #111;
+  border: 1px solid var(--vidro-borda);
+}
+
+.qr-caixa h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.qr-caixa .dica {
+  color: #444;
+  text-align: center;
+  max-width: 28rem;
+}
+
+.qr-tela {
+  width: 220px;
+  height: 220px;
+  image-rendering: pixelated;
+}
+
+.listas-bloco {
+  margin: 1rem 0;
+}
+
+.listas-bloco h3 {
+  margin: 0 0 0.2rem;
+  font-size: 1rem;
+}
+
+.listas-itens {
+  list-style: none;
+  margin: 0.5rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.listas-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.fichas,
+.teclado {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.teclado {
+  max-width: 34rem;
+}
+
+.ficha {
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--vidro-borda);
+  background: var(--campo);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ficha[aria-pressed="true"] {
+  background: var(--acento);
+  color: var(--acento-texto, #fff);
+  border-color: transparent;
+}
+
+.ficha[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.passo-sem-opcao {
+  display: inline-grid;
+  gap: 0.2rem;
+}
+
+.app-subtitulo {
+  margin: 0.1rem 0 0;
+  font-size: 0.78rem;
+  opacity: 0.75;
+}
+
+.app-graus {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}

@@ -2,55 +2,62 @@
 // Copyright (C) 2026 Quero Automação Ltda
 
 // Why: a scene is DATA, so this screen is an editor of a list and never a little language:
-// a step names one data point and one value, plus a wait after it, and that is the whole
-// vocabulary. Which data points may be named comes from the daemon, and the daemon refuses
-// the list field by field, so the screen never has to decide what a scene may do. What the
-// screen does decide is how a step reads: an equipment, then what to do with it, then the
+// a step names one equipment, one action and one value, plus a wait after it, and that is the
+// whole vocabulary. Which actions an equipment offers comes from its manifest, and the daemon
+// refuses the list field by field, so the screen never has to decide what a scene may do. What
+// the screen does decide is how a step reads: an equipment, then what to do with it, then the
 // value; the wait after a step is the interval of the scene unless the step names its own.
 // Por que: uma cena é DADO, então esta tela é um editor de uma lista e nunca uma
-// linguagenzinha: um passo nomeia um data point e um valor, mais uma espera depois dele, e
-// esse é o vocabulário inteiro. Quais data points podem ser nomeados vêm do daemon, e o daemon
-// recusa a lista campo a campo, então a tela nunca precisa decidir o que uma cena pode fazer.
-// O que a tela decide é como um passo se lê: um equipamento, depois o que fazer com ele, depois
-// o valor; a espera depois de um passo é o intervalo da cena, salvo o passo nomear a dele.
+// linguagenzinha: um passo nomeia um equipamento, uma ação e um valor, mais uma espera depois
+// dele, e esse é o vocabulário inteiro. Quais ações um equipamento oferece vêm do manifesto
+// dele, e o daemon recusa a lista campo a campo, então a tela nunca precisa decidir o que uma
+// cena pode fazer. O que a tela decide é como um passo se lê: um equipamento, depois o que fazer
+// com ele, depois o valor; a espera depois de um passo é o intervalo da cena, salvo o passo
+// nomear a dele.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   codigoDoErro,
   executarCena,
   lerCatalogo,
   lerCenas,
-  lerDps,
-  lerBlocos,
+  lerEquipamentos,
   problemasDoErro,
   salvarCenas,
 } from "./api.ts";
 import {
-  ajustaveis,
+  acoesDe,
   comCenas,
-  itemDoDp,
+  especieDe,
   nomeValido,
+  opcoesDe,
   prepararEspera,
   prepararIntervalo,
   prepararValor,
   textoDoValor,
+  ultimaEmUso,
   valorPadrao,
   type Cena,
-  type ItemDoMapa,
   type PassoDeCena,
 } from "./cenas.ts";
-import { INTERVALO_MS, type ItemCatalogo } from "./equipamentos.ts";
-import { t, traduzirErro, type Chave } from "./i18n";
-import { controlesDoBloco, type Bloco, type ControleDeBloco } from "./blocos.ts";
+import { palavra } from "./ControlesEquipamento.tsx";
+import {
+  INTERVALO_MS,
+  TEMPERATURA_MAXIMA,
+  TEMPERATURA_MINIMA,
+  type Equipamento,
+  type ItemCatalogo,
+} from "./equipamentos.ts";
+import { t, traduzirErro } from "./i18n";
 
 interface Leitura {
   cenas: Cena[];
   maximo: number;
+  acoes: string[];
   espera_maxima_ms: number;
   intervalo_padrao_ms: number;
   passos_maximos: number;
-  mapa: ItemDoMapa[];
-  blocos: Bloco[];
+  equipamentos: Equipamento[];
   catalogo: ItemCatalogo[];
   erro: string | null;
 }
@@ -58,50 +65,18 @@ interface Leitura {
 const VAZIA: Leitura = {
   cenas: [],
   maximo: 0,
+  acoes: [],
   espera_maxima_ms: 0,
   intervalo_padrao_ms: 0,
   passos_maximos: 0,
-  mapa: [],
-  blocos: [],
+  equipamentos: [],
   catalogo: [],
   erro: null,
 };
 
-// Why: the function of a data point comes from the daemon as a stable word, so one this
-// panel does not know prints the word itself instead of an empty label; a phrase for it is
-// added here the day section 8 grows one.
-// Por que: a função de um data point vem do daemon como palavra estável, então uma que este
-// painel não conhece imprime a própria palavra em vez de um rótulo vazio; a frase para ela é
-// acrescentada aqui no dia em que a seção 8 ganhar uma.
-const CHAVE_DA_FUNCAO: Record<string, Chave> = {
-  volume: "cenas_funcao_volume",
-  play: "cenas_funcao_play",
-  preset: "cenas_funcao_preset",
-  entrada: "cenas_funcao_entrada",
-  grupo: "cenas_funcao_grupo",
-};
-
-function rotuloDaFuncao(funcao: string, energia: boolean): string {
-  if (funcao === "play" && energia) return t("cenas_funcao_energia");
-  const chave = CHAVE_DA_FUNCAO[funcao];
-  return chave === undefined ? funcao : t(chave);
-}
-
-// Why: section 8, DP 102 is play/pause for an equipment with transport and the power switch
-// for any other, so a step reads "Power: on" on a matrix and "Play or pause: play" on a
-// speaker, from what the driver of the equipment in that number declares.
-// Por que: seção 8, o DP 102 é play/pause para um equipamento com transporte e a chave de
-// ligar para qualquer outro, então um passo se lê "Ligar ou desligar: ligar" numa matriz e
-// "Tocar ou pausar: tocar" numa caixa, a partir do que o driver do equipamento naquele número
-// declara.
-function controlesNoBloco(
-  numero: number,
-  blocos: readonly Bloco[],
-  catalogo: readonly ItemCatalogo[],
-): ControleDeBloco[] {
-  const bloco = blocos.find((candidato) => candidato.bloco === numero);
-  if (bloco === undefined) return [];
-  return controlesDoBloco(bloco, catalogo.find((candidato) => candidato.tipo === bloco.tipo));
+function nomeDe(equipamento: Equipamento | undefined, identidade: string): string {
+  if (equipamento === undefined) return identidade;
+  return equipamento.nome || equipamento.identidade;
 }
 
 // Why: the interval is typed over, so the field keeps what is being typed as a draft and only
@@ -120,6 +95,7 @@ function CampoIntervalo({
   aoMudar: (novo: number | null, codigo: string | null) => void;
 }) {
   const [rascunho, setRascunho] = useState<string | null>(null);
+  const invalido = useRef(false);
   return (
     <input
       className="curto"
@@ -132,66 +108,119 @@ function CampoIntervalo({
       onChange={(evento) => {
         setRascunho(evento.target.value);
         const preparo = prepararIntervalo(evento.target.value, maximo);
+        invalido.current = !preparo.ok;
         aoMudar(preparo.ok ? (preparo.valor as number) : null, preparo.ok ? null : preparo.codigo);
       }}
-      onBlur={() => setRascunho(null)}
+      onBlur={() => {
+        setRascunho(null);
+        // Why: leaving the field puts the last good value back on the screen, so the refusal
+        // shown for the draft goes with it instead of lingering over a value that is fine.
+        // Por que: sair do campo devolve o último valor bom à tela, então a recusa mostrada
+        // para o rascunho vai junto em vez de ficar sobre um valor que está certo.
+        if (invalido.current) {
+          invalido.current = false;
+          aoMudar(null, null);
+        }
+      }}
     />
   );
 }
 
-function rotuloDoBloco(numero: number, blocos: readonly Bloco[]): string {
-  if (numero === 0) return t("cenas_global");
-  const bloco = blocos.find((candidata) => candidata.bloco === numero);
-  const nome = bloco === undefined ? "" : bloco.nome || bloco.identidade;
-  return nome ? `${t("blocos_bloco")} ${numero}: ${nome}` : `${t("blocos_bloco")} ${numero}`;
-}
-
-function blocosDoMapa(mapa: readonly ItemDoMapa[]): number[] {
-  return [...new Set(mapa.map((item) => item.bloco))].sort((a, b) => a - b);
-}
-
 function Valor({
-  item,
   passo,
-  energia,
+  item,
+  equipamento,
+  equipamentos,
   aoMudar,
 }: {
-  item: ItemDoMapa;
   passo: PassoDeCena;
-  energia: boolean;
+  item: ItemCatalogo | undefined;
+  equipamento: Equipamento | undefined;
+  equipamentos: Equipamento[];
   aoMudar: (valor: unknown, codigo: string | null) => void;
 }) {
+  const especie = especieDe(passo.acao);
   const texto = textoDoValor(passo.valor);
   const escolher = (bruto: string): void => {
-    const preparo = prepararValor(item, bruto);
+    const preparo = prepararValor(passo.acao, bruto);
     aoMudar(preparo.ok ? preparo.valor : bruto, preparo.ok ? null : preparo.codigo);
   };
-  if (item.tipo === "bool") {
+  if (especie === "nenhum") return null;
+  if (especie === "logico") {
     return (
       <select aria-label={t("cenas_valor")} value={texto} onChange={(evento) => escolher(evento.target.value)}>
-        <option value="true">{rotuloDoLogico(item, energia, true)}</option>
-        <option value="false">{rotuloDoLogico(item, energia, false)}</option>
+        <option value="true">{t("sim")}</option>
+        <option value="false">{t("nao")}</option>
       </select>
     );
   }
-  if (item.tipo === "enum" && item.valores.length > 0) {
+  if (especie === "grupo") {
+    // Why: section 14, a group only exists between equipment of the same tipo, and section 8
+    // makes it a group of one licence, so the master offered is one of this tipo with a number
+    // on the same licence as the step; the empty value takes the group down.
+    // Por que: seção 14, um grupo só existe entre equipamentos do mesmo tipo, e a seção 8 faz
+    // dele um grupo de uma licença, então o mestre oferecido é um deste tipo com número na
+    // mesma licença do passo; o valor vazio desfaz o grupo.
+    const mestres = equipamentos.filter(
+      (candidato) =>
+        candidato.tipo === equipamento?.tipo &&
+        candidato.numero !== null &&
+        candidato.licenca !== null &&
+        candidato.licenca === equipamento?.licenca,
+    );
     return (
       <select aria-label={t("cenas_valor")} value={texto} onChange={(evento) => escolher(evento.target.value)}>
-        {item.valores.map((valor) => (
-          <option key={valor} value={valor}>
-            {valor}
+        <option value="">{t("cenas_grupo_solo")}</option>
+        {mestres.map((mestre) => (
+          <option key={mestre.identidade} value={mestre.identidade}>
+            {`${t("cenas_grupo_mestre")} ${nomeDe(mestre, mestre.identidade)}`}
           </option>
         ))}
       </select>
     );
   }
+  if (especie === "escolha") {
+    const opcoes = opcoesDe(passo.acao, item, equipamento);
+    if (opcoes.length === 0) {
+      return (
+        <span className="passo-sem-opcao">
+          <input
+            className="curto"
+            type="text"
+            aria-label={t("cenas_valor")}
+            value={texto}
+            onChange={(evento) => escolher(evento.target.value)}
+          />
+          <span className="dica">{t("cenas_sem_opcao")}</span>
+        </span>
+      );
+    }
+    const prefixo = passo.acao === "tecla" ? "tecla" : passo.acao === "vento" ? "vento" : item?.produto === "ar" && passo.acao === "modo" ? "modo_ar" : "";
+    // Why: a value saved before the list changed is still the value of the step, so it stays
+    // visible as itself instead of silently reading as the first option.
+    // Por que: um valor salvo antes de a lista mudar continua sendo o valor do passo, então ele
+    // fica visível como ele mesmo em vez de se ler em silêncio como a primeira opção.
+    const fora = !opcoes.some((opcao) => opcao.valor === texto);
+    return (
+      <select aria-label={t("cenas_valor")} value={texto} onChange={(evento) => escolher(evento.target.value)}>
+        {fora && <option value={texto}>{texto}</option>}
+        {opcoes.map((opcao) => (
+          <option key={opcao.valor} value={opcao.valor}>
+            {prefixo ? palavra(prefixo, opcao.rotulo) : opcao.rotulo}
+          </option>
+        ))}
+      </select>
+    );
+  }
+  const numero = especie === "numero";
+  const temperatura = passo.acao === "temperatura";
   return (
     <input
       className="curto"
-      type={item.tipo === "value" ? "number" : "text"}
-      inputMode={item.tipo === "value" ? "numeric" : "text"}
-      min={0}
-      max={100}
+      type={numero ? "number" : "text"}
+      inputMode={numero ? "numeric" : "text"}
+      min={temperatura ? TEMPERATURA_MINIMA : 0}
+      max={temperatura ? TEMPERATURA_MAXIMA : 100}
       aria-label={t("cenas_valor")}
       value={texto}
       onChange={(evento) => escolher(evento.target.value)}
@@ -199,32 +228,23 @@ function Valor({
   );
 }
 
-function rotuloDoLogico(item: ItemDoMapa, energia: boolean, valor: boolean): string {
-  if (item.funcao !== "play") return valor ? t("sim") : t("nao");
-  if (energia) return valor ? t("acao_ligar") : t("acao_desligar");
-  return valor ? t("blocos_tocar") : t("blocos_pausar");
-}
-
 function Passo({
   passo,
-  mapa,
-  blocos,
-  catalogo,
-  maximoDeEspera,
+  leitura,
   intervalo,
   aoMudar,
   aoRemover,
 }: {
   passo: PassoDeCena;
-  mapa: ItemDoMapa[];
-  blocos: Bloco[];
-  catalogo: ItemCatalogo[];
-  maximoDeEspera: number;
+  leitura: Leitura;
   intervalo: number;
   aoMudar: (novo: PassoDeCena, codigo: string | null) => void;
   aoRemover: () => void;
 }) {
-  const item = itemDoDp(mapa, passo.dpid);
+  const { equipamentos, catalogo, acoes } = leitura;
+  const equipamento = equipamentos.find((candidato) => candidato.identidade === passo.equipamento);
+  const item = catalogo.find((candidato) => candidato.tipo === equipamento?.tipo);
+  const oferecidas = acoesDe(acoes, item);
   const remover = (
     <button type="button" className="passo-remover" aria-label={t("cenas_remover_passo")} onClick={aoRemover}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
@@ -232,63 +252,56 @@ function Passo({
       </svg>
     </button>
   );
-  if (item === undefined) {
-    return (
-      <li className="passo">
-        <span className="erro">{traduzirErro("cena_dp_desconhecido")}</span>
-        {remover}
-      </li>
-    );
-  }
-  const controles = controlesNoBloco(item.bloco, blocos, catalogo);
-  const energia = controles.some((controle) => controle.funcao === "play" && controle.especie === "ligar");
-  const temPreset = controles.some((controle) => controle.funcao === "preset");
-  const funcoes = mapa.filter(
-    (candidato) => candidato.bloco === item.bloco && (candidato.funcao !== "preset" || temPreset),
-  );
-  const trocar = (escolhido: ItemDoMapa | undefined): void => {
-    if (escolhido === undefined) return;
-    aoMudar({ ...passo, dpid: escolhido.dpid, valor: valorPadrao(escolhido) }, null);
+  const trocarEquipamento = (identidade: string): void => {
+    // Why: moving a step to another equipment keeps what it does when that equipment offers
+    // it, so "volume of the receiver" moved to the speaker is "volume of the speaker" and not
+    // a reset; an action it does not offer falls to its first one.
+    // Por que: mover um passo para outro equipamento mantém o que ele faz quando aquele
+    // equipamento oferece isso, então "volume do receiver" levado à caixa é "volume da caixa" e
+    // não um recomeço; uma ação que ele não oferece cai na primeira dele.
+    const novo = equipamentos.find((candidato) => candidato.identidade === identidade);
+    const itemNovo = catalogo.find((candidato) => candidato.tipo === novo?.tipo);
+    const disponiveis = acoesDe(acoes, itemNovo);
+    const acao = disponiveis.includes(passo.acao) ? passo.acao : (disponiveis[0] ?? passo.acao);
+    const valor = acao === passo.acao ? passo.valor : valorPadrao(acao, opcoesDe(acao, itemNovo, novo));
+    aoMudar({ ...passo, equipamento: identidade, acao, valor }, null);
+  };
+  const trocarAcao = (acao: string): void => {
+    aoMudar({ ...passo, acao, valor: valorPadrao(acao, opcoesDe(acao, item, equipamento)) }, null);
   };
   return (
     <li className="passo">
       <div className="passo-alvo">
         <select
-          aria-label={t("cenas_passo_bloco")}
-          value={String(item.bloco)}
-          onChange={(evento) => {
-            // Why: moving a step to another block keeps what it does when that block offers it,
-            // so "volume of block 1" dragged to block 2 is "volume of block 2" and not a reset.
-            // Por que: mover um passo para outro bloco mantém o que ele faz quando aquele bloco
-            // oferece isso, então "volume do bloco 1" levado ao bloco 2 é "volume do bloco 2" e
-            // não um recomeço.
-            const bloco = Number(evento.target.value);
-            const mesma = mapa.find((c) => c.bloco === bloco && c.funcao === item.funcao);
-            trocar(mesma ?? mapa.find((c) => c.bloco === bloco));
-          }}
+          aria-label={t("cenas_passo_equipamento")}
+          value={passo.equipamento}
+          onChange={(evento) => trocarEquipamento(evento.target.value)}
         >
-          {blocosDoMapa(mapa).map((bloco) => (
-            <option key={bloco} value={String(bloco)}>
-              {rotuloDoBloco(bloco, blocos)}
+          {equipamento === undefined && <option value={passo.equipamento}>{passo.equipamento}</option>}
+          {equipamentos.map((candidato) => (
+            <option key={candidato.identidade} value={candidato.identidade}>
+              {nomeDe(candidato, candidato.identidade)}
             </option>
           ))}
         </select>
         <select
           aria-label={t("cenas_passo_o_que")}
-          value={String(item.dpid)}
-          onChange={(evento) => trocar(itemDoDp(mapa, Number(evento.target.value)))}
+          value={passo.acao}
+          onChange={(evento) => trocarAcao(evento.target.value)}
         >
-          {funcoes.map((candidato) => (
-            <option key={candidato.dpid} value={String(candidato.dpid)}>
-              {rotuloDaFuncao(candidato.funcao, energia)}
+          {!oferecidas.includes(passo.acao) && <option value={passo.acao}>{palavra("acao", passo.acao)}</option>}
+          {oferecidas.map((acao) => (
+            <option key={acao} value={acao}>
+              {palavra("acao", acao)}
             </option>
           ))}
         </select>
       </div>
       <Valor
-        item={item}
         passo={passo}
-        energia={energia}
+        item={item}
+        equipamento={equipamento}
+        equipamentos={equipamentos}
         aoMudar={(valor, codigo) => aoMudar({ ...passo, valor }, codigo)}
       />
       <label className="passo-espera">
@@ -298,21 +311,37 @@ function Passo({
           type="number"
           inputMode="numeric"
           min={0}
-          max={maximoDeEspera}
+          max={leitura.espera_maxima_ms}
           aria-label={t("cenas_espera")}
           placeholder={String(intervalo)}
           value={passo.espera_ms === null ? "" : String(passo.espera_ms)}
           onChange={(evento) => {
-            const preparo = prepararEspera(evento.target.value, maximoDeEspera);
+            const preparo = prepararEspera(evento.target.value, leitura.espera_maxima_ms);
             const espera = preparo.ok ? (preparo.valor as number | null) : passo.espera_ms;
             aoMudar({ ...passo, espera_ms: espera }, preparo.ok ? null : preparo.codigo);
           }}
         />
         <span className="texto-suave">{t("cenas_ms")}</span>
       </label>
+      {equipamento === undefined && (
+        <span className="erro">{traduzirErro("cena_equipamento_desconhecido")}</span>
+      )}
       {remover}
     </li>
   );
+}
+
+function novoPasso(leitura: Leitura): PassoDeCena | null {
+  const equipamento = leitura.equipamentos[0];
+  if (equipamento === undefined) return null;
+  const item = leitura.catalogo.find((candidato) => candidato.tipo === equipamento.tipo);
+  const acao = acoesDe(leitura.acoes, item)[0] ?? "ligar";
+  return {
+    equipamento: equipamento.identidade,
+    acao,
+    valor: valorPadrao(acao, opcoesDe(acao, item, equipamento)),
+    espera_ms: null,
+  };
 }
 
 function CartaoCena({
@@ -328,7 +357,6 @@ function CartaoCena({
   aoMudar: (nova: Cena, codigo: string | null) => void;
   aoExecutar: () => void;
 }) {
-  const { mapa, blocos, catalogo } = leitura;
   const cheia = cena.passos.length >= leitura.passos_maximos;
   const vazia = cena.passos.length === 0;
   return (
@@ -382,12 +410,9 @@ function CartaoCena({
         <ol className="passos">
           {cena.passos.map((passo, indice) => (
             <Passo
-              key={`${indice}-${passo.dpid}`}
+              key={`${indice}-${passo.equipamento}-${passo.acao}`}
               passo={passo}
-              mapa={mapa}
-              blocos={blocos}
-              catalogo={catalogo}
-              maximoDeEspera={leitura.espera_maxima_ms}
+              leitura={leitura}
               intervalo={cena.intervalo_ms}
               aoMudar={(novo, codigo) =>
                 aoMudar(
@@ -405,14 +430,10 @@ function CartaoCena({
       <button
         type="button"
         className="botao secundario"
-        disabled={cheia || mapa.length === 0}
+        disabled={cheia || leitura.equipamentos.length === 0}
         onClick={() => {
-          const primeiro = mapa[0];
-          if (primeiro === undefined) return;
-          aoMudar(
-            { ...cena, passos: [...cena.passos, { dpid: primeiro.dpid, valor: valorPadrao(primeiro), espera_ms: null }] },
-            null,
-          );
+          const passo = novoPasso(leitura);
+          if (passo !== null) aoMudar({ ...cena, passos: [...cena.passos, passo] }, null);
         }}
       >
         + {t("cenas_novo_passo")}
@@ -428,23 +449,23 @@ export default function Cenas() {
   const [problemas, setProblemas] = useState<readonly { campo: string; codigo: string }[]>([]);
   const [salvo, setSalvo] = useState(false);
   const [ocupado, setOcupado] = useState(false);
+  const [todas, setTodas] = useState(false);
 
   const recarregar = useCallback(async (): Promise<void> => {
     try {
-      const [cenas, snapshot, blocos, catalogo] = await Promise.all([
+      const [cenas, equipamentos, catalogo] = await Promise.all([
         lerCenas(),
-        lerDps(),
-        lerBlocos(),
+        lerEquipamentos(),
         lerCatalogo(),
       ]);
       setLeitura({
         cenas: comCenas(cenas.cenas, cenas.maximo, cenas.intervalo_padrao_ms),
         maximo: cenas.maximo,
+        acoes: cenas.acoes,
         espera_maxima_ms: cenas.espera_maxima_ms,
         intervalo_padrao_ms: cenas.intervalo_padrao_ms,
         passos_maximos: cenas.passos_maximos,
-        mapa: ajustaveis(snapshot.mapa),
-        blocos: blocos.blocos,
+        equipamentos,
         catalogo,
         erro: null,
       });
@@ -464,6 +485,11 @@ export default function Cenas() {
   }, [recarregar]);
 
   const cenas = rascunho ?? leitura.cenas;
+  // Why: thirty two cards is a wall; the screen shows the scenes in use plus one free slot, and
+  // the whole list on request.
+  // Por que: trinta e dois cartões são um muro; a tela mostra as cenas em uso mais uma vaga
+  // livre, e a lista inteira a pedido.
+  const visiveis = todas ? cenas : cenas.slice(0, Math.min(cenas.length, ultimaEmUso(cenas) + 1));
 
   function mudar(numero: number, nova: Cena, codigo: string | null): void {
     setSalvo(false);
@@ -499,8 +525,11 @@ export default function Cenas() {
           {traduzirErro(leitura.erro)}
         </p>
       )}
+      {leitura.erro === null && leitura.maximo > 0 && leitura.equipamentos.length === 0 && (
+        <p className="dica">{t("cenas_sem_equipamento")}</p>
+      )}
       <ul className="cenas">
-        {cenas.map((cena) => (
+        {visiveis.map((cena) => (
           <CartaoCena
             key={cena.numero}
             cena={cena}
@@ -511,6 +540,11 @@ export default function Cenas() {
           />
         ))}
       </ul>
+      {(todas || visiveis.length < cenas.length) && (
+        <button type="button" className="botao secundario" onClick={() => setTodas(!todas)}>
+          {todas ? t("cenas_menos") : t("cenas_mais")}
+        </button>
+      )}
       {(rascunho !== null || salvo || erro !== null || problemas.length > 0) && (
         <div className="cenas-rodape" role="region" aria-live="polite">
           {rascunho !== null && (

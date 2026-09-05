@@ -583,11 +583,11 @@ class LinkPlay(Driver):
     async def _tocar(self, valor: object) -> str | None:
         # Why: every other handler pins its own field in the cache, and the bus publishes from
         # that cache once a second, which lands BEFORE the reread of section 8 at 1.5 s. A play
-        # that pinned nothing let the tick republish the old transport, so DP 102 fell back to
+        # that pinned nothing let the tick republish the old transport, so reproduzindo fell back to
         # false a second after the command the speaker had accepted.
         # Por que: todo outro handler prende o campo dele no cache, e o barramento publica desse
         # cache uma vez por segundo, o que cai ANTES da releitura da seção 8 em 1,5 s. Um play
-        # que não prendia nada deixava o tique republicar o transporte antigo, então o DP 102
+        # que não prendia nada deixava o tique republicar o transporte antigo, então o reproduzindo
         # voltava a falso um segundo depois do comando que a caixa tinha aceitado.
         if valor is None or valor == "":
             await self._mandar(MANDA_RETOMAR)
@@ -648,12 +648,12 @@ class LinkPlay(Driver):
         )
 
     def _reproduzindo(self, dados: dict) -> bool | None:
-        """Whether the transport is playing, on whatever input, which is DP 102 of section 8.
+        """Whether the transport is playing, on whatever input, the reproduzindo fact of section 6.
 
         Why: the title is a different fact, and reading this one from it reported a speaker
         playing over bluetooth, over a line input, or a radio with no metadata, as paused.
 
-        Se o transporte está tocando, em qualquer entrada, que é o DP 102 da seção 8.
+        Se o transporte está tocando, em qualquer entrada, que é o fato reproduzindo da seção 6.
 
         Por que: o título é outro fato, e ler este daquele reportava como pausada uma caixa
         tocando por bluetooth, por entrada de linha, ou um rádio sem metadado.

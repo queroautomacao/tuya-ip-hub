@@ -72,8 +72,28 @@ METODOS = ("GET", "POST", "PUT")
 # Por que: a seção 6 publica o transporte e o título como fatos diferentes, e a seção 2 recusa
 # dois motores que divergem, então uma declaração lê o reproduzindo do mesmo jeito que um
 # driver nativo o publica.
-LEITURAS = ("ligado", "volume", "mudo", "fonte", "reproduzindo", "tocando")
+# Why: section 7, a file reads temperatura, modo and vento the way it reads fonte, so an air
+# conditioner and a receiver with sound modes are declared and never programmed.
+# Por que: seção 7, um arquivo lê temperatura, modo e vento do jeito que lê fonte, então um
+# ar condicionado e um receiver com modos de som são declarados e nunca programados.
+LEITURAS = (
+    "ligado",
+    "volume",
+    "mudo",
+    "fonte",
+    "reproduzindo",
+    "tocando",
+    "temperatura",
+    "modo",
+    "vento",
+)
 BOOLEANAS = ("ligado", "mudo", "reproduzindo")
+INTEIRAS = ("volume", "temperatura")
+
+# The lists of words a manifest of section 6 declares, each for one spoken capability.
+# As listas de palavras que um manifesto da seção 6 declara, cada uma para uma capacidade
+# falada.
+VOCABULARIOS = ("teclas", "modos", "ventos")
 
 CHAVES_ARQUIVO = ("manifesto", "transporte", "comandos", "estado", "escala_volume", "descoberta")
 CHAVES_MANIFESTO = (
@@ -84,6 +104,9 @@ CHAVES_MANIFESTO = (
     "auth",
     "config_campos",
     "textos",
+    "teclas",
+    "modos",
+    "ventos",
 )
 CHAVES_CAMPO = ("nome", "tipo", "obrigatorio", "padrao")
 CHAVES_TCP = ("porta", "terminador", "timeout_s", "intervalo_min_ms", "saudacao")
@@ -106,6 +129,7 @@ DECL_TIPO_INVALIDO = "decl_tipo_invalido"
 DECL_ROTULO_INVALIDO = "decl_rotulo_invalido"
 DECL_CATEGORIA_INVALIDA = "decl_categoria_invalida"
 DECL_CAPACIDADE_DESCONHECIDA = "decl_capacidade_desconhecida"
+DECL_VOCABULARIO_INVALIDO = "decl_vocabulario_invalido"
 DECL_AUTH_INVALIDA = "decl_auth_invalida"
 DECL_CONFIG_CAMPO_INVALIDO = "decl_config_campo_invalido"
 DECL_TEXTOS_INVALIDOS = "decl_textos_invalidos"
@@ -150,6 +174,7 @@ CODIGOS = (
     DECL_ROTULO_INVALIDO,
     DECL_CATEGORIA_INVALIDA,
     DECL_CAPACIDADE_DESCONHECIDA,
+    DECL_VOCABULARIO_INVALIDO,
     DECL_AUTH_INVALIDA,
     DECL_CONFIG_CAMPO_INVALIDO,
     DECL_TEXTOS_INVALIDOS,
@@ -238,6 +263,9 @@ CODIGO_DA_SECAO_6 = {
     "ssdp_fabricantes": DECL_DESCOBERTA_INVALIDA,
     "mdns_servicos": DECL_DESCOBERTA_INVALIDA,
     "capacidades": DECL_CAPACIDADE_DESCONHECIDA,
+    "teclas": DECL_VOCABULARIO_INVALIDO,
+    "modos": DECL_VOCABULARIO_INVALIDO,
+    "ventos": DECL_VOCABULARIO_INVALIDO,
     "rotulo": DECL_ROTULO_INVALIDO,
     "config_campos": DECL_CONFIG_CAMPO_INVALIDO,
     "textos": DECL_TEXTOS_INVALIDOS,
@@ -478,9 +506,11 @@ class _Leitor:
         auth = self._auth(bruto.get("auth"))
         config_campos = self._config_campos(bruto.get("config_campos"))
         textos = self._textos(bruto.get("textos"), rotulo)
-        partes = (tipo, rotulo, categoria, capacidades, auth, config_campos, textos)
+        vocabularios = [self._vocabulario(bruto.get(campo), campo) for campo in VOCABULARIOS]
+        partes = (tipo, rotulo, categoria, capacidades, auth, config_campos, textos, *vocabularios)
         if any(parte is None for parte in partes) or descoberta is None:
             return None
+        teclas, modos, ventos = vocabularios
         # Why: motor is never read from the file, so a declaration cannot claim to be code
         # that shipped in the image; rule 3 of section 2 says nothing loads code at runtime.
         # Por que: o motor nunca é lido do arquivo, então uma declaração não pode se dizer
@@ -496,6 +526,9 @@ class _Leitor:
             config_campos=config_campos,
             textos=textos,
             motor=MOTOR,
+            teclas=teclas,
+            modos=modos,
+            ventos=ventos,
         )
         if len(self.problemas) == antes:
             self._secao6(manifesto)
@@ -559,6 +592,18 @@ class _Leitor:
             return ()
         if not isinstance(bruto, list) or any(item not in CAPACIDADES for item in bruto):
             self._erro("manifesto.capacidades", DECL_CAPACIDADE_DESCONHECIDA)
+            return None
+        return tuple(bruto)
+
+    def _vocabulario(self, bruto: object, campo: str) -> tuple[str, ...] | None:
+        """A list of words, whose membership in the vocabulary section 6 judges.
+
+        Uma lista de palavras, cuja pertinência ao vocabulário a seção 6 julga.
+        """
+        if bruto is None:
+            return ()
+        if not isinstance(bruto, list) or any(not isinstance(item, str) for item in bruto):
+            self._erro(f"manifesto.{campo}", DECL_VOCABULARIO_INVALIDO)
             return None
         return tuple(bruto)
 

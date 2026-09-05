@@ -25,20 +25,21 @@ from iphub.api.comum import (
     CATALOGO,
     GESTOR,
     VARREDURA,
-    blocos_de,
     com_sessao,
     config_de,
     drivers_de,
     ler_corpo,
+    licencas_de,
     resposta_ok,
     trocar_config,
 )
 from iphub.api.formato import achado_json, equipamento_json, manifesto_json
-from iphub.config import Cadastro, ip_literal
-from iphub.dpbus import blocos as modulo_blocos
+from iphub.config import LISTAS, LISTAS_MAXIMO, Cadastro, Item, ip_literal, item_valido
+from iphub.dpbus import mapa, perfil
+from iphub.dpbus import numeros as modulo_numeros
 from iphub.drivers import descoberta
 from iphub.drivers.gestor import ErroDeCadastro, Gestor
-from iphub.drivers.manifesto import Manifesto, TipoCampo
+from iphub.drivers.manifesto import Manifesto, TipoCampo, produto_de
 from iphub.portao import resposta_erro
 
 log = logging.getLogger("iphub.api.equipamentos")
@@ -62,6 +63,9 @@ INVALID_VALUE = "invalid_value"
 ERRO_INTERNO = "erro_interno"
 EQ_NAO_ENCONTRADO = "eq_nao_encontrado"
 IDENTIDADE_DUPLICADA = "identidade_duplicada"
+LISTA_INVALIDA = "lista_invalida"
+LISTA_DEMAIS = "lista_demais"
+PERFIL_LONGO = "perfil_longo"
 
 # The status of every stable code these routes answer; nothing else reaches the panel.
 # O status de todo código estável que estas rotas respondem; nada mais chega ao painel.
@@ -72,9 +76,14 @@ STATUS_POR_CODIGO = {
     IP_INVALIDO: 400,
     TIPO_DESCONHECIDO: 400,
     "nao_suportado": 400,
+    LISTA_INVALIDA: 400,
+    LISTA_DEMAIS: 400,
+    PERFIL_LONGO: 400,
+    mapa.PERFIS_LONGOS: 400,
     EQ_NAO_ENCONTRADO: 404,
     "auth_pendente": 409,
     IDENTIDADE_DUPLICADA: 409,
+    modulo_numeros.PRODUTO_INCOMPATIVEL: 400,
     "erro_aparelho": 502,
     "eq_offline": 503,
     ERRO_INTERNO: 500,
@@ -180,14 +189,55 @@ def _montar_cadastro(
     if endereco is None:
         raise _Recusa(IP_INVALIDO)
     campos, segredos = _campos(manifesto, dados.get("campos", {}), anterior)
-    return Cadastro(
+    cadastro = Cadastro(
         identidade=_identidade_do_corpo(dados, identidade),
         tipo=manifesto.tipo,
         nome=_texto(dados.get("nome", "")).strip(),
         ip=endereco,
         campos=campos,
         segredos=segredos,
+        listas=_listas(dados.get("listas"), anterior),
     )
+    # Why: section 8, the profile of an equipment fits 200 bytes on any number, and what does
+    # not fit is refused where it is typed instead of leaving the panel of the platform blank.
+    # Por que: seção 8, o perfil de um equipamento cabe em 200 bytes em qualquer número, e o
+    # que não cabe é recusado onde é digitado em vez de deixar o painel da plataforma em branco.
+    if not perfil.cabe_em_qualquer_numero(cadastro, manifesto):
+        raise _Recusa(PERFIL_LONGO)
+    return cadastro
+
+
+def _listas(brutas: object, anterior: Cadastro | None) -> dict[str, tuple[Item, ...]]:
+    """The lists of section 8 as the body sent them, or the stored ones when it sent none.
+
+    As listas da seção 8 como o corpo as mandou, ou as guardadas quando ele não mandou nenhuma.
+    """
+    if brutas is None:
+        return dict(anterior.listas) if anterior is not None else {}
+    if not isinstance(brutas, dict) or not set(brutas) <= set(LISTAS):
+        raise _Recusa(LISTA_INVALIDA)
+    listas: dict[str, tuple[Item, ...]] = {}
+    for nome, entradas in brutas.items():
+        if not isinstance(entradas, list):
+            raise _Recusa(LISTA_INVALIDA)
+        if len(entradas) > LISTAS_MAXIMO[nome]:
+            raise _Recusa(LISTA_DEMAIS)
+        itens = []
+        for entrada in entradas:
+            if not isinstance(entrada, dict) or not set(entrada) <= {"rotulo", "valor"}:
+                raise _Recusa(LISTA_INVALIDA)
+            rotulo = entrada.get("rotulo")
+            valor = entrada.get("valor")
+            if not isinstance(rotulo, str) or not isinstance(valor, str):
+                raise _Recusa(LISTA_INVALIDA)
+            rotulo = rotulo.strip()
+            valor = valor.strip()
+            if not item_valido(rotulo, valor):
+                raise _Recusa(LISTA_INVALIDA)
+            itens.append(Item(rotulo=rotulo, valor=valor))
+        if itens:
+            listas[nome] = tuple(itens)
+    return listas
 
 
 def _identidade_do_corpo(dados: dict, identidade: str | None) -> str:
@@ -207,7 +257,9 @@ def _identidade_do_corpo(dados: dict, identidade: str | None) -> str:
 
 
 def _persistir(
-    app: web.Application, cadastros: tuple[Cadastro, ...], blocos: tuple[str, ...] | None = None
+    app: web.Application,
+    cadastros: tuple[Cadastro, ...],
+    numeros: dict[str, tuple[str, ...]] | None = None,
 ) -> bool:
     # Why: the route writes the set (section 6) and answers whether it could, because a gestor
     # changed first left the daemon polling an equipment that never reached the disk, listed by
@@ -217,8 +269,8 @@ def _persistir(
     # pelo painel até um reinício o sumir.
     atual = config_de(app)
     mudanca = {"equipamentos": cadastros}
-    if blocos is not None:
-        mudanca["blocos"] = blocos
+    if numeros is not None:
+        mudanca["numeros"] = numeros
     try:
         trocar_config(app, replace(atual, **mudanca))
     except OSError as erro:
@@ -250,9 +302,15 @@ async def listar(request: web.Request) -> web.Response:
     gestor = _gestor(request)
     manifestos = _manifestos(request.app)
     estados = gestor.estados()
+    livro = licencas_de(request.app)
     return resposta_ok(
         equipamentos=[
-            equipamento_json(cadastro, manifestos.get(cadastro.tipo), estados[cadastro.identidade])
+            equipamento_json(
+                cadastro,
+                manifestos.get(cadastro.tipo),
+                estados[cadastro.identidade],
+                livro.onde(cadastro.identidade),
+            )
             for cadastro in gestor.cadastros
         ]
     )
@@ -287,11 +345,29 @@ async def _gravar(request: web.Request, identidade: str | None) -> web.Response:
         return _erro(recusa.codigo)
     if identidade is None and _achar(gestor.cadastros, cadastro.identidade) is not None:
         return _erro(IDENTIDADE_DUPLICADA)
-    # Why: section 6, any registered equipment may occupy a block, so a change of tipo keeps
-    # the block: DP 102 follows the new manifest (transport or power) on the next report.
-    # Por que: seção 6, qualquer equipamento cadastrado pode ocupar um bloco, então uma troca
-    # de tipo mantém o bloco: o DP 102 segue o manifesto novo (transporte ou ligar) no
-    # próximo report.
+    # Why: section 8, the profiles of a licence share five strings, so an edited registration
+    # that would push the licence past them is refused now, with the integrator at the
+    # keyboard, instead of taking every profile of the licence off the bus.
+    # Por que: seção 8, os perfis de uma licença dividem cinco strings, então um cadastro
+    # editado que empurraria a licença para além delas é recusado agora, com o integrador no
+    # teclado, em vez de tirar todo perfil da licença do barramento.
+    if not licencas_de(app).perfis_cabem(cadastro):
+        return _erro(mapa.PERFIS_LONGOS)
+    # Why: section 8, an equipment only enters a licence of its product, so a change of tipo
+    # that would move it to the other product while it holds a number is refused now instead
+    # of emptying the number in silence on the next boot.
+    # Por que: seção 8, um equipamento só entra numa licença do produto dele, então uma troca
+    # de tipo que o levaria ao outro produto enquanto ele ocupa um número é recusada agora em
+    # vez de esvaziar o número em silêncio no próximo boot.
+    onde = licencas_de(app).onde(cadastro.identidade)
+    manifesto = _manifestos(app).get(cadastro.tipo)
+    if onde is not None and manifesto is not None:
+        if produto_de(manifesto.categoria) != licencas_de(app).produto_de(onde[0]):
+            return _erro(modulo_numeros.PRODUTO_INCOMPATIVEL)
+    # Why: section 6, any registered equipment may occupy a number, so a change of tipo keeps
+    # the number: the data points follow the new manifest on the next report.
+    # Por que: seção 6, qualquer equipamento cadastrado pode ocupar um número, então uma troca
+    # de tipo mantém o número: os data points seguem o manifesto novo no próximo report.
     if not _persistir(app, _com(gestor.cadastros, cadastro)):
         return _erro(ERRO_INTERNO)
     mudar = gestor.cadastrar if identidade is None else gestor.atualizar_cadastro
@@ -309,19 +385,22 @@ async def remover(request: web.Request) -> web.Response:
     if _achar(gestor.cadastros, identidade) is None:
         return _erro(EQ_NAO_ENCONTRADO)
     restantes = tuple(c for c in gestor.cadastros if c.identidade != identidade)
-    blocos = blocos_de(request.app)
-    # Why: section 8 numbers the block by position, so the block of a removed speaker stays
-    # there, empty; closing the hole would move every speaker below it one block up, in
-    # silence, on a bus the customer already automated. The group it was in falls with it,
-    # because a group led by an equipment nobody has is a group nobody can take down.
-    # Por que: a seção 8 numera o bloco pela posição, então o bloco de uma caixa removida
-    # continua ali, vazio; fechar o buraco moveria toda caixa abaixo dele um bloco para cima,
-    # em silêncio, num barramento que o cliente já automatizou. O grupo em que ela estava cai
-    # junto, porque um grupo liderado por um equipamento que ninguém tem é um grupo que
-    # ninguém consegue desfazer.
-    if not _persistir(request.app, restantes, modulo_blocos.sem(blocos.ordem, identidade)):
+    livro = licencas_de(request.app)
+    # Why: section 8 numbers by position, so the number of a removed equipment stays there,
+    # empty; closing the hole would move every equipment below it one number up, in silence,
+    # on a bus the customer already automated. The group it was in falls with it, because a
+    # group led by an equipment nobody has is a group nobody can take down.
+    # Por que: a seção 8 numera pela posição, então o número de um equipamento removido
+    # continua ali, vazio; fechar o buraco moveria todo equipamento abaixo dele um número para
+    # cima, em silêncio, num barramento que o cliente já automatizou. O grupo em que ele
+    # estava cai junto, porque um grupo liderado por um equipamento que ninguém tem é um grupo
+    # que ninguém consegue desfazer.
+    numeros = {
+        chave: modulo_numeros.sem(ordem, identidade) for chave, ordem in livro.numeros().items()
+    }
+    if not _persistir(request.app, restantes, numeros):
         return _erro(ERRO_INTERNO)
-    await blocos.esquecer(identidade)
+    await livro.esquecer(identidade)
     await gestor.remover(identidade)
     return resposta_ok()
 

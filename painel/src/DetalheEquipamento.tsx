@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Quero Automação Ltda
 
 import { CartaoEquipamento, usarEquipamentos } from "./Equipamentos.tsx";
+import ListasDoPainel from "./ListasDoPainel.tsx";
 import NumeroNoApp from "./NumeroNoApp.tsx";
 import { t, traduzirErro, type Idioma } from "./i18n";
 import { caminhoDa, irPara } from "./rotas.ts";
@@ -55,6 +56,11 @@ export default function DetalheEquipamento({
           <NumeroNoApp
             equipamento={equipamento}
             item={(catalogo ?? []).find((candidato) => candidato.tipo === equipamento.tipo)}
+          />
+          <ListasDoPainel
+            equipamento={equipamento}
+            item={(catalogo ?? []).find((candidato) => candidato.tipo === equipamento.tipo)}
+            aoMudar={() => void recarregar()}
           />
         </>
       )}

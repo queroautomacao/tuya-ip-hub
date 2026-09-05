@@ -38,6 +38,7 @@ EXEMPLOS = Path(__file__).resolve().parent / "exemplos"
 TIPO_TCP = "matriz_hdmi_ascii"
 TIPO_HTTP = "rele_http"
 TIPO_UDP = "amplificador_udp"
+TIPO_AR = "ar_condicionado_tcp"
 
 CHAVE = "chave-do-integrador"
 
@@ -252,3 +253,79 @@ async def test_o_amplificador_udp_calado_reporta_offline():
             await driver.parar()
     assert driver.estado().online is False
     assert driver.estado().detalhe == "eq_offline"
+
+
+@pytest.fixture
+def ar():
+    return ServidorLinha(
+        {b"GET STATUS": b"POWER ON TEMP 23 MODE COOL FAN LOW\r\n"},
+        terminador=b"\r\n",
+    )
+
+
+async def test_o_ar_condicionado_tcp_le_o_setpoint_o_modo_e_o_vento_como_palavras(
+    ar: ServidorLinha,
+):
+    """Section 7: a file reads temperatura, modo and vento the way it reads fonte, and what
+    comes back is the word of section 6 the numbers module publishes, never the wire value.
+
+    Seção 7: um arquivo lê temperatura, modo e vento do jeito que lê fonte, e o que volta é a
+    palavra da seção 6 que o módulo dos números publica, nunca o valor de fio.
+    """
+    async with ar:
+        driver = _driver(TIPO_AR, ar.endereco)
+        await driver.iniciar()
+        try:
+            await driver.atualizar()
+            estado = driver.estado()
+            assert estado.online is True
+            assert estado.ligado is True
+            assert estado.temperatura == 23
+            assert estado.modo == "frio"
+            assert estado.vento == "baixo"
+            assert await driver.executar("modo", "quente") is None
+            await _ate(lambda: b"SET MODE HEAT" in ar.recebidas)
+            assert await driver.executar("temperatura", 21) is None
+            await _ate(lambda: b"SET TEMP 21" in ar.recebidas)
+            assert await driver.executar("vento", "alto") is None
+            await _ate(lambda: b"SET FAN HIGH" in ar.recebidas)
+        finally:
+            await driver.parar()
+
+
+async def test_o_ar_condicionado_tcp_recusa_o_que_esta_fora_da_faixa_e_do_vocabulario(
+    ar: ServidorLinha,
+):
+    """Section 6: the setpoint is whole degrees from 16 to 30 and a mode is a word of the
+    file, so nothing else reaches the wire of a compressor.
+
+    Seção 6: o setpoint são graus inteiros de 16 a 30 e um modo é uma palavra do arquivo,
+    então nada além disso chega ao fio de um compressor.
+    """
+    async with ar:
+        driver = _driver(TIPO_AR, ar.endereco)
+        await driver.iniciar()
+        try:
+            assert await driver.executar("temperatura", 40) == "invalid_value"
+            assert await driver.executar("temperatura", "21") == "invalid_value"
+            assert await driver.executar("modo", "vento") == "invalid_value"
+            assert await driver.executar("vento", "turbo") == "invalid_value"
+            assert await driver.executar("volume", 10) == "nao_suportado"
+            await asyncio.sleep(0.05)
+            assert not [linha for linha in ar.recebidas if linha.startswith(b"SET")]
+        finally:
+            await driver.parar()
+
+
+def test_o_manifesto_do_ar_condicionado_declara_as_palavras_que_manda():
+    """Section 6: the words a driver sends are declared in the manifest, so the gestor and the
+    panel know them before the first command.
+
+    Seção 6: as palavras que um driver manda são declaradas no manifesto, então o gestor e o
+    painel as conhecem antes do primeiro comando.
+    """
+    manifesto = construir(_definicao(TIPO_AR)).MANIFESTO
+    assert manifesto.categoria == "ar_condicionado"
+    assert manifesto.modos == ("auto", "frio", "quente", "seco")
+    assert manifesto.ventos == ("auto", "baixo", "medio", "alto")
+    assert manifesto.teclas == ()

@@ -7,8 +7,7 @@ API REST: um módulo por área, registrados aqui.
 
 from aiohttp import web
 
-from iphub.api import blocos as rotas_blocos
-from iphub.api import cenas, declarativos, equipamentos, health, setup, sistema
+from iphub.api import cenas, declarativos, equipamentos, health, licencas, setup, sistema
 from iphub.dpbus import socket
 from iphub.portao import TrataExpect, rota_delete, rota_get, rota_post
 
@@ -43,11 +42,15 @@ def registrar_rotas(app: web.Application, tratar_expect: TrataExpect) -> None:
     rota_get(app, "/api/drivers", declarativos.listar, tratar_expect)
     rota_post(app, "/api/drivers", declarativos.salvar, tratar_expect)
     rota_delete(app, "/api/drivers/{tipo}", declarativos.remover, tratar_expect)
-    rota_get(app, "/api/blocos", rotas_blocos.listar, tratar_expect)
-    rota_post(app, "/api/blocos", rotas_blocos.definir, tratar_expect)
-    rota_get(app, "/api/dps", rotas_blocos.dps, tratar_expect)
-    rota_post(app, "/api/dp/{dpid}", rotas_blocos.ajustar, tratar_expect)
-    rota_post(app, "/api/grupo", rotas_blocos.grupo, tratar_expect)
+    rota_get(app, "/api/licencas", licencas.listar, tratar_expect)
+    rota_post(app, "/api/licencas", licencas.criar, tratar_expect)
+    rota_post(app, "/api/licencas/{id}", licencas.atualizar, tratar_expect)
+    rota_delete(app, "/api/licencas/{id}", licencas.remover, tratar_expect)
+    rota_post(app, "/api/licencas/{id}/numeros", licencas.definir_numeros, tratar_expect)
+    rota_get(app, "/api/licencas/{id}/dps", licencas.dps, tratar_expect)
+    rota_post(app, "/api/licencas/{id}/dp/{dpid}", licencas.ajustar, tratar_expect)
+    rota_post(app, "/api/licencas/{id}/grupo", licencas.grupo, tratar_expect)
+    rota_get(app, "/api/licencas/{id}/qr", licencas.qr, tratar_expect)
     # Why: the fixed path comes first, so a scene number could never take the route of the
     # list away from the panel.
     # Por que: o caminho fixo vem antes, para um número de cena nunca tomar do painel a rota

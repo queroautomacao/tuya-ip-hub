@@ -134,12 +134,14 @@ def _embarcados() -> dict[str, dict]:
 
 
 def test_o_catalogo_embarcado_traz_um_exemplo_por_transporte():
-    """Section 13: three example files, TCP, HTTP and UDP, and each one validates for real.
+    """Section 13: the example files, TCP, HTTP and UDP plus an air conditioner over TCP, and
+    each one validates for real.
 
-    Seção 13: três arquivos de exemplo, TCP, HTTP e UDP, e cada um valida de verdade.
+    Seção 13: os arquivos de exemplo, TCP, HTTP e UDP mais um ar condicionado por TCP, e cada
+    um valida de verdade.
     """
     arquivos = _embarcados()
-    assert len(arquivos) >= 3, "milestone 3 asks for the three examples"
+    assert len(arquivos) >= 4, "milestone 3 asks for the three examples and section 8 for the air"
     transportes = []
     for nome, dados in arquivos.items():
         # The real fire test, the same one the API runs before saving a file of the panel.
@@ -148,7 +150,7 @@ def test_o_catalogo_embarcado_traz_um_exemplo_por_transporte():
         assert definicao.manifesto.motor == formato.MOTOR
         assert nome == f"{definicao.manifesto.tipo}.json"
         transportes.append(type(definicao.transporte).__name__.lower())
-    assert sorted(transportes) == ["http", "tcp", "udp"]
+    assert sorted(transportes) == ["http", "tcp", "tcp", "udp"]
 
 
 def test_o_catalogo_embarcado_nao_recusa_nada_e_entra_no_catalogo():
@@ -505,4 +507,5 @@ def test_a_imagem_embarca_um_catalogo_vazio_e_os_exemplos_nunca_embarcam():
         "matriz_hdmi_ascii.json",
         "rele_http.json",
         "amplificador_udp.json",
+        "ar_condicionado_tcp.json",
     }

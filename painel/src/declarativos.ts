@@ -41,6 +41,7 @@ export const CODIGOS_DECLARATIVOS = [
   "decl_rotulo_invalido",
   "decl_categoria_invalida",
   "decl_capacidade_desconhecida",
+  "decl_vocabulario_invalido",
   "decl_auth_invalida",
   "decl_config_campo_invalido",
   "decl_textos_invalidos",

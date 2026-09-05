@@ -19,10 +19,74 @@ export const CAPACIDADES = [
   "proxima",
   "anterior",
   "agrupar",
+  "tecla",
+  "atalho",
+  "modo",
+  "vento",
+  "temperatura",
   "comando_extra",
 ] as const;
 
 export type Capacidade = (typeof CAPACIDADES)[number];
+
+// The vocabularies of section 6: a key, a mode of an air conditioner and a fan speed are words
+// the daemon translates; the panel only draws them.
+// Os vocabulários da seção 6: uma tecla, um modo de ar condicionado e um vento são palavras que
+// o daemon traduz; o painel só as desenha.
+export const TECLAS = [
+  "mais",
+  "menos",
+  "canal_mais",
+  "canal_menos",
+  "cima",
+  "baixo",
+  "esquerda",
+  "direita",
+  "ok",
+  "voltar",
+  "inicio",
+  "menu",
+  "guia",
+  "sair",
+  "info",
+  "play_pause",
+  "proxima",
+  "anterior",
+  "digito_0",
+  "digito_1",
+  "digito_2",
+  "digito_3",
+  "digito_4",
+  "digito_5",
+  "digito_6",
+  "digito_7",
+  "digito_8",
+  "digito_9",
+] as const;
+export type Tecla = (typeof TECLAS)[number];
+export const MODOS_AR = ["auto", "frio", "quente", "vento", "seco"] as const;
+export type ModoAr = (typeof MODOS_AR)[number];
+export const VENTOS = ["auto", "baixo", "medio", "alto"] as const;
+export type Vento = (typeof VENTOS)[number];
+export const TEMPERATURA_MINIMA = 16;
+export const TEMPERATURA_MAXIMA = 30;
+
+export const CATEGORIA_DE_AR = "ar_condicionado";
+export const PRODUTOS = ["ar", "av"] as const;
+export type Produto = (typeof PRODUTOS)[number];
+
+// The lists of section 8 a registration of audio and video carries, each with its ceiling.
+// As listas da seção 8 que um cadastro de áudio e vídeo carrega, cada uma com o teto dela.
+export const LISTAS = ["entradas", "atalhos", "modos"] as const;
+export type Lista = (typeof LISTAS)[number];
+export const LISTAS_MAXIMO: Record<Lista, number> = { entradas: 10, atalhos: 8, modos: 8 };
+export const ROTULO_MAXIMO = 16;
+export const VALOR_DE_LISTA_MAXIMO = 64;
+
+export interface Item {
+  rotulo: string;
+  valor: string;
+}
 
 export const RESULTADOS_AUTENTICACAO = ["pareado", "aguardando", "falhou"] as const;
 
@@ -43,6 +107,10 @@ export const CODIGOS_EQUIPAMENTO = [
   "identidade_duplicada",
   "ip_invalido",
   "campo_invalido",
+  "lista_invalida",
+  "lista_demais",
+  "perfil_longo",
+  "perfis_longos",
 ] as const;
 
 // Why: Estado.detalhe carries the empty string or ONE code of this fixed vocabulary and
@@ -86,6 +154,11 @@ export interface ItemCatalogo {
   motor: string;
   auth: string;
   capacidades: string[];
+  teclas: string[];
+  modos: string[];
+  ventos: string[];
+  produto: string;
+  template: string;
   rotulo: Record<string, string>;
   textos: Record<string, Record<string, string>>;
   config_campos: Campo[];
@@ -98,9 +171,15 @@ export interface EstadoEquipamento {
   mudo: boolean | null;
   fonte: string | null;
   fontes: string[];
+  reproduzindo: boolean | null;
   tocando: string | null;
+  temperatura: number | null;
+  modo: string | null;
+  vento: string | null;
   detalhe: string;
 }
+
+export type Listas = Partial<Record<Lista, Item[]>>;
 
 export interface Equipamento {
   identidade: string;
@@ -109,6 +188,9 @@ export interface Equipamento {
   ip: string;
   campos: Record<string, string>;
   segredos_definidos: string[];
+  listas: Listas;
+  licenca: string | null;
+  numero: number | null;
   estado: EstadoEquipamento;
 }
 
@@ -173,7 +255,32 @@ export function lerItemCatalogo(valor: unknown): ItemCatalogo | null {
   }
   const config_campos = lerLista(valor.config_campos, lerCampo);
   if (config_campos === null) return null;
-  return { tipo, categoria, motor, auth, capacidades, rotulo, textos, config_campos };
+  // Why: the words and the product come from the manifest of section 6 through the daemon, so
+  // the panel reads them and never decides which category speaks which word.
+  // Por que: as palavras e o produto vêm do manifesto da seção 6 pelo daemon, então o painel os
+  // lê e nunca decide qual categoria fala qual palavra.
+  const teclas = valor.teclas === undefined ? [] : listaDeTexto(valor.teclas);
+  const modos = valor.modos === undefined ? [] : listaDeTexto(valor.modos);
+  const ventos = valor.ventos === undefined ? [] : listaDeTexto(valor.ventos);
+  const produto = valor.produto === undefined ? "av" : valor.produto;
+  const template = valor.template === undefined ? "au" : valor.template;
+  if (teclas === null || modos === null || ventos === null) return null;
+  if (!ehTexto(produto) || !ehTexto(template)) return null;
+  return {
+    tipo,
+    categoria,
+    motor,
+    auth,
+    capacidades,
+    teclas,
+    modos,
+    ventos,
+    produto,
+    template,
+    rotulo,
+    textos,
+    config_campos,
+  };
 }
 
 export function lerLista<T>(valor: unknown, ler: (bruto: unknown) => T | null): T[] | null {
@@ -194,12 +301,50 @@ export function lerEstadoEquipamento(valor: unknown): EstadoEquipamento | null {
   const volume = opcional(valor.volume, ehNumero);
   const fonte = opcional(valor.fonte, ehTexto);
   const tocando = opcional(valor.tocando, ehTexto);
+  const reproduzindo = opcional(valor.reproduzindo, ehLogico);
+  const temperatura = opcional(valor.temperatura, ehNumero);
+  const modo = opcional(valor.modo, ehTexto);
+  const vento = opcional(valor.vento, ehTexto);
   const fontes = valor.fontes === undefined ? [] : listaDeTexto(valor.fontes);
   const detalhe = valor.detalhe === undefined ? "" : valor.detalhe;
   if (ligado === undefined || mudo === undefined || volume === undefined) return null;
   if (fonte === undefined || tocando === undefined || fontes === null) return null;
+  if (reproduzindo === undefined || temperatura === undefined) return null;
+  if (modo === undefined || vento === undefined) return null;
   if (!ehTexto(detalhe)) return null;
-  return { online: valor.online, ligado, volume, mudo, fonte, fontes, tocando, detalhe };
+  return {
+    online: valor.online,
+    ligado,
+    volume,
+    mudo,
+    fonte,
+    fontes,
+    reproduzindo,
+    tocando,
+    temperatura,
+    modo,
+    vento,
+    detalhe,
+  };
+}
+
+export function lerItem(valor: unknown): Item | null {
+  if (!ehObjeto(valor) || !ehTexto(valor.rotulo) || !ehTexto(valor.valor)) return null;
+  return { rotulo: valor.rotulo, valor: valor.valor };
+}
+
+export function lerListas(valor: unknown): Listas | null {
+  if (valor === undefined) return {};
+  if (!ehObjeto(valor)) return null;
+  const listas: Listas = {};
+  for (const nome of LISTAS) {
+    const bruto = valor[nome];
+    if (bruto === undefined) continue;
+    const itens = lerLista(bruto, lerItem);
+    if (itens === null) return null;
+    listas[nome] = itens;
+  }
+  return listas;
 }
 
 export function lerEquipamento(valor: unknown): Equipamento | null {
@@ -212,8 +357,23 @@ export function lerEquipamento(valor: unknown): Equipamento | null {
   const brutos = valor.segredos_definidos;
   const segredos_definidos = brutos === undefined ? [] : listaDeTexto(brutos);
   const estado = lerEstadoEquipamento(valor.estado);
+  const listas = lerListas(valor.listas);
+  const licenca = opcional(valor.licenca, ehTexto);
+  const numero = opcional(valor.numero, ehNumero);
   if (campos === null || segredos_definidos === null || estado === null) return null;
-  return { identidade, tipo: valor.tipo, nome, ip, campos, segredos_definidos, estado };
+  if (listas === null || licenca === undefined || numero === undefined) return null;
+  return {
+    identidade,
+    tipo: valor.tipo,
+    nome,
+    ip,
+    campos,
+    segredos_definidos,
+    listas,
+    licenca,
+    numero,
+    estado,
+  };
 }
 
 export function lerAchado(valor: unknown): Achado | null {
@@ -225,7 +385,14 @@ export function lerAchado(valor: unknown): Achado | null {
   return { tipo, identidade, ip, porta, descricao, ja_cadastrado: valor.ja_cadastrado === true };
 }
 
-export type EspecieControle = "simples" | "alternar" | "escala" | "escolha" | "texto";
+export type EspecieControle =
+  | "simples"
+  | "alternar"
+  | "escala"
+  | "escolha"
+  | "texto"
+  | "tecla"
+  | "temperatura";
 
 export interface Controle {
   acao: Capacidade;
@@ -243,6 +410,11 @@ const ESPECIES: Record<Capacidade, EspecieControle> = {
   proxima: "simples",
   anterior: "simples",
   agrupar: "texto",
+  tecla: "tecla",
+  atalho: "escolha",
+  modo: "escolha",
+  vento: "escolha",
+  temperatura: "temperatura",
   comando_extra: "texto",
 };
 
@@ -272,6 +444,11 @@ export interface Paineis {
   mudo: boolean;
   transporte: Transporte[];
   fonte: boolean;
+  teclas: boolean;
+  atalho: boolean;
+  modo: boolean;
+  vento: boolean;
+  temperatura: boolean;
   extra: boolean;
   algum: boolean;
 }
@@ -289,8 +466,34 @@ export function paineis(capacidades: readonly string[]): Paineis {
   const energia = ENERGIA.filter(tem);
   const transporte = TRANSPORTE.filter(tem);
   const [volume, mudo, fonte, extra] = [tem("volume"), tem("mudo"), tem("fonte"), tem("comando_extra")];
-  const algum = energia.length > 0 || transporte.length > 0 || volume || mudo || fonte || extra;
-  return { energia, volume, mudo, transporte, fonte, extra, algum };
+  const [teclas, atalho, modo] = [tem("tecla"), tem("atalho"), tem("modo")];
+  const [vento, temperatura] = [tem("vento"), tem("temperatura")];
+  const algum =
+    energia.length > 0 ||
+    transporte.length > 0 ||
+    volume ||
+    mudo ||
+    fonte ||
+    extra ||
+    teclas ||
+    atalho ||
+    modo ||
+    vento ||
+    temperatura;
+  return { energia, volume, mudo, transporte, fonte, teclas, atalho, modo, vento, temperatura, extra, algum };
+}
+
+// Why: the setpoint of section 6 is whole degrees inside the range, refused here with the same
+// stable code the daemon answers so a typo costs no request.
+// Por que: o setpoint da seção 6 são graus inteiros dentro da faixa, recusado aqui com o mesmo
+// código estável que o daemon responde para um erro de digitação não custar requisição.
+export function prepararTemperatura(entrada: string): Preparo {
+  const limpo = entrada.trim();
+  const dentro =
+    /^\d{1,2}$/.test(limpo) &&
+    Number(limpo) >= TEMPERATURA_MINIMA &&
+    Number(limpo) <= TEMPERATURA_MAXIMA;
+  return dentro ? { ok: true, valor: Number(limpo) } : { ok: false, codigo: "invalid_value" };
 }
 
 export function prepararTexto(entrada: string): Preparo {
@@ -312,13 +515,14 @@ export function prepararAcao(
     const dentro = /^\d{1,3}$/.test(limpo) && Number(limpo) <= 100;
     return dentro ? { ok: true, valor: Number(limpo) } : { ok: false, codigo: "invalid_value" };
   }
+  if (controle.especie === "temperatura") return prepararTemperatura(limpo);
   return prepararTexto(limpo);
 }
 
 export type LinhaEstado =
-  | { campo: "ligado" | "mudo"; especie: "logico"; logico: boolean }
-  | { campo: "volume"; especie: "numero"; numero: number }
-  | { campo: "fonte" | "tocando"; especie: "texto"; texto: string }
+  | { campo: "ligado" | "mudo" | "reproduzindo"; especie: "logico"; logico: boolean }
+  | { campo: "volume" | "temperatura"; especie: "numero"; numero: number }
+  | { campo: "fonte" | "tocando" | "modo" | "vento"; especie: "texto"; texto: string }
   | { campo: "detalhe"; especie: "codigo"; codigo: Detalhe };
 
 // Why: false and zero are readings the driver made, not absences, so only null and the
@@ -327,11 +531,17 @@ export type LinhaEstado =
 // o texto vazio ficam de fora; esconder um aparelho mudo ou volume 0 seria mentir.
 export function linhasDoEstado(estado: EstadoEquipamento): LinhaEstado[] {
   const linhas: LinhaEstado[] = [];
-  const { ligado, volume, mudo } = estado;
+  const { ligado, volume, mudo, reproduzindo, temperatura } = estado;
   if (ligado !== null) linhas.push({ campo: "ligado", especie: "logico", logico: ligado });
   if (volume !== null) linhas.push({ campo: "volume", especie: "numero", numero: volume });
   if (mudo !== null) linhas.push({ campo: "mudo", especie: "logico", logico: mudo });
-  for (const campo of ["fonte", "tocando"] as const) {
+  if (reproduzindo !== null) {
+    linhas.push({ campo: "reproduzindo", especie: "logico", logico: reproduzindo });
+  }
+  if (temperatura !== null) {
+    linhas.push({ campo: "temperatura", especie: "numero", numero: temperatura });
+  }
+  for (const campo of ["fonte", "tocando", "modo", "vento"] as const) {
     const texto = estado[campo];
     if (texto) linhas.push({ campo, especie: "texto", texto });
   }
@@ -366,6 +576,18 @@ export function textoDoManifesto(
 // refuses to render one even if some answer ever carried it back.
 // Por que: um SEGREDO é credencial de aparelho que nunca sai do daemon, então o painel
 // recusa mostrar um mesmo que alguma resposta o traga de volta.
+// Why: section 8, an air conditioner enters a licence of ar and everything else a licence of
+// av; the daemon says so in the manifest and the panel only reads it.
+// Por que: seção 8, um ar condicionado entra numa licença de ar e todo o resto numa licença de
+// av; o daemon diz isso no manifesto e o painel só lê.
+export function produtoDe(item: ItemCatalogo | undefined): Produto {
+  return item?.produto === "ar" ? "ar" : "av";
+}
+
+export function itensDe(equipamento: Equipamento, lista: Lista): Item[] {
+  return equipamento.listas[lista] ?? [];
+}
+
 export function camposVisiveis(
   item: ItemCatalogo | undefined,
   campos: Record<string, string>,

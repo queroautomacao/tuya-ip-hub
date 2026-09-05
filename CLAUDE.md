@@ -149,11 +149,12 @@ Regras que o gestor impõe (e testa) para todo driver:
 
 - Ação fora de `capacidades` volta `nao_suportado` **antes** de chegar ao
   driver. O driver nunca implementa método só para recusar.
-- **`reproduzindo` e `tocando` são fatos diferentes** (decisão de 3/set/2026): o
-  DP 102 é o transporte, o DP 105 é o título. Ler um do outro fazia uma caixa
-  tocando por bluetooth, por entrada de linha, ou um rádio sem metadado, reportar
-  **pausada**, e o app mandava play no que já tocava. Driver que não sabe dizer
-  deixa `reproduzindo` em `None`.
+- **`reproduzindo` e `tocando` são fatos diferentes** (decisão de 3/set/2026): um
+  é o transporte, o outro é o título. O título viaja no DP 148 da §8; o transporte
+  não tem DP, o painel o lê pela API e o driver LinkPlay o espelha do mestre nos
+  escravos. Ler um do outro fazia uma caixa tocando por bluetooth, por entrada de
+  linha, ou um rádio sem metadado, reportar **pausada**, e o app mandava play no
+  que já tocava. Driver que não sabe dizer deixa `reproduzindo` em `None`.
 - `estado()` é o dataclass acima. Chave nova no painel = campo novo aqui, com
   teste. Nunca "o driver X publica `modo` e o Y publica `modo_clima`".
 - Identidade de aparelho é UUID, MAC ou serial; **IP nunca é chave**. O IP é
@@ -224,11 +225,12 @@ daemon inteiro.
 
 Carregamento: `drivers/catalogo_json/*.json` (embarcado, versionado, revisado)
 mais `/data/drivers/*.json` (do integrador), o segundo vence em conflito de
-`tipo`. Recarrega quando o painel salva, sem reiniciar. Os três JSON de exemplo
-do marco 3 (TCP, HTTP, UDP) vivem em `core/tests/drivers/exemplos/` e **não
-embarcam** (decisão de 4/set/2026): protocolo inventado para provar o motor não
-é produto, e a lista de tipos do painel só oferece o que controla um aparelho de
-verdade. O catálogo embarcado nasce vazio e recebe driver revisado da comunidade.
+`tipo`. Recarrega quando o painel salva, sem reiniciar. Os JSON de exemplo do
+marco 3 (TCP, HTTP, UDP) e o ar condicionado por TCP do marco 4b vivem em
+`core/tests/drivers/exemplos/` e **não embarcam** (decisão de 4/set/2026):
+protocolo inventado para provar o motor não é produto, e a lista de tipos do
+painel só oferece o que controla um aparelho de verdade. O catálogo embarcado
+nasce vazio e recebe driver revisado da comunidade.
 
 ---
 
@@ -305,17 +307,21 @@ ecoado, o estado volta pelos reports.
 template `au` (áudio) ou `tv` (TV e projetor), funções como letras: L liga e
 desliga, N nível, M mudo, E entrada, T teclas, D modo, P transporte, G grupo.
 Os perfis viajam nos DPs 149..153 separados por `;`, empacotados por tamanho.
-Tetos do cadastro: nome 20 caracteres, rótulo 16, 10 entradas, 8 atalhos,
-8 modos, perfil de até 200 bytes; o que não cabe é recusado ao salvar.
+Tetos do cadastro: rótulo 16 caracteres, 10 entradas, 8 atalhos, 8 modos,
+perfil de até 200 bytes; o que não cabe é recusado ao salvar. O nome viaja
+encurtado a 20 caracteres no perfil, sem os separadores.
 Template pela categoria: `tv` e `projetor` viram `tv`; o resto vira `au`.
 
 ### Cenas
 
 Até **32** cenas; a posição é o número. Um passo nomeia **equipamento, ação e
 valor**, mais `espera_ms` opcional; sem ela vale o `intervalo_ms` da cena
-(padrão 1000). Ações: as CAPACIDADES da §6 mais `grupo` (valor: a identidade
-do mestre, ou vazio para solo). Um passo que falha é registrado e a cena
-segue. A automação da Tuya dispara a cena escrevendo o número no DP de cena de
+(padrão 1000). Ações: as CAPACIDADES da §6, menos `agrupar`, mais `grupo`
+(valor: a identidade do mestre, ou vazio para solo). `agrupar` é a capacidade
+que o manifesto declara para o equipamento admitir o passo `grupo`, nunca um
+passo: o movimento no driver recebe o IP do mestre, e IP nunca é chave (§6),
+então a licença resolve a identidade na hora de rodar. Um passo que falha é
+registrado e a cena segue. A automação da Tuya dispara a cena escrevendo o número no DP de cena de
 qualquer licença; o mesmo número é a mesma cena em todas.
 
 ### Reports (decisão de 4/set/2026)
@@ -331,8 +337,10 @@ disso, e **report disparado por consulta não conta**. O barramento:
   muda; títulos **nunca** são empurrados, só respondem à consulta;
 - conta os reports do dia por licença: em **250** a classe B para e a classe A
   alarga a janela para 30 s, com aviso no log; a nuvem nunca chega a limitar;
-- comando reporta otimista e relê em ~1,5 s, reportando só se o aparelho
-  divergiu; comando novo para o mesmo DP cancela a verificação pendente;
+- comando reporta otimista (só se o valor mudou, e dentro da janela alargada
+  depois dos 250) e relê em ~1,5 s, reportando só se o aparelho divergiu;
+  comando novo para o mesmo DP (no canal de comando, para o mesmo número)
+  cancela a verificação pendente;
 - na subida da ponte não há rajada: a ponte consulta.
 
 ### WebSocket `/dpbus`

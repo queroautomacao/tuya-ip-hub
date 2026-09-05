@@ -34,6 +34,7 @@ from iphub import regex_seguro
 from iphub.drivers.base import NAO_SUPORTADO, PAREADO, Cadastro, Driver
 from iphub.drivers.declarativo.formato import (
     BOOLEANAS,
+    INTEIRAS,
     LEITURAS,
     Consulta,
     Definicao,
@@ -42,7 +43,7 @@ from iphub.drivers.declarativo.formato import (
     Passo,
 )
 from iphub.drivers.declarativo.transporte import ERRO_APARELHO, FalhaDeTransporte, canal_de
-from iphub.drivers.manifesto import Auth
+from iphub.drivers.manifesto import TEMPERATURA_MAXIMA, TEMPERATURA_MINIMA, Auth
 
 log = logging.getLogger("iphub.drivers.declarativo.motor")
 
@@ -54,9 +55,19 @@ ACAO_DESLIGAR = "desligar"
 ACAO_VOLUME = "volume"
 ACAO_MUDO = "mudo"
 ACAO_FONTE = "fonte"
+ACAO_TEMPERATURA = "temperatura"
+ACAO_MODO = "modo"
+ACAO_VENTO = "vento"
 
 CAMPO_VOLUME = "volume"
 CAMPO_FONTE = "fonte"
+CAMPO_TEMPERATURA = "temperatura"
+
+# The readings whose wire value is translated back through the values map of a command, so
+# the panel reads the label it offered and the numbers module reads the word of section 6.
+# As leituras cujo valor de fio é traduzido de volta pelo mapa de valores de um comando, para
+# o painel ler o rótulo que ofereceu e o módulo dos números ler a palavra da seção 6.
+ROTULO_DO_COMANDO = {CAMPO_FONTE: ACAO_FONTE, ACAO_MODO: ACAO_MODO, ACAO_VENTO: ACAO_VENTO}
 
 VERDADE = "true"
 FALSIDADE = "false"
@@ -192,6 +203,14 @@ class DriverDeclarativo(Driver):
             if type(valor) is not int or not CONTRATO_MINIMO <= valor <= CONTRATO_MAXIMO:
                 raise _Recusa(INVALID_VALUE)
             substituicoes["valor_escala"] = str(escalar_para_aparelho(valor, self._escala()))
+        if acao == ACAO_TEMPERATURA and (
+            type(valor) is not int or not TEMPERATURA_MINIMA <= valor <= TEMPERATURA_MAXIMA
+        ):
+            # Why: section 6 fixes the setpoint in whole degrees of the range, and a value
+            # outside it never reaches the wire of a compressor.
+            # Por que: a seção 6 fixa o setpoint em graus inteiros da faixa, e um valor fora
+            # dela nunca chega ao fio de um compressor.
+            raise _Recusa(INVALID_VALUE)
         chave = _chave(valor)
         if valores:
             # Why: the map is the whole vocabulary the file gave this action, so a value
@@ -272,17 +291,21 @@ class DriverDeclarativo(Driver):
             return _verdade(bruto, leitura.verdadeiro)
         if leitura.campo == CAMPO_VOLUME:
             return _volume_lido(bruto, self._escala())
+        if leitura.campo in INTEIRAS:
+            return _inteiro_lido(bruto)
         texto = _limpo(str(bruto))
-        if leitura.campo == CAMPO_FONTE:
-            return self._rotulo_da_fonte(texto)
+        if leitura.campo in ROTULO_DO_COMANDO:
+            return self._rotulo_lido(ROTULO_DO_COMANDO[leitura.campo], texto)
         return texto
 
-    def _rotulo_da_fonte(self, fio: str) -> str:
-        """The wire value read back becomes the label the panel offered, or it means nothing.
+    def _rotulo_lido(self, acao: str, fio: str) -> str:
+        """The wire value read back becomes the label the command offered (the label of an
+        input, the word of section 6 of a mode), or it means nothing.
 
-        O valor de fio lido de volta vira o rótulo que o painel ofereceu, ou não significa nada.
+        O valor de fio lido de volta vira o rótulo que o comando ofereceu (o rótulo de uma
+        entrada, a palavra da seção 6 de um modo), ou não significa nada.
         """
-        comando = self.DEFINICAO.comandos.get(ACAO_FONTE)
+        comando = self.DEFINICAO.comandos.get(acao)
         valores = comando.valores if comando is not None else {}
         for rotulo, valor in valores.items():
             if valor == fio:
@@ -412,6 +435,10 @@ def _otimismo(acao: str, valor: object) -> dict[str, object]:
         return {"mudo": valor}
     if acao == ACAO_FONTE and isinstance(valor, str):
         return {"fonte": _limpo(valor)}
+    if acao == ACAO_TEMPERATURA and type(valor) is int:
+        return {"temperatura": valor}
+    if acao in (ACAO_MODO, ACAO_VENTO) and isinstance(valor, str):
+        return {acao: _limpo(valor)}
     return {}
 
 
@@ -451,6 +478,20 @@ def _palavra(bruto: object) -> str:
     if isinstance(bruto, bool):
         return VERDADE if bruto else FALSIDADE
     return str(bruto).strip().casefold()
+
+
+def _inteiro_lido(bruto: object) -> int | None:
+    """A whole number the device answered, or None when it answered something else.
+
+    Um número inteiro que o aparelho respondeu, ou None quando ele respondeu outra coisa.
+    """
+    try:
+        numero = float(str(bruto).strip())
+    except (TypeError, ValueError):
+        return None
+    if not numero.is_integer():
+        return None
+    return int(numero)
 
 
 def _volume_lido(bruto: object, escala: Escala | None) -> int | None:

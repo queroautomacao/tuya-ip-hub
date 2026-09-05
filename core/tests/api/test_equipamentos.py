@@ -180,7 +180,11 @@ async def test_cadastro_guarda_o_segredo_no_config_e_nunca_o_devolve(hub, amb):
         "mudo": None,
         "fonte": "hdmi1",
         "fontes": ["hdmi1"],
+        "reproduzindo": None,
         "tocando": None,
+        "temperatura": None,
+        "modo": None,
+        "vento": None,
         "detalhe": "",
     }
     (guardado,) = _config_do_disco(amb)["equipamentos"]
@@ -662,27 +666,36 @@ async def test_os_dois_transportes_falhando_respondem_erro_interno(abrir, varred
     assert await resposta.json() == {"ok": False, "code": "erro_interno"}
 
 
-async def test_trocar_o_tipo_para_um_que_nao_e_multiroom_mantem_o_bloco(abrir):
-    """Section 6: any registered equipment may occupy a block, so an equipment that stops
-    being multiroom keeps its number on the app; DP 102 follows the new manifest.
+async def test_trocar_o_tipo_para_um_que_nao_e_multiroom_mantem_o_numero(abrir):
+    """Section 6: any registered equipment of the product may occupy a number, so an
+    equipment that stops being multiroom keeps its number on the app; the data points follow
+    the new manifest.
 
-    Seção 6: qualquer equipamento cadastrado pode ocupar um bloco, então um equipamento que
-    deixa de ser multiroom mantém o número dele no app; o DP 102 segue o manifesto novo.
+    Seção 6: qualquer equipamento cadastrado do produto pode ocupar um número, então um
+    equipamento que deixa de ser multiroom mantém o número dele no app; os data points seguem
+    o manifesto novo.
     """
     outro = "projetor_falso"
     caixa = _fabrica(_manifesto(categoria="multiroom", capacidades=("volume", "agrupar")))
     projetor = _fabrica(_manifesto(outro, categoria="projetor"))
     cliente, auth = await abrir({TIPO: caixa, outro: projetor})
     assert (await _cadastrar(cliente, auth)).status == 200
-    resposta = await cliente.post("/api/blocos", json={"blocos": ["uuid-1"]}, headers=auth)
+    resposta = await cliente.post("/api/licencas", json={"produto": "av"}, headers=auth)
+    assert resposta.status == 200, await resposta.text()
+    licenca = (await resposta.json())["licenca"]["id"]
+    resposta = await cliente.post(
+        f"/api/licencas/{licenca}/numeros", json={"numeros": ["uuid-1"]}, headers=auth
+    )
     assert resposta.status == 200, await resposta.text()
 
     resposta = await cliente.post(
         "/api/equipamentos/uuid-1", json={**CORPO, "tipo": outro}, headers=auth
     )
     assert resposta.status == 200, await resposta.text()
-    corpo = await (await cliente.get("/api/blocos", headers=auth)).json()
-    assert corpo["blocos"][0]["identidade"] == "uuid-1"
+    corpo = await (await cliente.get("/api/licencas", headers=auth)).json()
+    assert corpo["licencas"][0]["numeros"][0]["identidade"] == "uuid-1"
+    (equipamento,) = await _lista(cliente, auth)
+    assert (equipamento["licenca"], equipamento["numero"]) == (licenca, 1)
 
 
 async def test_a_varredura_pergunta_o_uuid_a_caixa_que_o_mdns_achou(

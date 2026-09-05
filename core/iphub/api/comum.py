@@ -23,7 +23,7 @@ from iphub.config import Config
 from iphub.config import carregar as carregar_config
 from iphub.config import salvar as salvar_config
 from iphub.dpbus import mapa, protocolo
-from iphub.dpbus.blocos import Blocos, OrdemInvalida
+from iphub.dpbus.numeros import Licencas
 from iphub.drivers.base import Driver
 from iphub.drivers.catalogo import Catalogo
 from iphub.drivers.gestor import Gestor
@@ -67,57 +67,44 @@ TRAVA_POSSE = web.AppKey("trava_posse", asyncio.Lock)
 # Por que: salvar um driver grava um arquivo, relê as duas pastas e refaz o que usava o tipo;
 # dois desses se cruzando recarregariam um catálogo sobre uma pasta escrita pela metade.
 TRAVA_DRIVERS = web.AppKey("trava_drivers", asyncio.Lock)
-# Why: section 8 has ONE state of the blocks and ONE list of scenes for the whole daemon, so
+# Why: section 8 has ONE book of licences and ONE list of scenes for the whole daemon, so
 # the panel routes and the bus of the same hub command the same objects; two instances would
 # form a group by one door and publish solo through the other.
-# Por que: a seção 8 tem UM estado de blocos e UMA lista de cenas para o daemon inteiro, então
-# as rotas do painel e o barramento do mesmo hub comandam os mesmos objetos; duas instâncias
-# formariam grupo por uma porta e publicariam solo pela outra.
+# Por que: a seção 8 tem UM livro de licenças e UMA lista de cenas para o daemon inteiro,
+# então as rotas do painel e o barramento do mesmo hub comandam os mesmos objetos; duas
+# instâncias formariam grupo por uma porta e publicariam solo pela outra.
 log = logging.getLogger("iphub.api.comum")
 
-BLOCOS = web.AppKey("blocos", Blocos)
+LICENCAS = web.AppKey("licencas", Licencas)
 CENAS = web.AppKey("cenas", modulo_cenas.Executor)
 
 
-def _ordem_confiavel(gestor: Gestor, ordem: tuple[str, ...]) -> tuple[str, ...]:
-    """The saved order with every block the blocks module refuses left empty.
+def montar_dpbus(
+    app: web.Application, cfg: Config, *, dormir: modulo_cenas.Dormir = asyncio.sleep
+) -> None:
+    """The licences of section 8 with their numbers and the scenes of the installation, as
+    one wiring.
 
-    A ordem salva com todo bloco que o módulo dos blocos recusa deixado vazio.
+    As licenças da seção 8 com os números delas e as cenas da instalação, numa ligação só.
     """
-    juiz = Blocos(gestor)
-    aceitos: list[str] = []
-    for identidade in ordem[: mapa.BLOCOS]:
-        try:
-            juiz.validar([*aceitos, identidade])
-        except OrdemInvalida as erro:
-            log.warning("block %d of the saved order was dropped: %s", len(aceitos) + 1, erro)
-            aceitos.append("")
-        else:
-            aceitos.append(identidade)
-    return tuple(aceitos)
-
-
-def montar_dpbus(app: web.Application, cfg: Config) -> None:
-    """The six blocks of section 8 and the scenes of the installation, as one wiring.
-
-    Os seis blocos da seção 8 e as cenas da instalação, numa ligação só.
-    """
-    # Why: the route validates the order and config.json does not, so an order edited by hand
-    # boots a hub whose blocks name an identity that is not registered at all, or the same one
-    # twice. The blocks module is the one that judges an order, so it judges this one too, and
-    # a block it refuses is left empty instead of publishing a block nothing can command.
-    # Por que: a rota valida a ordem e o config.json não, então uma ordem editada na mão sobe
-    # um hub cujos blocos nomeiam uma identidade que nem está cadastrada, ou a mesma duas
-    # vezes. O módulo dos blocos é quem julga uma ordem, então ele julga esta também, e um bloco
-    # que ele recusa fica vazio em vez de publicar um bloco que ninguém comanda.
-    app[BLOCOS] = Blocos(app[GESTOR], _ordem_confiavel(app[GESTOR], cfg.blocos))
-    # Why: a scene sets data points and the blocks are what a data point reaches, so the
-    # executor is handed the same door the bus and the panel use; a scene may not set DP 131
-    # (the validation refuses it), so a scene never starts another one.
-    # Por que: uma cena ajusta data points e os blocos são o que um data point alcança, então o
-    # executor recebe a mesma porta que o barramento e o painel usam; uma cena não pode
-    # ajustar o DP 131 (a validação recusa), então uma cena nunca dispara outra.
-    app[CENAS] = modulo_cenas.Executor(cfg.cenas, app[BLOCOS].aplicar)
+    # Why: the route validates an order and config.json does not, so the book of licences
+    # judges every saved order on boot and leaves a number it refuses empty instead of
+    # publishing a number nothing can command.
+    # Por que: a rota valida uma ordem e o config.json não, então o livro de licenças julga
+    # toda ordem salva no boot e deixa vazio um número que ele recusa em vez de publicar um
+    # número que ninguém comanda.
+    app[LICENCAS] = Licencas(app[GESTOR], cfg.licencas, cfg.numeros)
+    # Why: a scene runs actions on equipment and the book of licences is what routes an
+    # action through a group, so the executor is handed the same door the bus and the panel
+    # use; there is no step that runs a scene, so a scene never starts another one.
+    # Por que: uma cena roda ações em equipamentos e o livro de licenças é o que roteia uma
+    # ação por um grupo, então o executor recebe a mesma porta que o barramento e o painel
+    # usam; não existe passo que roda cena, então uma cena nunca dispara outra.
+    # Why: the waits of a scene are the one thing the scenes do with a clock, so a test moves
+    # them by hand the way it moves the waits of the bus.
+    # Por que: as esperas de uma cena são a única coisa que as cenas fazem com relógio, então um
+    # teste as move na mão do jeito que move as esperas do barramento.
+    app[CENAS] = modulo_cenas.Executor(cfg.cenas, app[LICENCAS].acionar, dormir=dormir)
     # Why: registered before the cleanup of the gestor, so a scene in flight is taken off the
     # wire while the drivers it commands are still mounted.
     # Por que: registrado antes da limpeza do gestor, para uma cena em curso sair do fio
@@ -129,57 +116,73 @@ async def _parar_cenas(app: web.Application) -> None:
     await app[CENAS].parar()
 
 
-def blocos_de(app: web.Application) -> Blocos:
-    return app[BLOCOS]
+def licencas_de(app: web.Application) -> Licencas:
+    return app[LICENCAS]
 
 
 def cenas_de(app: web.Application) -> modulo_cenas.Executor:
     return app[CENAS]
 
 
-def valores_dps(app: web.Application) -> dict[int, object]:
-    """Every reportable data point of section 8 this hub holds right now.
+def produto_de_licenca(app: web.Application, licenca: object) -> str | None:
+    return licencas_de(app).produto_de(licenca)
 
-    Todo data point reportável da seção 8 que este hub tem agora.
+
+def valores_dps(app: web.Application, licenca: str) -> dict[int, object]:
+    """Every reportable data point of section 8 one licence holds right now.
+
+    Todo data point reportável da seção 8 que uma licença tem agora.
     """
-    valores = blocos_de(app).valores()
-    # Why: DP 134 carries the names of the scenes, which belong to the scenes and not to the
-    # blocks; a list that does not fit the 255 bytes is left out instead of published cut,
-    # because a cut JSON reaches the bridge impossible to read.
-    # Por que: o DP 134 leva os nomes das cenas, que são das cenas e não dos blocos; uma lista
-    # que não cabe nos 255 bytes fica de fora em vez de sair cortada, porque um JSON cortado
-    # chega à ponte impossível de ler.
+    livro = licencas_de(app)
+    produto = livro.produto_de(licenca)
+    if produto is None:
+        return {}
+    valores = livro.valores(licenca)
+    # Why: the two name data points carry the names of the scenes, which belong to the scenes
+    # and not to the numbers; a list that does not fit the 255 bytes is left out instead of
+    # published cut, because a cut JSON reaches the bridge impossible to read.
+    # Por que: os dois data points de nomes levam os nomes das cenas, que são das cenas e não
+    # dos números; uma lista que não cabe nos 255 bytes fica de fora em vez de sair cortada,
+    # porque um JSON cortado chega à ponte impossível de ler.
     try:
-        valores[mapa.NOMES_CENAS] = mapa.nomes_json(mapa.NOMES_CENAS, cenas_de(app).nomes())
+        primeira, segunda = mapa.nomes_das_cenas(cenas_de(app).nomes())
     except mapa.NomesInvalidos:
-        pass
+        return valores
+    valores[mapa.dp_de(produto, "nomes_cenas", indice=1)] = primeira
+    valores[mapa.dp_de(produto, "nomes_cenas", indice=2)] = segunda
     return valores
 
 
-async def aplicar_dp(app: web.Application, dpid: object, valor: object) -> str | None:
+async def aplicar_dp(
+    app: web.Application, licenca: object, dpid: object, valor: object
+) -> str | None:
     """One set of section 8 wherever it lands, done or refused with a stable code.
 
-    DP 131 is the scene, which belongs to the scenes, and every other settable data point
-    belongs to the blocks; the caller does not choose, so the panel route and the bus of the
-    same hub cannot disagree about where a set goes.
+    The scene data point is the scene, which belongs to the scenes, and every other settable
+    data point belongs to the numbers of the licence; the caller does not choose, so the
+    panel route and the bus of the same hub cannot disagree about where a set goes.
 
     Um set da seção 8 onde quer que ele caia, feito ou recusado com um código estável.
 
-    O DP 131 é a cena, que é das cenas, e todo outro data point ajustável é dos blocos; quem
-    chama não escolhe, então a rota do painel e o barramento do mesmo hub não podem discordar
-    sobre para onde vai um set.
+    O data point de cena é a cena, que é das cenas, e todo outro data point ajustável é dos
+    números da licença; quem chama não escolhe, então a rota do painel e o barramento do mesmo
+    hub não podem discordar sobre para onde vai um set.
     """
-    dp = mapa.de_dp(dpid)
+    livro = licencas_de(app)
+    produto = livro.produto_de(licenca)
+    if produto is None:
+        return protocolo.LICENCA_DESCONHECIDA
+    dp = mapa.de_dp(produto, dpid)
     if dp is None:
         return protocolo.DP_DESCONHECIDO
     if not dp.ajustavel:
         return protocolo.DP_SOMENTE_LEITURA
-    if dp.dpid == mapa.CENA:
+    if dp.funcao == "cena":
         numero = modulo_cenas.numero_de(valor)
         if numero is None:
             return protocolo.VALOR_INVALIDO
         return cenas_de(app).executar(numero)
-    return await blocos_de(app).aplicar(dp.dpid, valor)
+    return await livro.aplicar(licenca, dp.dpid, valor)
 
 
 def config_de(app: web.Application) -> Config:

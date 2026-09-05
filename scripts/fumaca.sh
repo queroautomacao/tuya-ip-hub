@@ -174,12 +174,31 @@ else
     fail "POST /api/equipamentos: expected 200, got '$codigo'"
 fi
 
-codigo="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 -X POST \
-    -H 'Content-Type: application/json' "${autorizado[@]}" -d '{"blocos": ["fumaca-uuid-1"]}' "$base/api/blocos" || true)"
-if [ "$codigo" = "200" ]; then
-    pass "POST /api/blocos: the equipment took number 1 on the app"
+# Why: section 8, a number on the app belongs to a licence, so the smoke creates one licence of
+# audio and video and gives the equipment its number 1 there.
+# Por que: seção 8, um número no app é de uma licença, então a fumaça cria uma licença de áudio
+# e vídeo e dá ao equipamento o número 1 dela.
+corpo="$(curl -sS --max-time 10 -X POST -H 'Content-Type: application/json' "${autorizado[@]}" \
+    -d '{"produto": "av", "id": "av1", "nome": "Fumaca"}' "$base/api/licencas" || true)"
+if printf '%s' "$corpo" | grep -q '"id": *"av1"'; then
+    pass "POST /api/licencas: a licence of audio and video was created"
 else
-    fail "POST /api/blocos: expected 200, got '$codigo'"
+    fail "POST /api/licencas: expected the licence av1, got '$corpo'"
+fi
+
+codigo="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 -X POST \
+    -H 'Content-Type: application/json' "${autorizado[@]}" -d '{"numeros": ["fumaca-uuid-1"]}' "$base/api/licencas/av1/numeros" || true)"
+if [ "$codigo" = "200" ]; then
+    pass "POST /api/licencas/av1/numeros: the equipment took number 1 on the app"
+else
+    fail "POST /api/licencas/av1/numeros: expected 200, got '$codigo'"
+fi
+
+corpo="$(curl -sS --max-time 10 "${autorizado[@]}" "$base/api/licencas/av1/qr" || true)"
+if printf '%s' "$corpo" | grep -q '"code": *"licenca_incompleta"'; then
+    pass "GET /api/licencas/av1/qr: no uuid and pid yet, so licenca_incompleta and never a key"
+else
+    fail "GET /api/licencas/av1/qr: expected licenca_incompleta, got '$corpo'"
 fi
 
 corpo="$(curl -sS --max-time 20 -X POST -H 'Content-Type: application/json' "${autorizado[@]}" \
@@ -190,7 +209,7 @@ else
     fail "POST /api/equipamentos/.../acao: expected eq_offline, got '$corpo'"
 fi
 
-cena='{"cenas": [{"nome": "Fumaca", "passos": [{"dpid": 101, "valor": 30, "espera_ms": 0}]}]}'
+cena='{"cenas": [{"nome": "Fumaca", "passos": [{"equipamento": "fumaca-uuid-1", "acao": "volume", "valor": 30, "espera_ms": 0}]}]}'
 codigo="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 -X POST \
     -H 'Content-Type: application/json' "${autorizado[@]}" -d "$cena" "$base/api/cenas" || true)"
 if [ "$codigo" = "200" ]; then
@@ -207,8 +226,8 @@ else
     fail "POST /api/cenas/1/executar: expected 200, got '$codigo'"
 fi
 
-# Why: section 8 says the first frame authenticates and that a socket without it is
-# closed with 4401, and the token never travels in the url. The check runs inside
+# Why: section 8 says the first frame authenticates with the token and the licence, that a
+# socket without it is closed with 4401, and that the token never travels in the url. The check runs inside
 # the container because the api_token never leaves it, and it is the machine
 # credential the DP-bus takes, not the panel session.
 # Por que: a seção 8 diz que o primeiro quadro autentica e que um socket sem ele é
@@ -222,21 +241,27 @@ async def principal():
     token = pathlib.Path("/data/api-token.txt").read_text(encoding="utf-8").strip()
     async with aiohttp.ClientSession() as sessao:
         async with sessao.ws_connect("http://127.0.0.1:8080/dpbus") as ws:
-            await ws.send_json({"t": "auth", "token": "errado"})
+            await ws.send_json({"t": "auth", "token": "errado", "licenca": "av1"})
             await ws.receive()
             print("mudo" if ws.close_code == 4401 else f"fechou com {ws.close_code}")
         async with sessao.ws_connect("http://127.0.0.1:8080/dpbus") as ws:
-            await ws.send_json({"t": "auth", "token": token})
+            await ws.send_json({"t": "auth", "token": token, "licenca": "nao-existe"})
+            await ws.receive()
+            print("sem-licenca" if ws.close_code == 4401 else f"fechou com {ws.close_code}")
+        async with sessao.ws_connect("http://127.0.0.1:8080/dpbus") as ws:
+            await ws.send_json({"t": "auth", "token": token, "licenca": "av1"})
+            await ws.send_json({"t": "consulta", "id": 1})
             quadro = await ws.receive_json()
             print(quadro.get("t"))
 
 asyncio.run(principal())
 PYFIM
 )"
-if printf '%s' "$saida" | grep -q '^mudo$' && printf '%s' "$saida" | grep -q 'snapshot'; then
-    pass "/dpbus: a wrong token is closed with 4401 and the api_token gets a snapshot"
+if printf '%s' "$saida" | grep -q '^mudo$' && printf '%s' "$saida" | grep -q '^sem-licenca$' \
+    && printf '%s' "$saida" | grep -q 'snapshot'; then
+    pass "/dpbus: a wrong token and an unknown licence close with 4401, and a consulta gets the snapshot"
 else
-    fail "/dpbus: expected a 4401 close and a snapshot, got '$saida'"
+    fail "/dpbus: expected two 4401 closes and a snapshot, got '$saida'"
 fi
 
 uid_container="$(docker compose exec -T iphub id -u 2>/dev/null | tr -d '[:space:]' || true)"

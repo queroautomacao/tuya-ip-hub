@@ -6,6 +6,7 @@ Configuração da instalação: um arquivo, lido inteiro, escrito inteiro.
 """
 
 import ipaddress
+import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -18,14 +19,24 @@ from iphub.versao import SCHEMA_VERSION
 ARQUIVO = "config.json"
 
 CHAVE_EQUIPAMENTOS = "equipamentos"
-CHAVE_BLOCOS = "blocos"
+CHAVE_LICENCAS = "licencas"
+CHAVE_NUMEROS = "numeros"
 CHAVE_CENAS = "cenas"
 
-# Why: section 8 numbers six blocks and no seventh exists, so a seventh identity here
-# would name a block the data point contract cannot carry.
-# Por que: a seção 8 numera seis blocos e não existe um sétimo, então uma sétima
-# identidade aqui nomearia um bloco que o contrato de data points não sabe carregar.
-BLOCOS_MAXIMO = mapa.BLOCOS
+# The lists a registration of section 8 carries, each with its ceiling, and the ceiling of
+# a label: the profile the panel reads is built from them and has to fit its string.
+# As listas que um cadastro da seção 8 carrega, cada uma com o teto dela, e o teto de um
+# rótulo: o perfil que o painel lê nasce delas e precisa caber na string dele.
+LISTAS = ("entradas", "atalhos", "modos")
+LISTAS_MAXIMO = {"entradas": 10, "atalhos": 8, "modos": 8}
+ROTULO_MAXIMO = 16
+VALOR_DE_LISTA_MAXIMO = 64
+
+# Why: the id of a licence is a key of config.json and part of a route path, so it stays in
+# the alphabet a JSON key and a URL segment share.
+# Por que: o id de uma licença é chave do config.json e parte de um caminho de rota, então
+# fica no alfabeto que uma chave JSON e um segmento de URL compartilham.
+ID_DE_LICENCA = re.compile(r"[a-z0-9][a-z0-9_-]{0,39}")
 
 # Why: senha_iteracoes is handed straight to pbkdf2_hmac on every login, so a hand edited
 # huge value hangs the daemon and a tiny one makes the stored hash cheap to crack.
@@ -71,6 +82,43 @@ class Cadastro:
     # lugar; um driver que precisa de outro valor recebe um Cadastro novo do gestor.
     campos: dict[str, str] = field(default_factory=dict)
     segredos: dict[str, str] = field(default_factory=dict)
+    # Why: the inputs, the shortcuts and the modes of an equipment are pairs of a label the
+    # customer reads and a value the driver takes, chosen by the integrator; the profile of
+    # section 8 is built from them, so they live with the registration and nowhere else.
+    # Por que: as entradas, os atalhos e os modos de um equipamento são pares de um rótulo que
+    # o cliente lê e um valor que o driver recebe, escolhidos pelo integrador; o perfil da
+    # seção 8 nasce deles, então eles vivem com o cadastro e em nenhum outro lugar.
+    listas: dict[str, tuple["Item", ...]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class Item:
+    """One entry of a list of the registration: the label the app shows, the value the
+    driver takes.
+
+    Uma entrada de uma lista do cadastro: o rótulo que o app mostra, o valor que o driver
+    recebe.
+    """
+
+    rotulo: str
+    valor: str
+
+
+@dataclass(frozen=True)
+class Licenca:
+    """One licence of section 8: a device on the platform, with the identity the bridge of
+    that product uses. The chave never leaves the daemon.
+
+    Uma licença da seção 8: um dispositivo na plataforma, com a identidade que a ponte
+    daquele produto usa. A chave nunca sai do daemon.
+    """
+
+    id: str
+    produto: str
+    nome: str = ""
+    uuid: str = ""
+    pid: str = ""
+    chave: str = ""
 
 
 @dataclass(frozen=True)
@@ -83,23 +131,24 @@ class Config:
     senha_hash: str = ""
     senha_iteracoes: int = 0
     equipamentos: tuple[Cadastro, ...] = ()
-    # Why: section 6 makes a block an ORDER over identities already registered as equipment,
-    # so there is no second registry: the position IS the data point block of section 8, and
-    # an empty string is a block nobody occupies. A removal empties the slot instead of
-    # shifting the rest, because a shift would silently move a speaker from block 2 to block 1
-    # in every automation the customer already built on the platform.
-    # Por que: a seção 6 faz de um bloco uma ORDEM sobre identidades já cadastradas como
-    # equipamento, então não existe segundo cadastro: a posição É o bloco de data points da
-    # seção 8, e uma string vazia é um bloco que ninguém ocupa. Uma remoção esvazia a vaga em
-    # vez de empurrar o resto, porque empurrar moveria em silêncio uma caixa do bloco 2 para a
-    # bloco 1 em toda automação que o cliente já montou na plataforma.
-    blocos: tuple[str, ...] = ()
+    licencas: tuple[Licenca, ...] = ()
+    # Why: section 8 makes the numbers of a licence an ORDER over identities already
+    # registered as equipment, so there is no second registry: the position IS the number on
+    # the app, and an empty string is a number nobody occupies. A removal empties the slot
+    # instead of shifting the rest, because a shift would silently move an equipment from
+    # number 2 to number 1 in every automation the customer already built on the platform.
+    # Por que: a seção 8 faz dos números de uma licença uma ORDEM sobre identidades já
+    # cadastradas como equipamento, então não existe segundo cadastro: a posição É o número no
+    # app, e uma string vazia é um número que ninguém ocupa. Uma remoção esvazia a vaga em vez
+    # de empurrar o resto, porque empurrar moveria em silêncio um equipamento do número 2 para
+    # o número 1 em toda automação que o cliente já montou na plataforma.
+    numeros: dict[str, tuple[str, ...]] = field(default_factory=dict)
     # Why: a scene is data of section 8 and the position of one is its number, the same way a
-    # block is a position; the module that owns the format decides what a scene is, and
-    # this file only says that the installation carries up to eight of them.
+    # number of a licence is a position; the module that owns the format decides what a scene
+    # is, and this file only says that the installation carries up to thirty two of them.
     # Por que: uma cena é dado da seção 8 e a posição de uma é o número dela, do mesmo jeito
-    # que um bloco é uma posição; o módulo dono do formato decide o que é uma cena, e
-    # este arquivo só diz que a instalação carrega até oito delas.
+    # que um número de licença é uma posição; o módulo dono do formato decide o que é uma
+    # cena, e este arquivo só diz que a instalação carrega até trinta e duas delas.
     cenas: tuple[Cena, ...] = ()
 
     @property
@@ -155,7 +204,8 @@ def carregar(dir_data: Path) -> Config:
         senha_hash=_texto(dados, "senha_hash", PADRAO.senha_hash),
         senha_iteracoes=_iteracoes(dados, dir_data),
         equipamentos=_equipamentos(dados, dir_data),
-        blocos=_blocos(dados),
+        licencas=_licencas(dados),
+        numeros=_numeros(dados),
         cenas=_cenas(dados, dir_data),
     )
 
@@ -237,28 +287,78 @@ def _equipamentos(dados: dict, dir_data: Path) -> tuple[Cadastro, ...]:
     return cadastros
 
 
-def _blocos(dados: dict) -> tuple[str, ...]:
-    """The order of the blocks: identities of registered equipment, empty for a free block.
+def _licencas(dados: dict) -> tuple[Licenca, ...]:
+    """The licences of section 8, each one a device of one of the two products.
 
-    A ordem dos blocos: identidades de equipamento cadastrado, vazia para um bloco livre.
+    As licenças da seção 8, cada uma um dispositivo de um dos dois produtos.
     """
-    valor = _lista(dados, CHAVE_BLOCOS, PADRAO.blocos)
-    if len(valor) > BLOCOS_MAXIMO:
-        raise ConfigIncompativel(
-            f"{ARQUIVO}: key {CHAVE_BLOCOS!r} carries {len(valor)} blocks, section 8 numbers "
-            f"{BLOCOS_MAXIMO}"
+    valor = dados.get(CHAVE_LICENCAS, [])
+    if not isinstance(valor, list):
+        raise _erro_tipo(CHAVE_LICENCAS, "a list of objects", valor)
+    licencas = []
+    for indice, item in enumerate(valor):
+        onde = f"{CHAVE_LICENCAS}[{indice}]"
+        if not isinstance(item, dict):
+            raise _erro_tipo(onde, "an object", item)
+        licenca = Licenca(
+            id=_texto_de(item, "id", onde),
+            produto=_texto_de(item, "produto", onde),
+            nome=_texto_de(item, "nome", onde),
+            uuid=_texto_de(item, "uuid", onde),
+            pid=_texto_de(item, "pid", onde),
+            chave=_texto_de(item, "chave", onde),
         )
-    ocupadas = [identidade for identidade in valor if identidade]
+        if not ID_DE_LICENCA.fullmatch(licenca.id):
+            raise ConfigIncompativel(f"{ARQUIVO}: key '{onde}.id' must be a short lowercase name")
+        if licenca.produto not in mapa.PRODUTOS:
+            raise ConfigIncompativel(
+                f"{ARQUIVO}: key '{onde}.produto' must be one of {list(mapa.PRODUTOS)}, "
+                f"found {licenca.produto!r}"
+            )
+        licencas.append(licenca)
+    ids = [licenca.id for licenca in licencas]
+    repetidos = sorted({i for i in ids if ids.count(i) > 1})
+    if repetidos:
+        raise ConfigIncompativel(f"{ARQUIVO}: key {CHAVE_LICENCAS!r} repeats the id {repetidos}")
+    return tuple(licencas)
+
+
+def _numeros(dados: dict) -> dict[str, tuple[str, ...]]:
+    """The numbers of every licence: identities of registered equipment, empty for a free
+    number, and the same identity never in two numbers of the installation.
+
+    Os números de cada licença: identidades de equipamento cadastrado, vazia para um número
+    livre, e a mesma identidade nunca em dois números da instalação.
+    """
+    valor = dados.get(CHAVE_NUMEROS, {})
+    if not isinstance(valor, dict):
+        raise _erro_tipo(CHAVE_NUMEROS, "an object of lists", valor)
+    licencas = {licenca.id: licenca for licenca in _licencas(dados)}
+    numeros: dict[str, tuple[str, ...]] = {}
+    ocupadas: list[str] = []
+    for chave, lista in valor.items():
+        onde = f"{CHAVE_NUMEROS}.{chave}"
+        if chave not in licencas:
+            raise ConfigIncompativel(f"{ARQUIVO}: key {onde!r} names a licence that does not exist")
+        if not isinstance(lista, list) or not all(isinstance(item, str) for item in lista):
+            raise _erro_tipo(onde, "a list of strings", lista)
+        teto = mapa.NUMEROS[licencas[chave].produto]
+        if len(lista) > teto:
+            raise ConfigIncompativel(
+                f"{ARQUIVO}: key {onde!r} carries {len(lista)} numbers, the product has {teto}"
+            )
+        numeros[chave] = tuple(lista)
+        ocupadas.extend(identidade for identidade in lista if identidade)
     repetidas = sorted({i for i in ocupadas if ocupadas.count(i) > 1})
     if repetidas:
-        # Why: one speaker in two blocks would answer the volume of two blocks on the bus, and
-        # the bridge would read a device that contradicts itself.
-        # Por que: uma caixa em dois blocos responderia o volume de dois blocos no barramento,
+        # Why: one equipment in two numbers would answer two data points on the bus, and the
+        # bridge would read a device that contradicts itself.
+        # Por que: um equipamento em dois números responderia dois data points no barramento,
         # e a ponte leria um aparelho que se contradiz.
         raise ConfigIncompativel(
-            f"{ARQUIVO}: key {CHAVE_BLOCOS!r} repeats the identidade {repetidas}"
+            f"{ARQUIVO}: key {CHAVE_NUMEROS!r} repeats the identidade {repetidas}"
         )
-    return valor
+    return numeros
 
 
 def _cenas(dados: dict, dir_data: Path) -> tuple[Cena, ...]:
@@ -293,6 +393,7 @@ def _cadastro(item: object, indice: int, dir_data: Path) -> Cadastro:
         ip=_texto_de(item, "ip", onde),
         campos=_mapa_de(item, "campos", onde),
         segredos=_mapa_de(item, "segredos", onde),
+        listas=_listas_de(item, onde),
     )
     for chave in ("identidade", "tipo"):
         if not getattr(cadastro, chave).strip():
@@ -311,6 +412,60 @@ def _cadastro(item: object, indice: int, dir_data: Path) -> Cadastro:
             f"{_conserto(dir_data)}"
         )
     return cadastro
+
+
+def _listas_de(item: dict, onde: str) -> dict[str, tuple[Item, ...]]:
+    """The lists of a registration, each a list of {rotulo, valor} within its ceiling.
+
+    As listas de um cadastro, cada uma uma lista de {rotulo, valor} dentro do teto dela.
+    """
+    bruto = item.get("listas", {})
+    if not isinstance(bruto, dict):
+        raise _erro_tipo(f"{onde}.listas", "an object of lists", bruto)
+    listas: dict[str, tuple[Item, ...]] = {}
+    for nome, entradas in bruto.items():
+        campo = f"{onde}.listas.{nome}"
+        if nome not in LISTAS:
+            raise ConfigIncompativel(f"{ARQUIVO}: key {campo!r} is not one of {list(LISTAS)}")
+        if not isinstance(entradas, list):
+            raise _erro_tipo(campo, "a list of objects", entradas)
+        if len(entradas) > LISTAS_MAXIMO[nome]:
+            raise ConfigIncompativel(
+                f"{ARQUIVO}: key {campo!r} carries {len(entradas)} items, "
+                f"the ceiling is {LISTAS_MAXIMO[nome]}"
+            )
+        itens = []
+        for indice, entrada in enumerate(entradas):
+            if not isinstance(entrada, dict):
+                raise _erro_tipo(f"{campo}[{indice}]", "an object", entrada)
+            rotulo = _texto_de(entrada, "rotulo", f"{campo}[{indice}]")
+            valor = _texto_de(entrada, "valor", f"{campo}[{indice}]")
+            if not item_valido(rotulo, valor):
+                raise ConfigIncompativel(
+                    f"{ARQUIVO}: key '{campo}[{indice}]' must carry a label of 1 to "
+                    f"{ROTULO_MAXIMO} printable characters and a value"
+                )
+            itens.append(Item(rotulo=rotulo, valor=valor))
+        listas[nome] = tuple(itens)
+    return listas
+
+
+def item_valido(rotulo: object, valor: object) -> bool:
+    """A label the app can show and a value the driver can take.
+
+    Um rótulo que o app pode mostrar e um valor que o driver pode receber.
+    """
+    # Why: the label travels inside the profile string of section 8, where ',' '|' and ';'
+    # are the separators, and a control character would break the JSON of the bus.
+    # Por que: o rótulo viaja dentro da string de perfil da seção 8, onde ',' '|' e ';' são os
+    # separadores, e um caractere de controle quebraria o JSON do barramento.
+    if not isinstance(rotulo, str) or not isinstance(valor, str):
+        return False
+    if not 0 < len(rotulo) <= ROTULO_MAXIMO or not rotulo.isprintable():
+        return False
+    if any(separador in rotulo for separador in (",", "|", ";")):
+        return False
+    return 0 < len(valor) <= VALOR_DE_LISTA_MAXIMO and valor.isprintable()
 
 
 def _texto_de(item: dict, chave: str, onde: str) -> str:

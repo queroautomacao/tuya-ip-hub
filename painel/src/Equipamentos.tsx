@@ -182,6 +182,8 @@ export function CartaoEquipamento({
         <Controles
           capacidades={capacidades}
           estado={equipamento.estado}
+          item={item}
+          equipamento={equipamento}
           ocupado={ocupado}
           aoExecutar={executar}
         />

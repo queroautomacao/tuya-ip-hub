@@ -13,9 +13,17 @@ traduz os tipos do contrato para a forma com que as rotas respondem. Os enums vi
 valor, em minúsculas, porque o painel os lê como texto puro.
 """
 
-from iphub.config import Cadastro
+from iphub.config import Cadastro, Item
 from iphub.drivers.descoberta import Achado
-from iphub.drivers.manifesto import Campo, Descoberta, Estado, Manifesto, TipoCampo
+from iphub.drivers.manifesto import (
+    Campo,
+    Descoberta,
+    Estado,
+    Manifesto,
+    TipoCampo,
+    produto_de,
+    template_de,
+)
 
 
 def campo_json(campo: Campo) -> dict:
@@ -46,6 +54,15 @@ def manifesto_json(manifesto: Manifesto) -> dict:
         "motor": manifesto.motor,
         "auth": manifesto.auth.value,
         "capacidades": list(manifesto.capacidades),
+        "teclas": list(manifesto.teclas),
+        "modos": list(manifesto.modos),
+        "ventos": list(manifesto.ventos),
+        # Why: section 8, the product a type enters and the template its panel draws are
+        # decided by the category, and the panel reads them here instead of deciding again.
+        # Por que: seção 8, o produto em que um tipo entra e o template que o painel dele
+        # desenha são decididos pela categoria, e o painel os lê aqui em vez de decidir de novo.
+        "produto": produto_de(manifesto.categoria),
+        "template": template_de(manifesto.categoria),
         "rotulo": dict(manifesto.rotulo),
         "textos": {idioma: dict(textos) for idioma, textos in manifesto.textos.items()},
         "config_campos": [campo_json(campo) for campo in manifesto.config_campos],
@@ -61,15 +78,26 @@ def estado_json(estado: Estado) -> dict:
         "mudo": estado.mudo,
         "fonte": estado.fonte,
         "fontes": list(estado.fontes),
+        "reproduzindo": estado.reproduzindo,
         "tocando": estado.tocando,
+        "temperatura": estado.temperatura,
+        "modo": estado.modo,
+        "vento": estado.vento,
         "detalhe": estado.detalhe,
     }
 
 
-def equipamento_json(cadastro: Cadastro, manifesto: Manifesto | None, estado: Estado) -> dict:
-    """One registration as the panel reads it: the names of the secrets, never their value.
+def equipamento_json(
+    cadastro: Cadastro,
+    manifesto: Manifesto | None,
+    estado: Estado,
+    posicao: tuple[str, int] | None = None,
+) -> dict:
+    """One registration as the panel reads it: the names of the secrets, never their value,
+    plus the licence and the number it occupies, section 8.
 
-    Um cadastro como o painel o lê: os nomes dos segredos, nunca o valor deles.
+    Um cadastro como o painel o lê: os nomes dos segredos, nunca o valor deles, mais a licença
+    e o número que ele ocupa, seção 8.
     """
     return {
         "identidade": cadastro.identidade,
@@ -78,8 +106,17 @@ def equipamento_json(cadastro: Cadastro, manifesto: Manifesto | None, estado: Es
         "ip": cadastro.ip,
         "campos": _campos_publicos(cadastro, manifesto),
         "segredos_definidos": _segredos_definidos(cadastro, manifesto),
+        "listas": {
+            nome: [item_json(item) for item in itens] for nome, itens in cadastro.listas.items()
+        },
+        "licenca": None if posicao is None else posicao[0],
+        "numero": None if posicao is None else posicao[1],
         "estado": estado_json(estado),
     }
+
+
+def item_json(item: Item) -> dict:
+    return {"rotulo": item.rotulo, "valor": item.valor}
 
 
 def achado_json(achado: Achado, *, ja_cadastrado: bool) -> dict:

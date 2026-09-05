@@ -6,7 +6,7 @@
 // Por que: o formulário de cadastro e o de edição mandam o mesmo corpo ao mesmo daemon,
 // então as regras que o corpo obedece moram aqui uma vez, e as telas só as desenham.
 
-import type { Achado, Campo, Equipamento, ItemCatalogo } from "./equipamentos.ts";
+import type { Achado, Campo, Equipamento, ItemCatalogo, Listas } from "./equipamentos.ts";
 
 // Why: the daemon refuses a longer or a non printable text with campo_invalido, and it
 // measures the length in code points the way python len does.
@@ -94,6 +94,11 @@ export interface CorpoCadastro {
   nome: string;
   ip: string;
   campos: Record<string, string>;
+  // Why: the lists of section 8 are edited on their own card, so the registration form never
+  // sends them and the daemon keeps what it stores when the key is absent.
+  // Por que: as listas da seção 8 são editadas num cartão próprio, então o formulário de
+  // cadastro nunca as manda e o daemon mantém o que guarda quando a chave está ausente.
+  listas?: Listas;
 }
 
 export type Validacao =

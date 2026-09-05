@@ -15,10 +15,10 @@ from iphub.ambiente import Ambiente
 from iphub.api import registrar_rotas, sistema
 from iphub.api.comum import (
     AMBIENTE,
-    BLOCOS,
     CATALOGO,
     CONFIG,
     GESTOR,
+    LICENCAS,
     LIMITE,
     SEGREDOS,
     SESSOES,
@@ -158,21 +158,23 @@ def criar_app(
     app[LIMITE] = Limite() if limite is None else limite
     app[CATALOGO] = _catalogo_do_app(amb, catalogo)
     app[GESTOR] = Gestor(app[CATALOGO].drivers, cfg.valor.equipamentos)
-    montar_dpbus(app, cfg.valor)
-    # Why: the bus of section 8 owns no state of its own; it takes the same door the panel
-    # routes take (aplicar_dp and valores_dps), so a set that arrives over the socket and a
-    # set that arrives over /api/dp land on the very same blocks and scenes.
-    # Por que: o barramento da seção 8 não é dono de estado nenhum; ele toma a mesma porta que
-    # as rotas do painel tomam (aplicar_dp e valores_dps), então um set que chega pelo socket e
-    # um que chega pelo /api/dp caem nos mesmíssimos blocos e cenas.
+    montar_dpbus(app, cfg.valor, dormir=dormir)
+    # Why: the bus of section 8 owns no state of the installation; it takes the same door the
+    # panel routes take (aplicar_dp and valores_dps), so a set that arrives over the socket
+    # and a set that arrives over the licence routes land on the very same numbers and scenes.
+    # Por que: o barramento da seção 8 não é dono de estado da instalação; ele toma a mesma
+    # porta que as rotas do painel tomam (aplicar_dp e valores_dps), então um set que chega
+    # pelo socket e um que chega pelas rotas de licença caem nos mesmíssimos números e cenas.
+    livro = app[LICENCAS]
     app[BARRAMENTO] = Barramento(
         functools.partial(aplicar_dp, app),
         functools.partial(valores_dps, app),
         lambda: segs.valor.api_token,
-        valores_de=app[BLOCOS].valores_de,
-        sanear=app[BLOCOS].sanear,
-        sincronizar=app[BLOCOS].sincronizar,
-        reler=app[BLOCOS].reler,
+        livro.produto_de,
+        licencas=livro.ids,
+        sanear=livro.sanear,
+        sincronizar=livro.sincronizar,
+        reler=livro.reler,
         dormir=dormir,
         agora=agora,
     )
@@ -187,12 +189,12 @@ def criar_app(
     app[TRAVA_POSSE] = asyncio.Lock()
     app[TRAVA_DRIVERS] = asyncio.Lock()
     app.on_startup.append(_subir_gestor)
-    # Why: on boot the bus takes down the zombie group of section 14, which reaches the
+    # Why: on boot the bus takes down the zombie groups of section 14, which reaches the
     # speakers, so it rises AFTER the gestor mounted the drivers and falls BEFORE the gestor
-    # drops them; a socket left open over drivers that are gone reads a hub that has no blocks.
+    # drops them; a socket left open over drivers that are gone reads a hub that has no numbers.
     # Por que: no boot o barramento derruba o grupo zumbi da seção 14, o que alcança as caixas,
     # então ele sobe DEPOIS de o gestor montar os drivers e cai ANTES de o gestor os largar; um
-    # socket aberto sobre drivers que já foram lê um hub sem bloco nenhum.
+    # socket aberto sobre drivers que já foram lê um hub sem número nenhum.
     app.on_startup.append(subir_barramento)
     app.on_cleanup.append(baixar_barramento)
     app.on_cleanup.append(_baixar_gestor)

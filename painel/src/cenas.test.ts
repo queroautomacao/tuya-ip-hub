@@ -6,232 +6,259 @@ import { test } from "node:test";
 
 import {
   CODIGOS_CENAS,
-  ajustaveis,
+  acoesDe,
   comCenas,
   corpoDeCenas,
-  itemDoDp,
+  especieDe,
   lerCena,
-  lerItemDoMapa,
   lerLeituraDeCenas,
-  lerSnapshot,
   nomeValido,
+  opcoesDe,
   prepararEspera,
   prepararIntervalo,
   prepararValor,
   textoDoValor,
+  ultimaEmUso,
   valorPadrao,
   type Cena,
-  type ItemDoMapa,
 } from "./cenas.ts";
+import type { Equipamento, EstadoEquipamento, ItemCatalogo } from "./equipamentos.ts";
 
-const VOLUME: ItemDoMapa = {
-  dpid: 101,
-  bloco: 1,
-  funcao: "volume",
-  tipo: "value",
-  sentido: "rw",
-  valores: [],
-};
-const PLAY: ItemDoMapa = { ...VOLUME, dpid: 102, funcao: "play", tipo: "bool" };
-const PRESET: ItemDoMapa = {
-  ...VOLUME,
-  dpid: 103,
-  funcao: "preset",
-  tipo: "enum",
-  sentido: "envio",
-  valores: ["cmd1", "cmd2"],
-};
-const ONLINE: ItemDoMapa = { ...VOLUME, dpid: 104, funcao: "online", tipo: "bool", sentido: "reporte" };
-const TOCANDO: ItemDoMapa = {
-  ...VOLUME,
-  dpid: 105,
-  funcao: "tocando",
-  tipo: "string",
-  sentido: "reporte",
-};
-const ENTRADA: ItemDoMapa = { ...VOLUME, dpid: 141, funcao: "entrada", tipo: "enum", valores: [] };
-const CENA: ItemDoMapa = {
-  dpid: 131,
-  bloco: 0,
-  funcao: "cena",
-  tipo: "enum",
-  sentido: "envio",
-  valores: ["cena1", "cena2"],
-};
-const GRUPO: ItemDoMapa = {
-  dpid: 132,
-  bloco: 0,
-  funcao: "grupo",
-  tipo: "enum",
-  sentido: "rw",
-  valores: ["solo", "grupo1"],
-};
+const ACOES = [
+  "ligar",
+  "desligar",
+  "volume",
+  "mudo",
+  "fonte",
+  "tocar",
+  "pausar",
+  "proxima",
+  "anterior",
+  "tecla",
+  "atalho",
+  "modo",
+  "vento",
+  "temperatura",
+  "comando_extra",
+  "grupo",
+];
 
-const MAPA = [VOLUME, PLAY, PRESET, ONLINE, TOCANDO, ENTRADA, CENA, GRUPO];
-
-function cenaDe(parcial: Partial<Cena> = {}): Cena {
+function estadoDe(parcial: Partial<EstadoEquipamento> = {}): EstadoEquipamento {
   return {
-    numero: 1,
-    nome: "Filme",
-    intervalo_ms: 1000,
-    em_curso: false,
-    passos: [{ dpid: 101, valor: 30, espera_ms: 0 }],
+    online: true,
+    ligado: null,
+    volume: null,
+    mudo: null,
+    fonte: null,
+    fontes: [],
+    reproduzindo: null,
+    tocando: null,
+    temperatura: null,
+    modo: null,
+    vento: null,
+    detalhe: "",
     ...parcial,
   };
 }
 
-test("lerCena takes a scene and refuses one outside the contract (aceita uma cena e recusa uma fora do contrato)", () => {
-  const bruto = {
-    numero: 2,
-    nome: "Festa",
-    intervalo_ms: 500,
-    em_curso: true,
-    passos: [{ dpid: 101, valor: 30, espera_ms: 250 }, { dpid: 102, valor: true, espera_ms: null }],
+function itemDe(parcial: Partial<ItemCatalogo> = {}): ItemCatalogo {
+  return {
+    tipo: "caixa",
+    categoria: "multiroom",
+    motor: "nativo",
+    auth: "nenhuma",
+    capacidades: ["volume", "mudo", "fonte", "tocar", "pausar", "agrupar"],
+    teclas: [],
+    modos: [],
+    ventos: [],
+    produto: "av",
+    template: "au",
+    rotulo: { pt: "Caixa", en: "Speaker" },
+    textos: { pt: {}, en: {} },
+    config_campos: [],
+    ...parcial,
   };
-  const lida = lerCena(bruto);
-  assert.ok(lida !== null);
-  assert.equal(lida.em_curso, true);
-  assert.equal(lida.intervalo_ms, 500);
-  assert.equal(lida.passos[0]?.espera_ms, 250);
-  assert.equal(lida.passos[1]?.espera_ms, null);
-  assert.equal(lerCena({ ...bruto, intervalo_ms: "500" }), null);
-  assert.equal(lerCena({ ...bruto, passos: [{ dpid: 101, valor: 1, espera_ms: "0" }] }), null);
-  assert.equal(lerCena({ ...bruto, numero: "2" }), null);
-  assert.equal(lerCena({ ...bruto, passos: [{ dpid: 101, espera_ms: 0 }] }), null);
-  assert.equal(lerCena({ ...bruto, passos: [{ dpid: "101", valor: 1, espera_ms: 0 }] }), null);
-  assert.equal(lerCena({ ...bruto, nome: null }), null);
-});
+}
 
-test("lerLeituraDeCenas carries the ceilings the daemon fixes (leva os tetos que o daemon fixa)", () => {
-  const bruto = { cenas: [], maximo: 8, passos_maximos: 32, espera_maxima_ms: 30000, intervalo_padrao_ms: 1000 };
-  assert.equal(lerLeituraDeCenas(bruto)?.maximo, 8);
-  assert.equal(lerLeituraDeCenas({ ...bruto, maximo: "8" }), null);
-  assert.equal(lerLeituraDeCenas({ ...bruto, passos_maximos: undefined }), null);
-  assert.equal(lerLeituraDeCenas({ ...bruto, intervalo_padrao_ms: undefined }), null);
-});
+function equipamentoDe(parcial: Partial<Equipamento> = {}): Equipamento {
+  return {
+    identidade: "uuid-1",
+    tipo: "caixa",
+    nome: "Sala",
+    ip: "192.0.2.10",
+    campos: {},
+    segredos_definidos: [],
+    listas: {},
+    licenca: null,
+    numero: null,
+    estado: estadoDe({ fontes: ["wifi", "line-in"] }),
+    ...parcial,
+  };
+}
 
-test("lerItemDoMapa refuses a type or a direction outside section 8 (recusa tipo ou sentido fora da seção 8)", () => {
-  assert.equal(lerItemDoMapa(VOLUME)?.dpid, 101);
-  assert.equal(lerItemDoMapa({ ...VOLUME, tipo: "numero" }), null);
-  assert.equal(lerItemDoMapa({ ...VOLUME, sentido: "escrita" }), null);
-  assert.equal(lerItemDoMapa({ ...VOLUME, valores: [1] }), null);
-  assert.equal(lerSnapshot({ dps: { "101": 20 }, mapa: MAPA })?.mapa.length, MAPA.length);
-  assert.equal(lerSnapshot({ dps: [], mapa: MAPA }), null);
-  assert.equal(lerSnapshot({ dps: {}, mapa: [{ dpid: 1 }] }), null);
-});
+const PASSO = { equipamento: "uuid-1", acao: "volume", valor: 30, espera_ms: null };
 
-// Why: section 8, a report is only ever born of real state, so a step never writes one; and a
-// scene that started a scene would be a loop written in data.
-// Por que: seção 8, um report só nasce de estado real, então um passo nunca escreve um; e uma
-// cena que disparasse uma cena seria um laço escrito em dado.
-test("ajustaveis never offers a report or the scene itself (nunca oferece um report nem a própria cena)", () => {
-  const oferecidos = ajustaveis(MAPA).map((item) => item.dpid);
-  assert.deepEqual(oferecidos, [101, 102, 103, 141, 132]);
-  assert.ok(!oferecidos.includes(104), "online");
-  assert.ok(!oferecidos.includes(105), "tocando");
-  assert.ok(!oferecidos.includes(131), "cena");
-  assert.equal(itemDoDp(MAPA, 141)?.funcao, "entrada");
-  assert.equal(itemDoDp(MAPA, 999), undefined);
-});
-
-test("prepararValor judges the value by the type the data point declares (julga o valor pelo tipo que o data point declara)", () => {
-  assert.deepEqual(prepararValor(VOLUME, "40"), { ok: true, valor: 40 });
-  for (const bruto of ["101", "-1", "abc", ""]) {
-    assert.deepEqual(prepararValor(VOLUME, bruto), { ok: false, codigo: "cena_valor_invalido" });
-  }
-  assert.deepEqual(prepararValor(PLAY, "true"), { ok: true, valor: true });
-  assert.deepEqual(prepararValor(PLAY, "false"), { ok: true, valor: false });
-  assert.deepEqual(prepararValor(PLAY, "sim"), { ok: false, codigo: "cena_valor_invalido" });
-  assert.deepEqual(prepararValor(PRESET, "cmd2"), { ok: true, valor: "cmd2" });
-  assert.deepEqual(prepararValor(PRESET, "cmd9"), { ok: false, codigo: "cena_valor_invalido" });
-  // Why: the inputs of a speaker come from the hardware (section 14, plm_support), so a
-  // speaker that was offline when the scene was saved offers no list and the shape is all
-  // that can be judged here.
-  // Por que: as entradas de uma caixa vêm do hardware (seção 14, plm_support), então uma caixa
-  // offline na hora de salvar não oferece lista e a forma é tudo que dá para julgar aqui.
-  assert.deepEqual(prepararValor(ENTRADA, "wifi"), { ok: true, valor: "wifi" });
-  assert.deepEqual(prepararValor(ENTRADA, ""), { ok: false, codigo: "cena_valor_invalido" });
-  assert.deepEqual(prepararValor(ENTRADA, "x".repeat(65)), {
-    ok: false,
-    codigo: "cena_valor_invalido",
+test("lerCena takes a scene and refuses one outside the contract (aceita uma cena e recusa uma fora do contrato)", () => {
+  const cena = lerCena({
+    numero: 1,
+    nome: "Cinema",
+    intervalo_ms: 1000,
+    em_curso: false,
+    passos: [PASSO, { equipamento: "uuid-2", acao: "ligar", espera_ms: 500 }],
   });
-  // Why: a string data point is report only in the whole of section 8, so a step never sets one.
-  // Por que: um data point string é só de report em toda a seção 8, então um passo nunca ajusta um.
-  assert.deepEqual(prepararValor(TOCANDO, "Musica"), {
-    ok: false,
-    codigo: "cena_dp_somente_leitura",
+  assert.deepEqual(cena, {
+    numero: 1,
+    nome: "Cinema",
+    intervalo_ms: 1000,
+    em_curso: false,
+    passos: [PASSO, { equipamento: "uuid-2", acao: "ligar", valor: null, espera_ms: 500 }],
   });
+  assert.equal(lerCena({ numero: "1", nome: "x", intervalo_ms: 1000, passos: [] }), null);
+  assert.equal(lerCena({ numero: 1, nome: "x", intervalo_ms: 1000, passos: [{ acao: "ligar" }] }), null);
+  assert.equal(lerCena({ numero: 1, nome: "x", intervalo_ms: 1000, passos: [{ ...PASSO, espera_ms: "1" }] }), null);
+  assert.equal(lerCena({ numero: 1, nome: "x", intervalo_ms: 1000, passos: [{ ...PASSO, acao: 7 }] }), null);
+});
+
+test("lerLeituraDeCenas carries the ceilings and the actions the daemon fixes (leva os tetos e as ações que o daemon fixa)", () => {
+  const leitura = lerLeituraDeCenas({
+    cenas: [],
+    maximo: 32,
+    acoes: ACOES,
+    passos_maximos: 64,
+    espera_maxima_ms: 30000,
+    intervalo_padrao_ms: 1000,
+  });
+  assert.deepEqual(leitura, {
+    cenas: [],
+    maximo: 32,
+    acoes: ACOES,
+    passos_maximos: 64,
+    espera_maxima_ms: 30000,
+    intervalo_padrao_ms: 1000,
+  });
+  assert.equal(lerLeituraDeCenas({ cenas: [], maximo: 32, passos_maximos: 64, espera_maxima_ms: 1, intervalo_padrao_ms: 1 }), null);
+  assert.equal(lerLeituraDeCenas({ cenas: [], maximo: "32", acoes: [], passos_maximos: 64, espera_maxima_ms: 1, intervalo_padrao_ms: 1 }), null);
+});
+
+test("acoesDe offers the capabilities of the manifest and the group only to who groups (oferece as capacidades do manifesto e o grupo só a quem agrupa)", () => {
+  assert.deepEqual(acoesDe(ACOES, itemDe()), ["volume", "mudo", "fonte", "tocar", "pausar", "grupo"]);
+  const projetor = itemDe({ categoria: "projetor", capacidades: ["ligar", "desligar", "tecla", "agrupar"] });
+  assert.deepEqual(acoesDe(ACOES, projetor), ["ligar", "desligar", "tecla"]);
+  assert.deepEqual(acoesDe(ACOES, undefined), []);
+});
+
+test("especieDe tells how the value of each action is typed (diz como o valor de cada ação é digitado)", () => {
+  assert.equal(especieDe("ligar"), "nenhum");
+  assert.equal(especieDe("proxima"), "nenhum");
+  assert.equal(especieDe("volume"), "numero");
+  assert.equal(especieDe("temperatura"), "numero");
+  assert.equal(especieDe("mudo"), "logico");
+  assert.equal(especieDe("grupo"), "grupo");
+  for (const acao of ["tecla", "vento", "modo", "fonte", "atalho"]) assert.equal(especieDe(acao), "escolha");
+  assert.equal(especieDe("comando_extra"), "texto");
+});
+
+test("opcoesDe reads the lists of the registration, the words of the manifest, or the inputs the driver read (lê as listas do cadastro, as palavras do manifesto, ou as entradas que o driver leu)", () => {
+  const item = itemDe({ capacidades: ["fonte", "atalho", "modo", "tecla", "vento"], teclas: ["ok", "menu"], ventos: ["auto", "alto"] });
+  const equipamento = equipamentoDe({
+    listas: { entradas: [{ rotulo: "HDMI 1", valor: "hdmi1" }], atalhos: [{ rotulo: "Netflix", valor: "app:netflix" }], modos: [{ rotulo: "Cinema", valor: "movie" }] },
+  });
+  assert.deepEqual(opcoesDe("fonte", item, equipamento), [{ valor: "hdmi1", rotulo: "HDMI 1" }]);
+  assert.deepEqual(opcoesDe("atalho", item, equipamento), [{ valor: "app:netflix", rotulo: "Netflix" }]);
+  assert.deepEqual(opcoesDe("modo", item, equipamento), [{ valor: "movie", rotulo: "Cinema" }]);
+  assert.deepEqual(opcoesDe("tecla", item, equipamento), [{ valor: "ok", rotulo: "ok" }, { valor: "menu", rotulo: "menu" }]);
+  assert.deepEqual(opcoesDe("vento", item, equipamento), [{ valor: "auto", rotulo: "auto" }, { valor: "alto", rotulo: "alto" }]);
+  // Why: with no list the inputs the driver read stand in, so a speaker offers what it has.
+  // Por que: sem lista as entradas que o driver leu entram no lugar, então uma caixa oferece o que tem.
+  assert.deepEqual(opcoesDe("fonte", item, equipamentoDe()), [{ valor: "wifi", rotulo: "wifi" }, { valor: "line-in", rotulo: "line-in" }]);
+  const ar = itemDe({ produto: "ar", categoria: "ar_condicionado", capacidades: ["modo"], modos: ["frio", "seco"] });
+  assert.deepEqual(opcoesDe("modo", ar, equipamentoDe()), [{ valor: "frio", rotulo: "frio" }, { valor: "seco", rotulo: "seco" }]);
+  assert.deepEqual(opcoesDe("volume", item, equipamento), []);
+});
+
+test("prepararValor judges the value by the action of section 6 (julga o valor pela ação da seção 6)", () => {
+  assert.deepEqual(prepararValor("ligar", ""), { ok: true, valor: null });
+  assert.deepEqual(prepararValor("volume", " 30 "), { ok: true, valor: 30 });
+  assert.equal(prepararValor("volume", "101").ok, false);
+  assert.equal(prepararValor("volume", "-1").ok, false);
+  assert.deepEqual(prepararValor("temperatura", "22"), { ok: true, valor: 22 });
+  assert.equal(prepararValor("temperatura", "15").ok, false);
+  assert.equal(prepararValor("temperatura", "31").ok, false);
+  assert.deepEqual(prepararValor("mudo", "true"), { ok: true, valor: true });
+  assert.equal(prepararValor("mudo", "sim").ok, false);
+  assert.deepEqual(prepararValor("tecla", "canal_mais"), { ok: true, valor: "canal_mais" });
+  assert.equal(prepararValor("tecla", "voar").ok, false);
+  assert.deepEqual(prepararValor("vento", "alto"), { ok: true, valor: "alto" });
+  assert.equal(prepararValor("vento", "turbo").ok, false);
+  assert.deepEqual(prepararValor("grupo", ""), { ok: true, valor: "" });
+  assert.deepEqual(prepararValor("grupo", "uuid-2"), { ok: true, valor: "uuid-2" });
+  assert.deepEqual(prepararValor("fonte", "hdmi1"), { ok: true, valor: "hdmi1" });
+  assert.equal(prepararValor("fonte", "").ok, false);
+  assert.equal(prepararValor("fonte", "a\u0000b").ok, false);
+  assert.equal(prepararValor("comando_extra", "x".repeat(65)).ok, false);
+  assert.deepEqual(prepararValor("modo", "frio"), { ok: true, valor: "frio" });
+  assert.deepEqual(prepararValor("modo", "movie"), { ok: true, valor: "movie" });
+  const recusa = prepararValor("volume", "abc");
+  assert.equal(recusa.ok, false);
+  assert.equal(!recusa.ok && recusa.codigo, "cena_valor_invalido");
 });
 
 test("prepararEspera keeps the wait inside the band of the daemon (mantém a espera dentro da faixa do daemon)", () => {
   assert.deepEqual(prepararEspera("", 30000), { ok: true, valor: null });
   assert.deepEqual(prepararEspera("0", 30000), { ok: true, valor: 0 });
-  assert.deepEqual(prepararEspera("250", 30000), { ok: true, valor: 250 });
-  for (const bruto of ["30001", "-1", "abc", "1.5"]) {
-    assert.deepEqual(prepararEspera(bruto, 30000), { ok: false, codigo: "cena_espera_invalida" });
-  }
+  assert.deepEqual(prepararEspera(" 2500 ", 30000), { ok: true, valor: 2500 });
+  assert.equal(prepararEspera("30001", 30000).ok, false);
+  assert.equal(prepararEspera("-1", 30000).ok, false);
+  assert.equal(prepararEspera("1.5", 30000).ok, false);
 });
 
-// Why: the interval is what every step without a wait of its own sleeps, so it has to be a
-// number; an empty interval is a refusal and never a silent zero.
-// Por que: o intervalo é o que todo passo sem espera própria dorme, então ele precisa ser um
-// número; um intervalo vazio é recusa e nunca um zero calado.
 test("prepararIntervalo refuses an empty interval (recusa um intervalo vazio)", () => {
+  assert.equal(prepararIntervalo("", 30000).ok, false);
   assert.deepEqual(prepararIntervalo("1000", 30000), { ok: true, valor: 1000 });
-  assert.deepEqual(prepararIntervalo(" 0 ", 30000), { ok: true, valor: 0 });
-  for (const bruto of ["", "30001", "-1", "x"]) {
-    assert.deepEqual(prepararIntervalo(bruto, 30000), { ok: false, codigo: "cena_intervalo_invalido" });
-  }
+  const recusa = prepararIntervalo("x", 30000);
+  assert.equal(!recusa.ok && recusa.codigo, "cena_intervalo_invalido");
 });
 
 test("valorPadrao and textoDoValor agree on what a control shows (concordam sobre o que um controle mostra)", () => {
-  assert.equal(valorPadrao(VOLUME), 0);
-  assert.equal(valorPadrao(PLAY), true);
-  assert.equal(valorPadrao(PRESET), "cmd1");
-  assert.equal(valorPadrao(ENTRADA), "");
+  assert.equal(valorPadrao("ligar", []), null);
+  assert.equal(valorPadrao("volume", []), 0);
+  assert.equal(valorPadrao("temperatura", []), 22);
+  assert.equal(valorPadrao("mudo", []), true);
+  assert.equal(valorPadrao("grupo", []), "");
+  assert.equal(valorPadrao("fonte", [{ valor: "hdmi1", rotulo: "HDMI 1" }]), "hdmi1");
+  assert.equal(valorPadrao("fonte", []), "");
   assert.equal(textoDoValor(true), "true");
-  assert.equal(textoDoValor(false), "false");
-  assert.equal(textoDoValor(30), "30");
   assert.equal(textoDoValor(null), "");
+  assert.equal(textoDoValor(30), "30");
 });
 
 test("nomeValido measures the name the way the daemon does (mede o nome como o daemon mede)", () => {
-  assert.equal(nomeValido("Filme"), true);
-  assert.equal(nomeValido("N".repeat(40)), true);
-  assert.equal(nomeValido("N".repeat(41)), false);
-  // Why: the daemon counts code points, the way python len does, and String.length counts
-  // UTF-16 units, so an astral character would count twice here and once there.
-  // Por que: o daemon conta pontos de código, como o len do python, e o String.length conta
-  // unidades UTF-16, então um caractere astral contaria duas vezes aqui e uma lá.
-  assert.equal(nomeValido("\u{1d11e}".repeat(40)), true);
-  assert.equal(nomeValido("\u{1d11e}".repeat(41)), false);
-  // Why: a control character travels to the bridge inside the JSON of DP 134, so it is
-  // refused where it is typed.
-  // Por que: um caractere de controle viaja para a ponte dentro do JSON do DP 134, entao
-  // ele e recusado onde e digitado.
-  assert.equal(nomeValido("Filme\u0000"), false);
-  assert.equal(nomeValido("Filme\u007f"), false);
-  assert.equal(nomeValido("Filme\u001b"), false);
+  assert.equal(nomeValido("a".repeat(40)), true);
+  assert.equal(nomeValido("a".repeat(41)), false);
+  // Why: an astral character is one code point for the daemon and two UTF-16 units here.
+  // Por que: um caractere astral é um ponto de código para o daemon e duas unidades UTF-16 aqui.
+  assert.equal(nomeValido("😀".repeat(40)), true);
+  assert.equal(nomeValido("😀".repeat(41)), false);
+  assert.equal(nomeValido("Cinema\nnoite"), false);
+  assert.equal(nomeValido(""), true);
 });
 
-// Why: the POSITION of a scene is its number, so an erased scene keeps its slot; a list that
-// came back shorter would move scene 3 into slot 2 in every automation already built.
-// Por que: a POSIÇÃO de uma cena é o número dela, então uma cena apagada mantém a vaga; uma
-// lista que voltasse mais curta moveria a cena 3 para a vaga 2 em toda automação já montada.
 test("corpoDeCenas and comCenas keep the position of a scene (mantêm a posição de uma cena)", () => {
-  const cenas = [cenaDe({ numero: 1, nome: "", passos: [] }), cenaDe({ numero: 2, nome: "Festa" })];
+  const cenas: Cena[] = [
+    { numero: 1, nome: "Cinema", intervalo_ms: 1000, em_curso: true, passos: [PASSO] },
+    { numero: 2, nome: "", intervalo_ms: 1000, em_curso: false, passos: [] },
+  ];
   assert.deepEqual(corpoDeCenas(cenas), [
+    { nome: "Cinema", intervalo_ms: 1000, passos: [PASSO] },
     { nome: "", intervalo_ms: 1000, passos: [] },
-    { nome: "Festa", intervalo_ms: 1000, passos: [{ dpid: 101, valor: 30, espera_ms: 0 }] },
   ]);
-  const oito = comCenas([cenaDe()], 8, 1000);
-  assert.equal(oito.length, 8);
-  assert.deepEqual(
-    oito.map((cena) => cena.numero),
-    [1, 2, 3, 4, 5, 6, 7, 8],
-  );
-  assert.equal(oito[1]?.nome, "");
-  assert.deepEqual(oito[7]?.passos, []);
+  const cheias = comCenas(cenas, 32, 1000);
+  assert.equal(cheias.length, 32);
+  assert.equal(cheias[0]?.nome, "Cinema");
+  assert.equal(cheias[31]?.numero, 32);
+  assert.deepEqual(cheias[31]?.passos, []);
+  assert.equal(ultimaEmUso(cheias), 1);
+  assert.equal(ultimaEmUso([]), 0);
 });
 
 test("every code of a scene has a phrase in both dictionaries (todo código de cena tem frase nos dois dicionários)", () => {
@@ -239,21 +266,15 @@ test("every code of a scene has a phrase in both dictionaries (todo código de c
     const caminho = new URL(`./i18n/${idioma}.json`, import.meta.url);
     const textos = JSON.parse(readFileSync(caminho, "utf-8")) as Record<string, string>;
     for (const codigo of CODIGOS_CENAS) {
-      const frase = textos[`erro_${codigo}`];
-      assert.equal(typeof frase, "string", `${idioma}.erro_${codigo}`);
-      assert.ok(frase.trim().length > 0, `${idioma}.erro_${codigo}`);
+      assert.equal(typeof textos[`erro_${codigo}`], "string", `${idioma}: erro_${codigo}`);
+    }
+    for (const acao of ACOES) {
+      assert.equal(typeof textos[`acao_${acao}`], "string", `${idioma}: acao_${acao}`);
     }
   }
 });
 
-// Why: a step is one line that reads in the order it happens, and on a narrow screen it wraps
-// instead of pushing the card sideways.
-// Por que: um passo é uma linha que se lê na ordem em que acontece, e numa tela estreita ela
-// quebra em vez de empurrar o cartão para o lado.
 test("a step wraps instead of scrolling sideways (um passo quebra em vez de rolar de lado)", () => {
   const css = readFileSync(new URL("./estilos-cenas.css", import.meta.url), "utf-8");
-  const inicio = css.indexOf(".passo {");
-  assert.ok(inicio > 0, "no rule for a step");
-  const bloco = css.slice(inicio, css.indexOf("}", inicio));
-  assert.ok(bloco.includes("flex-wrap: wrap"), "flex-wrap");
+  assert.match(css, /\.passo\s*\{[^}]*flex-wrap:\s*wrap/s);
 });

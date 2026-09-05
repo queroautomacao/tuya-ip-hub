@@ -1,0 +1,86 @@
+{
+  "manifesto": {
+    "tipo": "ar_condicionado_tcp",
+    "rotulo": {
+      "pt": "Ar condicionado de comando em texto (exemplo)",
+      "en": "Air conditioner with text commands (example)"
+    },
+    "categoria": "ar_condicionado",
+    "capacidades": [
+      "ligar",
+      "desligar",
+      "temperatura",
+      "modo",
+      "vento"
+    ],
+    "modos": ["auto", "frio", "quente", "seco"],
+    "ventos": ["auto", "baixo", "medio", "alto"],
+    "textos": {
+      "pt": {
+        "descricao": "Controlador de ar condicionado que fala uma linha de texto na porta 4001: liga, desliga, setpoint em graus, modo e velocidade do vento."
+      },
+      "en": {
+        "descricao": "Air conditioner controller speaking one text line on port 4001: power, standby, setpoint in degrees, mode and fan speed."
+      }
+    }
+  },
+  "transporte": {
+    "tcp": {
+      "porta": 4001,
+      "terminador": "\r\n",
+      "timeout_s": 3,
+      "intervalo_min_ms": 100
+    }
+  },
+  "comandos": {
+    "ligar": {
+      "envia": "SET POWER ON"
+    },
+    "desligar": {
+      "envia": "SET POWER OFF"
+    },
+    "temperatura": {
+      "envia": "SET TEMP {valor}"
+    },
+    "modo": {
+      "envia": "SET MODE {valor}",
+      "valores": {
+        "auto": "AUTO",
+        "frio": "COOL",
+        "quente": "HEAT",
+        "seco": "DRY"
+      }
+    },
+    "vento": {
+      "envia": "SET FAN {valor}",
+      "valores": {
+        "auto": "AUTO",
+        "baixo": "LOW",
+        "medio": "MED",
+        "alto": "HIGH"
+      }
+    }
+  },
+  "estado": {
+    "pede": [
+      {
+        "envia": "GET STATUS"
+      }
+    ],
+    "le": {
+      "ligado": {
+        "regex": "POWER (ON|OFF)",
+        "verdadeiro": "ON"
+      },
+      "temperatura": {
+        "regex": "TEMP ([0-9]{2})"
+      },
+      "modo": {
+        "regex": "MODE (AUTO|COOL|HEAT|DRY)"
+      },
+      "vento": {
+        "regex": "FAN (AUTO|LOW|MED|HIGH)"
+      }
+    }
+  }
+}

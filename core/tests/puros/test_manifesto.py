@@ -14,7 +14,10 @@ from iphub.drivers.manifesto import (
     CAPACIDADES,
     CATEGORIAS,
     IDIOMAS,
+    MODOS_AR,
     MOTORES,
+    TECLAS,
+    VENTOS,
     Auth,
     Campo,
     Descoberta,
@@ -22,6 +25,8 @@ from iphub.drivers.manifesto import (
     Manifesto,
     ManifestoInvalido,
     TipoCampo,
+    produto_de,
+    template_de,
     validar,
 )
 
@@ -60,9 +65,75 @@ def test_manifesto_valido_passa():
 
 def test_vocabulario_da_secao_6_e_o_do_documento():
     assert "agrupar" in CAPACIDADES
-    assert "multiroom" in CATEGORIAS
+    assert {"tecla", "atalho", "modo", "vento", "temperatura"} <= set(CAPACIDADES)
+    assert {"multiroom", "ar_condicionado", "amplificador"} <= set(CATEGORIAS)
     assert MOTORES == ("nativo", "declarativo")
     assert set(IDIOMAS) == {"pt", "en"}
+    assert TECLAS[:4] == ("mais", "menos", "canal_mais", "canal_menos")
+    assert "digito_0" in TECLAS and "digito_9" in TECLAS and len(TECLAS) == 28
+    assert MODOS_AR == ("auto", "frio", "quente", "vento", "seco")
+    assert VENTOS == ("auto", "baixo", "medio", "alto")
+
+
+def test_o_produto_e_o_template_nascem_da_categoria():
+    """Section 8: an air conditioner is the product of air; a TV or a projector draws the
+    tv template and everything else the audio one.
+
+    Seção 8: um ar condicionado é o produto de ar; uma TV ou um projetor desenha o template
+    tv e todo o resto o de áudio.
+    """
+    assert produto_de("ar_condicionado") == "ar"
+    assert {produto_de(c) for c in CATEGORIAS if c != "ar_condicionado"} == {"av"}
+    assert template_de("tv") == "tv"
+    assert template_de("projetor") == "tv"
+    assert {template_de(c) for c in ("receiver", "multiroom", "amplificador", "matriz")} == {"au"}
+
+
+# Why: a capability spoken in words (a key, a mode, a fan speed) is declared with its words,
+# so the panel and the command channel of section 8 offer only what the driver really sends.
+# Por que: uma capacidade falada em palavras (tecla, modo, vento) é declarada com as palavras
+# dela, então o painel e o canal de comando da seção 8 oferecem só o que o driver manda.
+@pytest.mark.parametrize(
+    ("mudancas", "esperado"),
+    [
+        ({"capacidades": ("ligar", "tecla")}, {"teclas"}),
+        ({"capacidades": ("ligar", "tecla"), "teclas": ("mais", "voar")}, {"teclas"}),
+        ({"capacidades": ("ligar", "tecla"), "teclas": ("mais", "mais")}, {"teclas"}),
+        ({"teclas": ("mais",)}, {"teclas"}),
+        ({"capacidades": ("ligar", "tecla"), "teclas": ["mais"]}, {"teclas"}),
+        ({"capacidades": ("ligar", "temperatura")}, {"capacidades"}),
+        ({"capacidades": ("ligar", "vento")}, {"capacidades"}),
+        (
+            {"categoria": "ar_condicionado", "capacidades": ("ligar", "modo")},
+            {"modos"},
+        ),
+        (
+            {"categoria": "ar_condicionado", "capacidades": ("ligar", "modo"), "modos": ("gelo",)},
+            {"modos"},
+        ),
+        (
+            {"categoria": "ar_condicionado", "capacidades": ("ligar", "vento"), "ventos": ("x",)},
+            {"ventos"},
+        ),
+    ],
+)
+def test_uma_capacidade_falada_em_palavras_exige_as_palavras(mudancas, esperado):
+    assert _campos_quebrados(mudancas) == esperado
+
+
+def test_um_ar_condicionado_com_o_vocabulario_inteiro_passa():
+    manifesto = _manifesto(
+        categoria="ar_condicionado",
+        capacidades=("ligar", "desligar", "temperatura", "modo", "vento"),
+        modos=MODOS_AR,
+        ventos=VENTOS,
+    )
+    assert validar(manifesto) is None
+
+
+def test_uma_tv_com_teclas_passa_e_um_receiver_le_modo_sem_vocabulario():
+    assert validar(_manifesto(capacidades=("ligar", "tecla"), teclas=("mais", "ok"))) is None
+    assert validar(_manifesto(capacidades=("ligar", "modo", "atalho"))) is None
 
 
 @pytest.mark.parametrize(
@@ -253,6 +324,9 @@ def test_estado_nasce_offline_e_sem_opiniao():
     assert estado.fonte is None
     assert estado.fontes == ()
     assert estado.tocando is None
+    assert estado.temperatura is None
+    assert estado.modo is None
+    assert estado.vento is None
     assert estado.detalhe == ""
 
 

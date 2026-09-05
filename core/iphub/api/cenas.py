@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Quero Automação Ltda
-"""Section 8 over HTTP: the eight scenes of the installation, read, saved and run.
+"""Section 8 over HTTP: the thirty two scenes of the installation, read, saved and run.
 
 A scene is data and never program, so nothing here interprets one: the module of the scenes
 validates the whole list at once and answers every problem as (campo, codigo), the same way
@@ -12,7 +12,7 @@ The POSITION of a scene is its number, so a save takes the whole list and never 
 saving one alone would need an index anyway, and a list that came back shorter would move
 scene 3 into slot 2 in every automation the customer already built on the platform.
 
-Seção 8 sobre HTTP: as oito cenas da instalação, lidas, salvas e executadas.
+Seção 8 sobre HTTP: as trinta e duas cenas da instalação, lidas, salvas e executadas.
 
 Uma cena é dado e nunca programa, então nada aqui interpreta uma: o módulo das cenas valida a
 lista inteira de uma vez e responde todo problema como (campo, codigo), do mesmo jeito que um
@@ -32,8 +32,8 @@ from dataclasses import replace
 from aiohttp import web
 
 from iphub import cenas as modulo
-from iphub.api.blocos import CORPO_INVALIDO, ERRO_INTERNO, erro
 from iphub.api.comum import (
+    GESTOR,
     cenas_de,
     com_sessao,
     config_de,
@@ -41,6 +41,7 @@ from iphub.api.comum import (
     resposta_ok,
     trocar_config,
 )
+from iphub.api.licencas import CORPO_INVALIDO, ERRO_INTERNO, erro
 from iphub.portao import resposta_erro
 
 log = logging.getLogger("iphub.api.cenas")
@@ -52,11 +53,12 @@ _SO_DIGITOS = re.compile(r"[0-9]{1,10}")
 
 CENAS_INVALIDAS = "cenas_invalidas"
 
-# Why: eight scenes of up to thirty two steps do not fit the body of a login, and the ceiling
-# of the common reader would truncate an honest list into a refusal nobody could fix.
-# Por que: oito cenas de até trinta e dois passos não cabem no corpo de um login, e o teto do
-# leitor comum truncaria uma lista honesta numa recusa que ninguém consegue consertar.
-CORPO_MAXIMO_CENAS = 64 * 1024
+# Why: thirty two scenes of up to sixty four steps do not fit the body of a login, and the
+# ceiling of the common reader would truncate an honest list into a refusal nobody could fix.
+# Por que: trinta e duas cenas de até sessenta e quatro passos não cabem no corpo de um login,
+# e o teto do leitor comum truncaria uma lista honesta numa recusa que ninguém consegue
+# consertar.
+CORPO_MAXIMO_CENAS = 256 * 1024
 
 STATUS_POR_CODIGO = {
     CENAS_INVALIDAS: 400,
@@ -91,7 +93,12 @@ def _cena_json(numero: int, cena: modulo.Cena, em_curso: bool) -> dict:
         "intervalo_ms": cena.intervalo_ms,
         "em_curso": em_curso,
         "passos": [
-            {"dpid": passo.dpid, "valor": passo.valor, "espera_ms": passo.espera_ms}
+            {
+                "equipamento": passo.equipamento,
+                "acao": passo.acao,
+                "valor": passo.valor,
+                "espera_ms": passo.espera_ms,
+            }
             for passo in cena.passos
         ],
     }
@@ -106,6 +113,7 @@ async def listar(request: web.Request) -> web.Response:
             for numero, cena in enumerate(executor.cenas, start=1)
         ],
         maximo=modulo.MAXIMO,
+        acoes=list(modulo.ACOES),
         passos_maximos=modulo.PASSOS_MAXIMOS,
         espera_maxima_ms=modulo.ESPERA_MAXIMA_MS,
         intervalo_padrao_ms=modulo.INTERVALO_PADRAO_MS,
@@ -118,8 +126,13 @@ async def salvar(request: web.Request) -> web.Response:
     dados = await ler_corpo(request, maximo=CORPO_MAXIMO_CENAS)
     if dados is None:
         return erro(CORPO_INVALIDO)
+    # Why: the integrator is at the keyboard, so a step over an identity nobody registered is
+    # refused now instead of becoming a button that never does anything.
+    # Por que: o integrador está no teclado, então um passo sobre uma identidade que ninguém
+    # cadastrou é recusado agora em vez de virar um botão que nunca faz nada.
+    identidades = {cadastro.identidade for cadastro in app[GESTOR].cadastros}
     try:
-        cenas = modulo.validar(dados.get("cenas"))
+        cenas = modulo.validar(dados.get("cenas"), identidades)
     except modulo.CenasInvalidas as recusa:
         return _problemas(recusa.problemas)
     # Why: a scene that lived only in memory would be gone on the next boot while the

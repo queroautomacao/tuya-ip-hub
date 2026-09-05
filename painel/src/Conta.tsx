@@ -9,6 +9,7 @@
 // depois o nome da instalação, a sessão e a senha.
 
 import { useState, type FormEvent } from "react";
+import Licencas from "./Licencas.tsx";
 import TrocarSenha from "./TrocarSenha";
 import {
   codigoDoErro,
@@ -284,6 +285,7 @@ export default function Conta({
         </div>
       </div>
       <CartaoFirmware idioma={idioma} />
+      <Licencas />
       <CartaoManutencao />
       <CartaoInstalacao nome={estado.nome_instalacao} aoRenomear={aoRenomear} />
       <TrocarSenha />
