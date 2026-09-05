@@ -629,6 +629,16 @@ ThinQ Connect na nuvem, que é o que o `lg_thinq` do Home Assistant usa.
   `profile` daquela unidade e casa com o vocabulário da §6 sem diferenciar caixa
   nem sublinhado, em vez de embutir uma tabela que erra no primeiro modelo novo.
 
+**Denon e Marantz (da tabela de comandos IP da Denon e da biblioteca `denonavr`
+que o Home Assistant usa, 5/set/2026)**: comando é `GET
+/goform/formiPhoneAppDirect.xml?<comando>` com a palavra da tabela literal (PWON,
+PWSTANDBY, MV00 a MV98, MUON, MUOFF, SI<entrada>, MS<modo>); estado é um `GET
+/goform/formMainZone_MainZoneXmlStatusLite.xml` com Power, InputFuncSelect,
+MasterVolume (dB a partir de -80,0), Mute e SurrMode; a identidade é o MacAddress
+do `/goform/Deviceinfo.xml`. A porta é **8080** no AVR-X de 2016 em diante e **80**
+nos mais antigos, e nada no cadastro os distingue, então o driver tenta as duas e
+guarda a que respondeu. O volume da tabela é 00 a 98 e o da §6 é 0 a 100.
+
 **Receivers e TVs (das bibliotecas usadas)**: Denon aceita **uma** conexão
 telnet e briga com qualquer outro controlador, use só HTTP; Onkyo desligado
 não responde IP sem "Network Standby", ligue por Wake-on-LAN com o MAC
