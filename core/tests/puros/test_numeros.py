@@ -1408,6 +1408,40 @@ async def test_acionar_roteia_o_volume_e_o_transporte_pelo_grupo(duas):
     assert _chamadas(gestor, "uuid-2") == [("fonte", "line-in"), ("comando_extra", "preset:3")]
 
 
+async def test_acionar_e_o_canal_levam_a_radio_e_o_preset_de_um_escravo_ao_mestre():
+    """Section 14: a radio or a preset pressed on a slave takes the group down the way a play
+    does, so a shortcut of a slave goes to the master by name, by the command channel and by
+    the value of the list of the registration.
+
+    Seção 14: uma rádio ou um preset apertado num escravo derruba o grupo do jeito que um
+    play derruba, então um atalho de um escravo vai para o mestre pelo nome, pelo canal de
+    comando e pelo valor da lista do cadastro.
+    """
+    radio = Item("Radio", "http://10.0.0.2/radio")
+    listas = {"entradas": ENTRADAS_DA_CAIXA, "atalhos": (radio,)}
+    gestor = GestorFalso(
+        {TIPO: _fabrica(capacidades=(*CAPACIDADES, "atalho"))},
+        (
+            _cadastro("uuid-1", ip=IP_1, nome="Sala", listas=listas),
+            _cadastro("uuid-2", ip=IP_2, nome="Cozinha", listas=listas),
+        ),
+    )
+    numeros = Numeros(gestor, LICENCA_AV, ("uuid-1", "uuid-2"))
+    assert await numeros.acionar("uuid-2", "atalho", "preset:3") is None
+    assert _chamadas(gestor, "uuid-2") == [("atalho", "preset:3")]
+    assert await numeros.aplicar(GRUPO, 1) is None
+    _caixa(gestor, "uuid-1").chamadas.clear()
+    _caixa(gestor, "uuid-2").chamadas.clear()
+    assert await numeros.acionar("uuid-2", "atalho", "preset:3") is None
+    assert await numeros.aplicar(COMANDO, "2:atalho:1") is None
+    assert _chamadas(gestor, "uuid-1") == [("atalho", "preset:3"), ("atalho", radio.valor)]
+    assert _chamadas(gestor, "uuid-2") == []
+    # The master presses its own key, on its own, and a solo number too.
+    # O mestre aperta a própria tecla, sozinho, e um número solo também.
+    assert await numeros.aplicar(COMANDO, "1:atalho:1") is None
+    assert _chamadas(gestor, "uuid-1")[-1] == ("atalho", radio.valor)
+
+
 async def test_acionar_forma_o_grupo_pela_identidade_do_mestre_e_solo_pela_string_vazia(duas):
     gestor, numeros = duas
     assert await numeros.acionar("uuid-2", "grupo", "uuid-1") is None
@@ -1886,19 +1920,40 @@ async def test_um_movimento_de_grupo_com_codigo_proprio_vira_erro_aparelho(duas)
     assert numeros.grupo() == 0
 
 
-async def test_um_movimento_de_grupo_que_emudece_e_erro_aparelho_e_nao_um_travamento(duas):
+async def test_um_movimento_de_grupo_que_emudece_e_numero_offline_e_nao_um_travamento(duas):
     """The lock is held while a speaker answers, so the deadline of one move is what keeps a
-    box that accepted the connection and went quiet from freezing the group of the licence.
+    box that accepted the connection and went quiet from freezing the group of the licence;
+    and a box that did not answer in time is offline, the same as on the direct road, not a
+    fault of the device.
 
     A trava fica presa enquanto uma caixa responde, então o prazo de um movimento é o que
-    impede uma caixa que aceitou a conexão e emudeceu de congelar o grupo da licença.
+    impede uma caixa que aceitou a conexão e emudeceu de congelar o grupo da licença; e uma
+    caixa que não respondeu a tempo está offline, o mesmo que no caminho direto, e não é falha
+    do aparelho.
     """
     gestor, _ = duas
     numeros = Numeros(gestor, LICENCA_AV, ("uuid-1", "uuid-2"), limite_s=0.05)
     _caixa(gestor, "uuid-2").pausa = asyncio.Event()
-    assert await numeros.aplicar(GRUPO, 1) == "erro_aparelho"
+    assert await numeros.aplicar(GRUPO, 1) == "numero_offline"
     assert numeros.grupo() == 0
     assert await numeros.aplicar(NIVEL_1, 30) is None
+
+
+async def test_o_volume_de_um_escravo_cujo_mestre_emudece_e_numero_offline(duas):
+    """Section 14: the volume of a slave goes through the master, and a master that accepted
+    the connection and went quiet answers the code of a number that did not answer, on the
+    scene road and on the bus alike.
+
+    Seção 14: o volume de um escravo passa pelo mestre, e um mestre que aceitou a conexão e
+    emudeceu responde o código de um número que não respondeu, no caminho da cena e no
+    barramento igualmente.
+    """
+    gestor, _ = duas
+    numeros = Numeros(gestor, LICENCA_AV, ("uuid-1", "uuid-2"), limite_s=0.05)
+    assert await numeros.aplicar(GRUPO, 1) is None
+    _caixa(gestor, "uuid-1").pausa = asyncio.Event()
+    assert await numeros.acionar("uuid-2", "volume", 30) == "numero_offline"
+    assert await numeros.aplicar(NIVEL_2, 31) == "numero_offline"
 
 
 async def test_um_driver_multiroom_sem_os_movimentos_de_grupo_nao_derruba_o_barramento():

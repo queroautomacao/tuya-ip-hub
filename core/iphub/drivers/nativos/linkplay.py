@@ -2,15 +2,20 @@
 # Copyright (C) 2026 Quero Automação Ltda
 """LinkPlay multiroom speaker (AudioCast, iEAST), the multiroom driver of sections 6 and 14.
 
-Two transports in one driver, which is exactly why this one is native and not declarative:
-HTTP carries the status, the volume, the transport, the URL and the group, and the iEAST
-control port carries what only it has, the mute, the hardware preset and the physical input,
-honouring the 200 ms minimum between two frames.
+One transport, the HTTP API of the module: status, volume, mute, input, transport, the
+hardware presets, a stream URL and the group. It is native and not declarative because the
+state is read from two questions, the metadata is hexadecimal and the group logic needs the
+moves below. The iEAST control port on TCP 8899 was retired on 5/set/2026: the office
+speakers are standard LinkPlay modules (A28, A31, project uyesee-i50) and the public HTTP API
+carries everything the port carried, with no pace to keep between two commands.
 
 What the module that owns the blocks has to know, because section 14 paid days for it:
 
 - the identity is the uuid of getStatusEx and never the address, so identidade_do_aparelho
   is what tells whether the box answering at this ip is still the registered one;
+- a speaker is a slave when getStatusEx says group 1 (or names a master_uuid); the mode 99
+  of getPlayerStatus alone is not proof, because a box idle after leaving a group keeps
+  answering it (measured on 5/set/2026), and it only stands in when the group field is absent;
 - a play on a slave dismantles the group, so the transport of a group goes to the master and
   this driver refuses transport, volume and preset while it is a slave;
 - a slave answers stop while it plays, so the transport of the master is pinned onto it with
@@ -28,15 +33,20 @@ made of: entrar_no_grupo, desfazer_grupo, volume_de_escravo and ler_grupo.
 
 Caixa multiroom LinkPlay (AudioCast, iEAST), o driver multiroom das seções 6 e 14.
 
-Dois transportes num driver, que é exatamente por que este é nativo e não declarativo: o
-HTTP leva o estado, o volume, o transporte, a URL e o grupo, e a porta de controle do iEAST
-leva o que só ela tem, o mudo, o preset de hardware e a entrada física, respeitando o mínimo
-de 200 ms entre dois quadros.
+Um transporte, a API HTTP do módulo: estado, volume, mudo, entrada, transporte, os presets de
+hardware, uma URL de fluxo e o grupo. É nativo e não declarativo porque o estado é lido de
+duas perguntas, o metadado é hexadecimal e a lógica de grupo precisa dos movimentos abaixo.
+A porta de controle do iEAST na TCP 8899 foi aposentada em 5/set/2026: as caixas do
+escritório são módulos LinkPlay comuns (A28, A31, projeto uyesee-i50) e a API HTTP pública
+leva tudo que a porta levava, sem ritmo a guardar entre dois comandos.
 
 O que o módulo dono dos blocos precisa saber, porque a seção 14 pagou dias por isso:
 
 - a identidade é o uuid do getStatusEx e nunca o endereço, então identidade_do_aparelho é
   quem diz se a caixa que responde neste ip ainda é a cadastrada;
+- uma caixa é escrava quando o getStatusEx diz group 1 (ou nomeia um master_uuid); o modo 99
+  do getPlayerStatus sozinho não é prova, porque uma caixa parada depois de sair de um grupo
+  segue respondendo isso (medido em 5/set/2026), e ele só vale quando o campo group falta;
 - um play em escravo desmonta o grupo, então o transporte de um grupo vai para o mestre e
   este driver recusa transporte, volume e preset enquanto for escravo;
 - um escravo responde stop mesmo tocando, então o transporte do mestre é fixado nele com o
@@ -57,11 +67,11 @@ import asyncio
 import json
 import logging
 import re
-from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from dataclasses import dataclass
 
 from aiohttp import ClientError, ClientSession, ClientTimeout
+from yarl import URL
 
 from iphub.config import ip_literal
 from iphub.drivers import corpo
@@ -71,15 +81,7 @@ from iphub.drivers.manifesto import Descoberta, Manifesto
 log = logging.getLogger("iphub.drivers.nativos.linkplay")
 
 PORTA_HTTP = 80
-PORTA_TCP = 8899
 TEMPO_LIMITE_S = 4.0
-
-# Why: section 14 measured the minimum the iEAST control port needs between two frames, and
-# a driver that ignores it loses the second command in silence.
-# Por que: a seção 14 mediu o mínimo que a porta de controle do iEAST precisa entre dois
-# quadros, e um driver que o ignora perde o segundo comando em silêncio.
-INTERVALO_TCP_MS = 200
-MILISSEGUNDO_S = 0.001
 
 # Why: section 14, one lost poll is not a speaker that went away; two in a row is.
 # Por que: seção 14, um poll perdido não é uma caixa que sumiu; dois seguidos é.
@@ -94,7 +96,6 @@ POLLS_ATE_RECONCILIAR = 2
 # Why: a speaker on the LAN must never be able to make the daemon buffer without bound.
 # Por que: uma caixa na LAN nunca pode fazer o daemon acumular sem limite.
 CORPO_MAXIMO = 64 * 1024
-LINHA_MAXIMA = 8 * 1024
 TEXTO_MAXIMO = 120
 ESCRAVOS_MAXIMO = 12
 URL_MAXIMA = 200
@@ -109,19 +110,24 @@ MANDA_TOCAR = "setPlayerCmd:play:{valor}"
 MANDA_RETOMAR = "setPlayerCmd:resume"
 MANDA_PAUSAR = "setPlayerCmd:pause"
 MANDA_REDE = "setPlayerCmd:switchmode:wifi"
+MANDA_ENTRADA = "setPlayerCmd:switchmode:{valor}"
+MANDA_MUDO = "setPlayerCmd:mute:{valor}"
+MANDA_PROXIMA = "setPlayerCmd:next"
+MANDA_ANTERIOR = "setPlayerCmd:prev"
+# Why: a preset is one of the keys of the speaker, and the API presses it by number.
+# Por que: um preset é uma das teclas da caixa, e a API a aperta pelo número.
+MANDA_PRESET = "MCUKeyShortClick:{valor}"
 ENTRA_NO_GRUPO = "ConnectMasterAp:JoinGroupMaster:eth{ip}:wifi0.0.0.0"
 DESFAZ_GRUPO = "multiroom:Ungroup"
 MANDA_VOLUME_DE_ESCRAVO = "multiroom:SlaveVolume:{ip}:{valor}"
-
-QUADRO_TCP = "MCU+PAS+RAKOIT:{corpo}&"
-QUADRO_ENTRADA = "MCU+PLM+{codigo}&"
-TCP_MUDO = "MUT:{valor}"
-TCP_PRESET = "PRESET:{valor}"
 
 RESPOSTA_OK = "ok"
 
 CHAVE_UUID = "uuid"
 CHAVE_ENTRADAS = "plm_support"
+CHAVE_GRUPO = "group"
+CHAVE_MESTRE = "master_uuid"
+CHAVE_PRESETS = "preset_key"
 CHAVE_MODO = "mode"
 CHAVE_ESTADO = "status"
 CHAVE_VOLUME = "vol"
@@ -140,14 +146,23 @@ ACAO_MUDO = "mudo"
 ACAO_FONTE = "fonte"
 ACAO_TOCAR = "tocar"
 ACAO_PAUSAR = "pausar"
+ACAO_PROXIMA = "proxima"
+ACAO_ANTERIOR = "anterior"
 ACAO_AGRUPAR = "agrupar"
-ACAO_COMANDO_EXTRA = "comando_extra"
+ACAO_ATALHO = "atalho"
 
 # Why: what a slave must never do on its own, because on the bench each one of these took the
 # group down or desynchronized it; the module that owns the group sends them to the master.
 # Por que: o que um escravo nunca pode fazer sozinho, porque na bancada cada um destes
 # derrubou o grupo ou o dessincronizou; o módulo dono do grupo os manda para o mestre.
-ACOES_DO_MESTRE = (ACAO_VOLUME, ACAO_TOCAR, ACAO_PAUSAR, ACAO_COMANDO_EXTRA)
+ACOES_DO_MESTRE = (
+    ACAO_VOLUME,
+    ACAO_TOCAR,
+    ACAO_PAUSAR,
+    ACAO_PROXIMA,
+    ACAO_ANTERIOR,
+    ACAO_ATALHO,
+)
 
 EQ_OFFLINE = "eq_offline"
 INVALID_VALUE = "invalid_value"
@@ -173,8 +188,12 @@ VOLUME_MAXIMO = 100
 VOLUME_MINIMO_DO_APARELHO = 0
 VOLUME_MAXIMO_DO_APARELHO = 100
 
+# Why: the speaker says how many preset keys it has (preset_key of getStatusEx, 6 and 9 on the
+# office boxes); the ceiling below holds for a box that did not say.
+# Por que: a caixa diz quantas teclas de preset tem (preset_key do getStatusEx, 6 e 9 nas
+# caixas do escritório); o teto abaixo vale para uma caixa que não disse.
 PRESET_MINIMO = 1
-PRESET_MAXIMO = 8
+PRESET_MAXIMO = 12
 PREFIXO_PRESET = "preset:"
 
 # Why: the value of a command lands inside the query string of the speaker, so anything that
@@ -191,15 +210,14 @@ _NUMERO = re.compile(r"-?[0-9]{1,10}")
 # Um título que o firmware escreve quando não tem um próprio.
 SEM_TITULO = frozenset({"unknown", "un-known", "none", "null"})
 
-type Relogio = Callable[[], float]
-type Dormir = Callable[[float], Awaitable[None]]
-
 
 @dataclass(frozen=True)
 class Entrada:
-    """One physical input: the bit the hardware declares and the mode it answers and takes.
+    """One physical input: the bit the hardware declares, the mode it answers and the name
+    the switchmode command takes.
 
-    Uma entrada física: o bit que o hardware declara e o modo que ele responde e aceita.
+    Uma entrada física: o bit que o hardware declara, o modo que ele responde e o nome que o
+    comando switchmode recebe.
     """
 
     nome: str
@@ -215,17 +233,17 @@ class Entrada:
 # oferecer uma fora dela põe no painel um botão que só falha. A entrada de rede não está na
 # máscara porque toda caixa a tem, e é a única que se volta por HTTP.
 ENTRADAS = (
-    Entrada("line-in", bit=1, modo=40, codigo="040"),
-    Entrada("bluetooth", bit=2, modo=41, codigo="041"),
-    Entrada("usb", bit=3, modo=51, codigo="051"),
-    Entrada("optical", bit=4, modo=43, codigo="043"),
+    Entrada("line-in", bit=1, modo=40, codigo="line-in"),
+    Entrada("bluetooth", bit=2, modo=41, codigo="bluetooth"),
+    Entrada("usb", bit=3, modo=51, codigo="udisk"),
+    Entrada("optical", bit=4, modo=43, codigo="optical"),
 )
 
 TEXTOS = {
     "en": {
         "descricao": (
             "LinkPlay multiroom speaker (AudioCast, iEAST). Always on, so it declares no "
-            "power: volume, mute, input, transport and native grouping."
+            "power: volume, mute, input, transport, radios and presets, and native grouping."
         ),
         "cap_fonte": (
             "Only the inputs the speaker declares are offered, and the input is refused "
@@ -239,14 +257,16 @@ TEXTOS = {
             "Grouping takes the address of the master to join, and with no value it "
             "dismantles the group this speaker leads. Only speakers of the same kind."
         ),
-        "cap_comando_extra": (
-            "Plays a preset stored in the speaker itself, written as preset:1 up to preset:8."
+        "cap_atalho": (
+            "A shortcut is a radio or a stream, written as its address, or a preset key of "
+            "the speaker itself, written as preset:1 up to the number of keys it has. In a "
+            "group it belongs to the master."
         ),
     },
     "pt": {
         "descricao": (
             "Caixa multiroom LinkPlay (AudioCast, iEAST). Sempre ligada, então não declara "
-            "energia: volume, mudo, entrada, transporte e agrupamento nativo."
+            "energia: volume, mudo, entrada, transporte, rádios e presets, e agrupamento nativo."
         ),
         "cap_fonte": (
             "Só as entradas que a caixa declara são oferecidas, e a entrada é recusada "
@@ -260,8 +280,10 @@ TEXTOS = {
             "Agrupar recebe o endereço do mestre em que entrar, e sem valor desfaz o grupo "
             "que esta caixa lidera. Só caixas do mesmo tipo."
         ),
-        "cap_comando_extra": (
-            "Toca um preset guardado na própria caixa, escrito como preset:1 até preset:8."
+        "cap_atalho": (
+            "Um atalho é uma rádio ou um fluxo, escrito como o endereço dele, ou uma tecla de "
+            "preset da própria caixa, escrita como preset:1 até o número de teclas que ela tem. "
+            "Num grupo ele é do mestre."
         ),
     },
 }
@@ -301,9 +323,11 @@ class _Falha(Exception):
 
 
 class LinkPlay(Driver):
-    """Volume, mute, input, transport and native grouping of a LinkPlay speaker.
+    """Volume, mute, input, transport, radios and presets and native grouping of a LinkPlay
+    speaker.
 
-    Volume, mudo, entrada, transporte e agrupamento nativo de uma caixa LinkPlay.
+    Volume, mudo, entrada, transporte, rádios e presets e agrupamento nativo de uma caixa
+    LinkPlay.
     """
 
     # Why: the speaker is always on, and section 14 says omitting the capability is right,
@@ -322,36 +346,29 @@ class LinkPlay(Driver):
             ACAO_FONTE,
             ACAO_TOCAR,
             ACAO_PAUSAR,
+            ACAO_PROXIMA,
+            ACAO_ANTERIOR,
             ACAO_AGRUPAR,
-            ACAO_COMANDO_EXTRA,
+            ACAO_ATALHO,
         ),
         descoberta=Descoberta(mdns_servicos=("_linkplay._tcp",)),
         textos=TEXTOS,
         motor="nativo",
     )
 
-    def __init__(
-        self,
-        cadastro: Cadastro,
-        *,
-        agora: Relogio | None = None,
-        dormir: Dormir = asyncio.sleep,
-    ) -> None:
+    def __init__(self, cadastro: Cadastro) -> None:
         super().__init__(cadastro)
         self._porta_http = PORTA_HTTP
-        self._porta_tcp = PORTA_TCP
-        self._agora = agora
-        self._dormir = dormir
         self._sessao: ClientSession | None = None
         # Why: the poll and a command of the integrator land together, and two exchanges at
         # once on the same speaker read each other's answers.
         # Por que: o poll e um comando do integrador caem juntos, e duas trocas ao mesmo
         # tempo na mesma caixa leem a resposta uma da outra.
         self._trava_http = asyncio.Lock()
-        self._trava_tcp = asyncio.Lock()
-        self._ultimo_quadro = 0.0
         self._identidade: str | None = None
         self._entradas: tuple[str, ...] = ()
+        self._grupo_fisico: bool | None = None
+        self._presets: int | None = None
         self._falhas = 0
         self._escravo = False
         self._polls_fora = 0
@@ -380,7 +397,7 @@ class LinkPlay(Driver):
             return None
         try:
             dados = json.loads(bruto.decode("utf-8", errors="replace"))
-        except ValueError:
+        except (ValueError, RecursionError):
             return None
         if not isinstance(dados, dict):
             return None
@@ -542,10 +559,16 @@ class LinkPlay(Driver):
             await self._mandar(MANDA_PAUSAR)
             self._defina(reproduzindo=False, tocando=None)
             return None
+        if acao == ACAO_PROXIMA:
+            await self._mandar(MANDA_PROXIMA)
+            return None
+        if acao == ACAO_ANTERIOR:
+            await self._mandar(MANDA_ANTERIOR)
+            return None
         if acao == ACAO_AGRUPAR:
             return await self._agrupar(valor)
-        if acao == ACAO_COMANDO_EXTRA:
-            return await self._preset(valor)
+        if acao == ACAO_ATALHO:
+            return await self._atalho(valor)
         return await super().executar(acao, valor)
 
     async def _trocar_volume(self, valor: object) -> str | None:
@@ -559,7 +582,7 @@ class LinkPlay(Driver):
     async def _trocar_mudo(self, valor: object) -> str | None:
         if not isinstance(valor, bool):
             return INVALID_VALUE
-        await self._quadro(QUADRO_TCP.format(corpo=TCP_MUDO.format(valor=int(valor))))
+        await self._mandar(MANDA_MUDO.format(valor=int(valor)))
         self._defina(mudo=valor)
         return None
 
@@ -576,8 +599,12 @@ class LinkPlay(Driver):
         if valor == ENTRADA_DE_REDE:
             await self._mandar(MANDA_REDE)
         else:
-            await self._quadro(QUADRO_ENTRADA.format(codigo=_entrada_por_nome(valor).codigo))
-        self._defina(fonte=valor)
+            await self._mandar(MANDA_ENTRADA.format(valor=_entrada_por_nome(valor).codigo))
+        # Why: section 14, the firmware keeps the title of the last network source, so the
+        # cache would show the last track of the radio on a line input until the next poll.
+        # Por que: seção 14, o firmware guarda o título da última fonte de rede, então o cache
+        # mostraria a última faixa do rádio numa entrada de linha até o poll seguinte.
+        self._defina(fonte=valor, tocando=None)
         return None
 
     async def _tocar(self, valor: object) -> str | None:
@@ -596,7 +623,7 @@ class LinkPlay(Driver):
         if not _url_valida(valor):
             return INVALID_VALUE
         await self._mandar(MANDA_TOCAR.format(valor=valor))
-        self._defina(reproduzindo=True)
+        self._defina(fonte=ENTRADA_DE_REDE, reproduzindo=True, tocando=None)
         return None
 
     async def _agrupar(self, valor: object) -> str | None:
@@ -604,11 +631,18 @@ class LinkPlay(Driver):
             return await self.desfazer_grupo()
         return await self.entrar_no_grupo(valor)
 
-    async def _preset(self, valor: object) -> str | None:
-        numero = _preset_de(valor)
+    async def _atalho(self, valor: object) -> str | None:
+        """A radio or a stream by its address, or a preset key of the speaker by its number.
+
+        Uma rádio ou um fluxo pelo endereço, ou uma tecla de preset da caixa pelo número.
+        """
+        if _url_valida(valor):
+            return await self._tocar(valor)
+        numero = _preset_de(valor, PRESET_MAXIMO if self._presets is None else self._presets)
         if numero is None:
             return INVALID_VALUE
-        await self._quadro(QUADRO_TCP.format(corpo=TCP_PRESET.format(valor=f"{numero:02d}")))
+        await self._mandar(MANDA_PRESET.format(valor=numero))
+        self._defina(fonte=ENTRADA_DE_REDE, reproduzindo=True, tocando=None)
         return None
 
     def _ler_identidade(self, dados: dict) -> None:
@@ -630,11 +664,13 @@ class LinkPlay(Driver):
         if identidade:
             self._identidade = identidade
         self._entradas = _entradas_de(dados.get(CHAVE_ENTRADAS))
+        self._grupo_fisico = _grupo_fisico_de(dados)
+        self._presets = _inteiro(dados.get(CHAVE_PRESETS))
 
     def _aplicar(self, dados: dict) -> None:
         self._falhas = 0
         modo = _inteiro(dados.get(CHAVE_MODO))
-        self._marcar_escravo(modo == MODO_ESCRAVO)
+        self._marcar_escravo(self._escravo_de(modo))
         fonte = _fonte_do_modo(modo)
         self._defina(
             online=True,
@@ -646,6 +682,23 @@ class LinkPlay(Driver):
             tocando=self._tocando(dados, fonte),
             detalhe="",
         )
+
+    def _escravo_de(self, modo: int | None) -> bool:
+        """Whether the speaker follows a master right now.
+
+        Why: measured on 5/set/2026, a speaker idle after leaving a group keeps answering
+        mode 99 with group 0 and no master, and taking the mode for the fact refused its
+        volume and transport on the panel as if it followed a master; getStatusEx says it.
+
+        Se a caixa segue um mestre agora.
+
+        Por que: medido em 5/set/2026, uma caixa parada depois de sair de um grupo segue
+        respondendo modo 99 com group 0 e sem mestre, e tomar o modo pelo fato recusava o
+        volume e o transporte dela no painel como se seguisse um mestre; o getStatusEx diz.
+        """
+        if self._grupo_fisico is not None:
+            return self._grupo_fisico
+        return modo == MODO_ESCRAVO
 
     def _reproduzindo(self, dados: dict) -> bool | None:
         """Whether the transport is playing, on whatever input, the reproduzindo fact of section 6.
@@ -736,9 +789,13 @@ class LinkPlay(Driver):
         Uma pergunta do protocolo, respondida como objeto; qualquer outra coisa é falha.
         """
         corpo = await self._pedir(comando)
+        # Why: a body nested deep enough makes the parser recurse to its limit, which is an
+        # answer the speaker chose and not a fault of this daemon.
+        # Por que: um corpo aninhado fundo o bastante faz o parser recursar até o limite, que
+        # é uma resposta que a caixa escolheu e não uma falha deste daemon.
         try:
             documento = json.loads(corpo)
-        except ValueError as erro:
+        except (ValueError, RecursionError) as erro:
             raise _Falha(ERRO_APARELHO) from erro
         if not isinstance(documento, dict):
             raise _Falha(ERRO_APARELHO)
@@ -774,7 +831,11 @@ class LinkPlay(Driver):
             sessao = await self._abrir()
             try:
                 async with sessao.get(
-                    url,
+                    # Why: the bytes checked above are the bytes the speaker has to read; the
+                    # client would rewrite the brackets of an IPv6 stream on its own.
+                    # Por que: os bytes conferidos acima são os bytes que a caixa tem de ler;
+                    # o cliente reescreveria os colchetes de um fluxo IPv6 por conta própria.
+                    URL(url, encoded=True),
                     # Why: a speaker answering a redirect would send the hub to whatever host
                     # it names, which is the LAN proxy section 9 refuses.
                     # Por que: uma caixa respondendo redirecionamento mandaria o hub para o
@@ -789,43 +850,6 @@ class LinkPlay(Driver):
             log.warning("the speaker answered HTTP %d to %s", estado, comando)
             raise _Falha(ERRO_APARELHO)
         return bruto.decode("utf-8", errors="replace")
-
-    async def _quadro(self, quadro: str) -> None:
-        """One frame on the control port, written and never read back, at the declared pace.
-
-        Um quadro na porta de controle, escrito e nunca lido de volta, no ritmo declarado.
-        """
-        endereco = self._endereco()
-        async with self._trava_tcp:
-            await self._ritmo()
-            try:
-                async with asyncio.timeout(TEMPO_LIMITE_S):
-                    _leitor, escritor = await asyncio.open_connection(
-                        endereco, self._porta_tcp, limit=LINHA_MAXIMA
-                    )
-                    try:
-                        escritor.write(quadro.encode("ascii", errors="ignore"))
-                        await escritor.drain()
-                    finally:
-                        await _fechar(escritor)
-            except (TimeoutError, OSError) as erro:
-                raise _Falha(EQ_OFFLINE) from erro
-            finally:
-                self._ultimo_quadro = self._relogio()
-
-    async def _ritmo(self) -> None:
-        """Holds the minimum section 14 measured between two frames of the control port.
-
-        Segura o mínimo que a seção 14 mediu entre dois quadros da porta de controle.
-        """
-        atraso = self._ultimo_quadro + INTERVALO_TCP_MS * MILISSEGUNDO_S - self._relogio()
-        if atraso > 0:
-            await self._dormir(atraso)
-
-    def _relogio(self) -> float:
-        if self._agora is not None:
-            return self._agora()
-        return asyncio.get_running_loop().time()
 
     def _endereco(self) -> str:
         """Section 9: only an IP literal reaches a speaker, so the hub is never a resolver.
@@ -939,10 +963,10 @@ def _do_aparelho(bruto: object) -> int | None:
     return max(VOLUME_MINIMO, min(VOLUME_MAXIMO, round(convertido)))
 
 
-def _preset_de(valor: object) -> int | None:
-    """The hardware preset of comando_extra, written as preset:1 up to preset:8.
+def _preset_de(valor: object, maximo: int) -> int | None:
+    """The preset key of a shortcut, written as preset:1 up to the keys the speaker has.
 
-    O preset de hardware do comando_extra, escrito como preset:1 até preset:8.
+    A tecla de preset de um atalho, escrita como preset:1 até as teclas que a caixa tem.
     """
     if not isinstance(valor, str):
         return None
@@ -950,9 +974,21 @@ def _preset_de(valor: object) -> int | None:
     if not separador or f"{cabeca}:" != PREFIXO_PRESET or not _NUMERO.fullmatch(numero):
         return None
     escolhido = int(numero)
-    if not PRESET_MINIMO <= escolhido <= PRESET_MAXIMO:
+    if not PRESET_MINIMO <= escolhido <= min(maximo, PRESET_MAXIMO):
         return None
     return escolhido
+
+
+def _grupo_fisico_de(dados: dict) -> bool | None:
+    """What getStatusEx says about the group: a slave answers group 1 and names its master;
+    None when the firmware does not carry the field at all.
+
+    O que o getStatusEx diz do grupo: um escravo responde group 1 e nomeia o mestre; None
+    quando o firmware não carrega o campo.
+    """
+    if _texto(dados.get(CHAVE_MESTRE)):
+        return True
+    return _verdade(dados.get(CHAVE_GRUPO))
 
 
 def _url_valida(valor: object) -> bool:
@@ -1032,13 +1068,3 @@ def _hospedeiro(endereco: str) -> str:
     para o fio como a própria caixa o escreveu.
     """
     return f"[{endereco}]" if ":" in endereco else endereco
-
-
-async def _fechar(escritor: asyncio.StreamWriter) -> None:
-    escritor.close()
-    # Why: a cancellation of the poll must reach the caller, so only the noise of a peer that
-    # already went away is swallowed here.
-    # Por que: um cancelamento do poll precisa chegar a quem chamou, então só o ruído de um
-    # par que já foi embora é engolido aqui.
-    with suppress(OSError, TimeoutError):
-        await escritor.wait_closed()

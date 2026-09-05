@@ -167,3 +167,57 @@
 .multiroom-membros li {
   overflow-wrap: anywhere;
 }
+
+/* The player: what plays now, the transport with play or pause as one big key, the volume
+   with mute beside it, the inputs and the radios as chips.
+   O player: o que toca agora, o transporte com tocar ou pausar numa tecla grande, o volume com
+   o mudo ao lado, as entradas e as rádios como fichas. */
+.agora {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.9rem 1rem;
+  border-radius: calc(var(--raio) - 4px);
+  background: var(--campo);
+  border: 1px solid var(--vidro-borda);
+}
+
+.agora-titulo {
+  font-size: 1.15rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.agora-fonte {
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+  min-height: 1.2em;
+}
+
+.agora-tocando {
+  border-color: color-mix(in srgb, var(--destaque) 50%, var(--vidro-borda));
+}
+
+.transporte-player {
+  justify-content: center;
+  align-items: center;
+  gap: 1.2rem;
+}
+
+.botao-icone-grande {
+  width: 4rem;
+  height: 4rem;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acento-botao) 84%, #ffffff), var(--acento-botao));
+  color: #ffffff;
+  border-color: transparent;
+}
+
+.botao-icone-grande svg {
+  width: 1.8rem;
+  height: 1.8rem;
+}
+
+.botao-icone-aceso {
+  background: var(--destaque);
+  border-color: var(--destaque);
+  color: #ffffff;
+}

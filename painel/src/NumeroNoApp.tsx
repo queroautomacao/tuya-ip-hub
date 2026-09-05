@@ -63,6 +63,7 @@ function Multiroom({
   );
   const lidera = licenca.grupo === atual.numero;
   const segue = atual.papel === "escravo";
+  const alheio = atual.papel === "alheio";
   return (
     <section className="cartao">
       <h2>{t("multiroom_titulo")}</h2>
@@ -71,7 +72,13 @@ function Multiroom({
       {pares.length > 0 && (
         <>
           <p role="status">
-            {lidera ? t("multiroom_lidera") : segue ? t("multiroom_segue") : t("multiroom_solo")}
+            {lidera
+              ? t("multiroom_lidera")
+              : segue
+                ? t("multiroom_segue")
+                : alheio
+                  ? t("multiroom_alheio")
+                  : t("multiroom_solo")}
           </p>
           <p className="texto-suave">{t("multiroom_membros")}</p>
           <ul className="multiroom-membros">

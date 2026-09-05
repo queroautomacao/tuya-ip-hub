@@ -279,7 +279,13 @@ export async function executarAcao(
   acao: string,
   valor: unknown,
 ): Promise<void> {
-  await pedir(`${rotaDoEquipamento(identidade)}/acao`, "POST", { acao, valor });
+  // Why: section 14, the action of a speaker that follows a master goes through the book of
+  // licences, behind whatever set of that licence is in flight, so it gets the long deadline
+  // the licence routes already use.
+  // Por que: seção 14, a ação de uma caixa que segue um mestre passa pelo livro de licenças,
+  // atrás do set daquela licença que estiver em curso, então recebe o prazo longo que as rotas
+  // de licença já usam.
+  await pedir(`${rotaDoEquipamento(identidade)}/acao`, "POST", { acao, valor }, PRAZO_VARREDURA_MS);
 }
 
 export async function autenticarEquipamento(identidade: string): Promise<ResultadoAutenticacao> {

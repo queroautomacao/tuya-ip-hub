@@ -89,6 +89,13 @@ LICENCAS_MAXIMO = 16
 
 PAPEL_MESTRE = "mestre"
 PAPEL_ESCRAVO = "escravo"
+# Why: a speaker held in a group this hub does not lead refuses volume, transport, radios and
+# input, and nothing here routes them anywhere; the panel has to say so instead of promising
+# the master it would promise for a slave of the hub's own group.
+# Por que: uma caixa presa num grupo que este hub não lidera recusa volume, transporte, rádios
+# e entrada, e nada aqui os roteia para lugar nenhum; o painel tem de dizer isso em vez de
+# prometer o mestre que prometeria para um escravo do grupo do próprio hub.
+PAPEL_ALHEIO = "alheio"
 PAPEL_SOLO = ""
 
 NOME_MAXIMO = 40
@@ -187,8 +194,10 @@ def _papel(numero: int, mestre: int, escravos: tuple[int, ...], alheios: tuple[i
     """
     if mestre and numero == mestre:
         return PAPEL_MESTRE
-    if numero in escravos or numero in alheios:
+    if numero in escravos:
         return PAPEL_ESCRAVO
+    if numero in alheios:
+        return PAPEL_ALHEIO
     return PAPEL_SOLO
 
 

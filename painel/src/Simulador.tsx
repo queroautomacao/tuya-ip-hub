@@ -185,6 +185,19 @@ function CartaoAv({
         {controles.ligado && (
           <Energia ligado={ligado} ocupado={!online || ocupado} aoAlternar={() => aoAjustar(alvo.dps.ligado, !ligado)} />
         )}
+        {controles.anterior && (
+          <button
+            type="button"
+            className="app-play app-salto"
+            disabled={!online || ocupado}
+            aria-label={t("acao_anterior")}
+            onClick={() => mandar("anterior")}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" />
+            </svg>
+          </button>
+        )}
         {controles.transporte && (
           <button
             type="button"
@@ -202,6 +215,19 @@ function CartaoAv({
                 <path d="M8 5v14l11-7z" />
               </svg>
             )}
+          </button>
+        )}
+        {controles.proxima && (
+          <button
+            type="button"
+            className="app-play app-salto"
+            disabled={!online || ocupado}
+            aria-label={t("acao_proxima")}
+            onClick={() => mandar("proxima")}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z" />
+            </svg>
           </button>
         )}
         {controles.nivel && (

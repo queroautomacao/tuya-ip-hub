@@ -15,6 +15,7 @@ concordaria com qualquer mudança que o mapa fizesse no contrato, que é exatame
 teste de contrato existe para pegar, e o painel lê estes números destas respostas.
 """
 
+import asyncio
 import json
 from dataclasses import dataclass
 
@@ -115,11 +116,14 @@ def _fabrica(
             self.grupo = _Grupo()
             self.espelho: str | None = None
             self.escravo_alheio = False
+            self.pausa: asyncio.Event | None = None
             self._defina(**inicial)
             type(self).instancias.append(self)
 
         async def executar(self, acao: str, valor: object = None) -> str | None:
             self.chamadas.append((acao, valor))
+            if self.pausa is not None:
+                await self.pausa.wait()
             return None
 
         async def entrar_no_grupo(self, ip_do_mestre: object) -> str | None:
@@ -1350,7 +1354,18 @@ async def test_um_numero_escravo_de_grupo_alheio_nao_e_desenhado_como_solo(duas)
     cliente, auth, classe = duas
     _caixa(classe, "uuid-1").escravo_alheio = True
     licenca = await _licenca(cliente, auth)
-    assert [numero["papel"] for numero in licenca["numeros"][:2]] == ["escravo", ""]
+    # Why: a slave of a group this hub does not lead has no master the hub could route to, so
+    # its role is named apart from the slave of the hub's own group.
+    # Por que: um escravo de um grupo que este hub não lidera não tem mestre para o qual o hub
+    # possa rotear, então o papel dele é nomeado à parte do escravo do grupo do próprio hub.
+    assert [numero["papel"] for numero in licenca["numeros"][:2]] == ["alheio", ""]
+    # Its actions go straight to it, where the driver answers for itself.
+    # As ações dele vão direto a ele, onde o driver responde por si.
+    resposta = await cliente.post(
+        "/api/equipamentos/uuid-1/acao", json={"acao": "volume", "valor": 33}, headers=auth
+    )
+    assert resposta.status == 200, await resposta.text()
+    assert _caixa(classe, "uuid-1").chamadas == [("volume", 33)]
 
 
 async def test_um_corpo_json_fundo_demais_e_corpo_invalido_e_nunca_erro_interno(duas):
@@ -1412,3 +1427,111 @@ async def test_trocar_o_tipo_para_o_outro_produto_com_numero_e_recusado(abrir, a
     assert await _json(resposta) == {"ok": False, "code": "produto_incompativel"}
     assert _em_disco(amb)["equipamentos"][0]["tipo"] == TIPO
     assert (await _licenca(cliente, auth))["numeros"][0]["identidade"] == "uuid-1"
+
+
+async def test_a_rota_de_acao_de_um_escravo_passa_pelo_mestre(duas):
+    """Section 14: the volume and the transport of a slave go through the master, so the
+    detail screen of the slave commands the group the way a scene step does instead of
+    getting a refusal from a speaker that must not be commanded alone.
+
+    Seção 14: o volume e o transporte de um escravo passam pelo mestre, então a tela de
+    detalhe do escravo comanda o grupo como um passo de cena faz, em vez de receber uma recusa
+    de uma caixa que não pode ser comandada sozinha.
+    """
+    cliente, auth, classe = duas
+    resposta = await cliente.post(f"/api/licencas/{AV}/grupo", json={"v": 1}, headers=auth)
+    assert resposta.status == 200, await resposta.text()
+    mestre, escravo = _caixa(classe, "uuid-1"), _caixa(classe, "uuid-2")
+    mestre.chamadas.clear()
+    escravo.chamadas.clear()
+    resposta = await cliente.post(
+        "/api/equipamentos/uuid-2/acao", json={"acao": "volume", "valor": 33}, headers=auth
+    )
+    assert resposta.status == 200, await resposta.text()
+    assert ("volume_de_escravo", (IP_2, 33)) in mestre.chamadas
+    assert escravo.chamadas == []
+    resposta = await cliente.post(
+        "/api/equipamentos/uuid-2/acao", json={"acao": "tocar", "valor": None}, headers=auth
+    )
+    assert resposta.status == 200, await resposta.text()
+    assert ("tocar", None) in mestre.chamadas
+    assert escravo.chamadas == []
+    # Why: an action the group does not route still reaches the equipment itself.
+    # Por que: uma ação que o grupo não roteia ainda chega ao próprio equipamento.
+    resposta = await cliente.post(
+        "/api/equipamentos/uuid-2/acao", json={"acao": "mudo", "valor": True}, headers=auth
+    )
+    assert resposta.status == 200, await resposta.text()
+    assert ("mudo", True) in escravo.chamadas
+
+
+async def test_a_rota_de_acao_de_um_escravo_leva_a_radio_ao_mestre_e_traduz_a_recusa(abrir):
+    """Section 14: a radio or a preset pressed on a slave takes the group down the way a play
+    does, so the detail screen of the slave sends it to the master; and a refusal of the
+    master comes back with the status the direct road answers for the same code.
+
+    Seção 14: uma rádio ou um preset apertado num escravo derruba o grupo do jeito que um
+    play derruba, então a tela de detalhe do escravo o manda ao mestre; e uma recusa do mestre
+    volta com o status que o caminho direto responde para o mesmo código.
+    """
+    classe = _fabrica(capacidades=(*CAPACIDADES, "atalho"))
+    cliente, auth = await abrir(
+        {TIPO: classe},
+        equipamentos=(
+            _cadastro("uuid-1", ip=IP_1, nome="Sala"),
+            _cadastro("uuid-2", ip=IP_2, nome="Cozinha"),
+        ),
+        numeros={AV: ("uuid-1", "uuid-2")},
+    )
+    resposta = await cliente.post(f"/api/licencas/{AV}/grupo", json={"v": 1}, headers=auth)
+    assert resposta.status == 200, await resposta.text()
+    mestre, escravo = _caixa(classe, "uuid-1"), _caixa(classe, "uuid-2")
+    mestre.chamadas.clear()
+    escravo.chamadas.clear()
+    resposta = await cliente.post(
+        "/api/equipamentos/uuid-2/acao", json={"acao": "atalho", "valor": "preset:2"}, headers=auth
+    )
+    assert resposta.status == 200, await resposta.text()
+    assert ("atalho", "preset:2") in mestre.chamadas
+    assert escravo.chamadas == []
+
+    async def recusar(ip: object, valor: object) -> str | None:
+        return "invalid_value"
+
+    mestre.volume_de_escravo = recusar
+    resposta = await cliente.post(
+        "/api/equipamentos/uuid-2/acao", json={"acao": "volume", "valor": 33}, headers=auth
+    )
+    assert resposta.status == 400, await resposta.text()
+    assert (await _json(resposta))["code"] == "invalid_value"
+
+
+async def test_a_acao_de_um_numero_solo_nao_espera_a_trava_da_licenca(duas):
+    """Only a slave takes the road of the book of licences, which serializes behind every set
+    of the licence; a solo number answers for itself while a set on another number of the
+    same licence still waits for a speaker that went quiet.
+
+    Só um escravo toma o caminho do livro de licenças, que serializa atrás de todo set da
+    licença; um número solo responde por si enquanto um set em outro número da mesma licença
+    ainda espera uma caixa que emudeceu.
+    """
+    cliente, auth, classe = duas
+    porta = asyncio.Event()
+    _caixa(classe, "uuid-1").pausa = porta
+    preso = asyncio.ensure_future(
+        cliente.post(f"/api/licencas/{AV}/dp/{NIVEL_1}", json={"v": 30}, headers=auth)
+    )
+    laco = asyncio.get_running_loop()
+    limite = laco.time() + 2.0
+    while _caixa(classe, "uuid-1").chamadas == []:
+        assert laco.time() < limite, "the set never reached the speaker"
+        await asyncio.sleep(0.005)
+    inicio = laco.time()
+    resposta = await cliente.post(
+        "/api/equipamentos/uuid-2/acao", json={"acao": "volume", "valor": 33}, headers=auth
+    )
+    assert resposta.status == 200, await resposta.text()
+    assert laco.time() - inicio < 1.0
+    assert _caixa(classe, "uuid-2").chamadas == [("volume", 33)]
+    porta.set()
+    assert (await preso).status == 200

@@ -320,6 +320,7 @@
   "multiroom_lidera": "This device leads the group.",
   "multiroom_segue": "This device is in the group.",
   "multiroom_solo": "This device plays on its own.",
+  "multiroom_alheio": "This device is in a group the hub does not lead.",
   "multiroom_liderar": "Lead the group",
   "multiroom_desfazer": "Ungroup",
   "controles_energia": "Power",
@@ -475,5 +476,13 @@
   "vento_baixo": "Low",
   "vento_medio": "Medium",
   "vento_alto": "High",
-  "erro_licencas_demais": "The hub takes up to 16 licences."
+  "erro_licencas_demais": "The hub takes up to 16 licences.",
+  "controles_agora": "Now playing",
+  "controles_parado": "Nothing playing",
+  "controles_radios": "Radios and shortcuts",
+  "controles_sem_atalhos": "Register radios and shortcuts on the lists card of the panel, further down: each item is a label and the value the driver understands.",
+  "controles_grupo_escravo": "This speaker is in a group and follows the master: volume, playback and radios go to it, and the input stays locked until the group is dismantled.",
+  "controles_grupo_mestre": "This speaker leads a group: what it plays goes to the others.",
+  "controles_grupo_alheio": "This speaker is held in a group this hub does not lead, built with the manufacturer's app or left by a restart: volume, playback, radios and input stay locked until the group is dismantled. The hub asks it to leave once a minute.",
+  "acao_tocar_pausar": "Play or pause"
 }

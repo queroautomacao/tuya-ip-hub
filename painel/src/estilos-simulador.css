@@ -262,3 +262,19 @@
   font-weight: 700;
   color: var(--destaque);
 }
+
+/* The previous and next keys beside the play of the app, smaller than it.
+   As teclas de anterior e próxima ao lado do play do app, menores que ele. */
+.app-salto {
+  width: 2.1rem;
+  height: 2.1rem;
+  background: var(--campo);
+  color: var(--texto);
+  border-color: var(--vidro-borda);
+  box-shadow: none;
+}
+
+.app-salto svg {
+  width: 1rem;
+  height: 1rem;
+}

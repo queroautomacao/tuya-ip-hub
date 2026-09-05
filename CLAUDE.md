@@ -502,21 +502,27 @@ Custaram dias. Estão aqui para o driver LinkPlay e o DP-bus nascerem certos.
   `setPlayerCmd:switchmode:<wifi|bluetooth|line-in|usb>` (só os que
   `plm_support` lista). Preset = tocar URL configurada.
 - Multiroom nativo: `ConnectMasterAp:JoinGroupMaster:...` no escravo,
-  `multiroom:Ungroup` e afins no mestre. **Play em escravo desmonta o grupo**:
-  transporte vai sempre para o mestre. Volume de escravo via `SlaveVolume` no
-  mestre. **Escravo reporta `stop` mesmo tocando**: espelhe o estado do
+  `multiroom:Ungroup` e afins no mestre. **Play em escravo desmonta o grupo**,
+  e rádio ou preset apertado nele também: transporte e atalho vão sempre para
+  o mestre. Volume de escravo via `SlaveVolume` no mestre. **Escravo reporta `stop` mesmo tocando**: espelhe o estado do
   mestre nos escravos. Grupo só entre caixas do mesmo domínio (LinkPlay com
   LinkPlay); nunca oferecer grupo misto.
 - Tocar URL de áudio local (o hub serve por HTTP sem auth em `/audio/`, quem
   busca é a caixa): útil para o teste de som do assistente (um bipe gerado
   com a biblioteca padrão, não uma voz).
-- iEAST TCP 8899 (avançado): mínimo **200 ms entre comandos**; comandos de
-  mudo e preset de hardware; tocar URL e agrupar só existem na API HTTP.
-  Ressalva medida em 4/set/2026 no firmware 4.6: **o mudo também funciona por
-  HTTP** (`setPlayerCmd:mute:1` mudou o campo `mute` e voltou), então a porta de
-  controle não é obrigatória para ele. O driver segue no TCP porque é o caminho
-  com teste; trocar exige provar o HTTP no aparelho, e a troca dispensaria o
-  ritmo de 200 ms só para o mudo.
+- Porta de controle iEAST TCP 8899 **aposentada** (decisão de 5/set/2026): as
+  caixas do escritório são módulos LinkPlay comuns (A28 e A31, projeto
+  uyesee-i50, `preset_key` 9 e 6) e a API HTTP pública cobre tudo que a porta
+  levava: `setPlayerCmd:mute:1` (medido em 4/set/2026 no firmware 4.6, o campo
+  `mute` mudou e voltou), `setPlayerCmd:switchmode:<line-in|bluetooth|udisk|
+  optical>`, `MCUKeyShortClick:N` para a tecla de preset N, `setPlayerCmd:next`
+  e `setPlayerCmd:prev`. Sem porta, não há ritmo de 200 ms a guardar. Os quatro
+  últimos ainda não foram exercitados no aparelho (a matriz diz isso).
+- **Modo 99 não prova grupo** (medido em 5/set/2026): a caixa Sala, parada depois
+  de sair de um grupo, respondia `mode 99` no `getPlayerStatus` com `group 0` e
+  sem `master_uuid` no `getStatusEx`, e o driver a tratava como escrava e recusava
+  volume e transporte no painel. Escravo é `group 1` (ou `master_uuid` presente)
+  no `getStatusEx`; o modo 99 só vale quando o campo `group` falta.
 - **A caixa responde `OK` a qualquer comando**, inclusive a um que não existe
   (medido em 4/set/2026 no firmware 4.6: `setPlayerCmd:naoexiste` devolve `OK`).
   Então a resposta HTTP não é confirmação de nada, e um comando que a caixa não

@@ -32,6 +32,7 @@ import {
   type ResultadoAutenticacao,
 } from "./equipamentos.ts";
 import { t, traduzirErro, type Idioma } from "./i18n";
+import type { Papel } from "./licencas.ts";
 
 async function tentar<T>(trabalho: () => Promise<T>): Promise<Tentativa<T>> {
   try {
@@ -116,12 +117,14 @@ export function CartaoEquipamento({
   equipamento,
   item,
   idioma,
+  papel = "",
   aoMudar,
   aoRemover,
 }: {
   equipamento: Equipamento;
   item: ItemCatalogo | undefined;
   idioma: Idioma;
+  papel?: Papel;
   aoMudar: () => void;
   aoRemover: () => void;
 }) {
@@ -184,6 +187,7 @@ export function CartaoEquipamento({
           estado={equipamento.estado}
           item={item}
           equipamento={equipamento}
+          papel={papel}
           ocupado={ocupado}
           aoExecutar={executar}
         />

@@ -134,6 +134,11 @@ ACAO_TEMPERATURA = "temperatura"
 ACAO_MODO = "modo"
 ACAO_VENTO = "vento"
 TRANSPORTE = ("tocar", "pausar", "proxima", "anterior")
+# Why: section 14, a play on a slave dismantles the group, and so does a radio or a preset
+# pressed on it; everything that starts audio on a member of a group belongs to the master.
+# Por que: seção 14, um play num escravo desmonta o grupo, e uma rádio ou um preset apertado
+# nele também; tudo que inicia áudio num membro de um grupo é do mestre.
+DO_MESTRE = (*TRANSPORTE, "atalho")
 
 # The one action of a scene that is not a capability of section 6, section 8.
 # A única ação de uma cena que não é capacidade da seção 6, seção 8.
@@ -355,6 +360,13 @@ class Numeros:
     def escravos(self) -> tuple[int, ...]:
         return self._escravos
 
+    def segue_um_mestre(self, identidade: str) -> bool:
+        """Whether this equipment is a slave of the group of this licence right now.
+
+        Se este equipamento é escravo do grupo desta licença agora.
+        """
+        return self.numero(identidade) in self._escravos
+
     def validar(self, ordem: object, alheias: Iterable[str] = ()) -> tuple[str, ...]:
         """The order as it would be saved, or OrdemInvalida with the code that refused it.
 
@@ -513,7 +525,7 @@ class Numeros:
                 return protocolo.NUMERO_OFFLINE
             if acao == ACAO_VOLUME:
                 return await self._volume(alvo, valor)
-            if acao in TRANSPORTE:
+            if acao in DO_MESTRE:
                 return await self._transporte(alvo, acao, valor)
             return await self._executar(identidade, acao, valor)
 
@@ -1147,7 +1159,10 @@ class Numeros:
             itens = perfil.itens(alvo.cadastro, comando.COM_INDICE[lido.acao])
             if not 1 <= lido.indice <= len(itens):
                 return protocolo.VALOR_INVALIDO
-            return await self._executar(identidade, lido.capacidade, itens[lido.indice - 1].valor)
+            escolhido = itens[lido.indice - 1].valor
+            if lido.capacidade in DO_MESTRE:
+                return await self._transporte(alvo, lido.capacidade, escolhido)
+            return await self._executar(identidade, lido.capacidade, escolhido)
         if lido.acao == comando.ACAO_MUDO:
             # Why: section 8, the mute of the channel toggles, because the panel has one
             # button and the state comes back by the report of the muted bits.
@@ -1155,8 +1170,8 @@ class Numeros:
             # estado volta pelo report dos bits de mudo.
             estado = self._estado(identidade)
             return await self._executar(identidade, ACAO_MUDO, not (estado and estado.mudo))
-        if lido.capacidade in TRANSPORTE:
-            return await self._transporte(alvo, lido.capacidade, None)
+        if lido.capacidade in DO_MESTRE:
+            return await self._transporte(alvo, lido.capacidade, lido.valor)
         return await self._executar(identidade, lido.capacidade, lido.valor)
 
     async def _volume(self, alvo: _Alvo, valor: object) -> str | None:
@@ -1170,9 +1185,11 @@ class Numeros:
         return await self._chamar(mestre.driver.volume_de_escravo(alvo.cadastro.ip, valor))
 
     async def _transporte(self, alvo: _Alvo, acao: str, valor: object) -> str | None:
-        """Section 14: a play on a slave dismantles the group, so transport goes to the master.
+        """Section 14: a play, a radio or a preset on a slave dismantles the group, so what
+        starts audio goes to the master.
 
-        Seção 14: um play num escravo desmonta o grupo, então o transporte vai para o mestre.
+        Seção 14: um play, uma rádio ou um preset num escravo desmonta o grupo, então o que
+        inicia áudio vai para o mestre.
         """
         mestre = self._mestre_de(alvo.numero)
         destino = alvo if mestre is None else mestre
@@ -1199,6 +1216,15 @@ class Numeros:
         try:
             async with asyncio.timeout(self._limite_s):
                 return traduzir(await chamada)
+        except TimeoutError:
+            # Why: the same as the gestor, a speaker that did not answer within the deadline is
+            # offline, and not a fault of the device nor a traceback; the deadline fires while
+            # the call waits for the lock a poll of the same unreachable master holds.
+            # Por que: o mesmo que o gestor, uma caixa que não respondeu dentro do prazo está
+            # offline, e não é falha do aparelho nem traceback; o prazo dispara enquanto a
+            # chamada espera a trava que um poll do mesmo mestre inalcançável segura.
+            log.warning("a group move did not finish within %.1f s", self._limite_s)
+            return protocolo.NUMERO_OFFLINE
         except Exception as erro:
             log.exception("a group move failed: %s", erro or type(erro).__name__)
             return ERRO_APARELHO
@@ -1411,6 +1437,14 @@ class Licencas:
             if numeros.numero(identidade):
                 await numeros.esquecer(identidade)
         return self.numeros()
+
+    def segue_um_mestre(self, identidade: str) -> bool:
+        """Whether the licence that holds this equipment has it following a master right now.
+
+        Se a licença que segura este equipamento o tem seguindo um mestre agora.
+        """
+        onde = self.onde(identidade)
+        return onde is not None and self._por_id[onde[0]].segue_um_mestre(identidade)
 
     def perfis_cabem(self, substituto: Cadastro) -> bool:
         """True when an edited registration still packs in the licence that holds it.

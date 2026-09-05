@@ -120,6 +120,7 @@ function equipamentoDe(parcial: Partial<Equipamento> = {}): Equipamento {
 test("lerNumero reads a number and refuses one outside the contract (lê um número e recusa um fora do contrato)", () => {
   const bruto = { numero: 1, identidade: "uuid-1", nome: "Sala", tipo: "x", papel: "mestre", dps: { ligado: 101 }, estado: null };
   assert.deepEqual(lerNumero(bruto), { ...bruto, papel: "mestre" });
+  assert.equal(lerNumero({ ...bruto, papel: "alheio" })?.papel, "alheio");
   assert.equal(lerNumero({ ...bruto, papel: "chefe" }), null);
   assert.equal(lerNumero({ ...bruto, dps: { ligado: "101" } }), null);
   assert.equal(lerNumero({ ...bruto, numero: "1" }), null);
@@ -233,6 +234,19 @@ test("controlesDoNumero draws only what the manifest and the lists offer (desenh
   assert.equal(controles.nivel, true);
   assert.equal(controles.mudo, true);
   assert.equal(controles.transporte, true);
+  // Why: the previous and next keys are their own capabilities, drawn only for a driver that
+  // declares them; a key the daemon would refuse with nao_suportado is not offered.
+  // Por que: as teclas de anterior e próxima são capacidades próprias, desenhadas só para um
+  // driver que as declara; uma tecla que o daemon recusaria com nao_suportado não é oferecida.
+  assert.equal(controles.proxima, false);
+  assert.equal(controles.anterior, false);
+  const caixa = controlesDoNumero(itemDe({ capacidades: ["tocar", "pausar", "proxima"] }), equipamentoDe());
+  assert.equal(caixa.transporte, true);
+  assert.equal(caixa.proxima, true);
+  assert.equal(caixa.anterior, false);
+  const soAnterior = controlesDoNumero(itemDe({ capacidades: ["anterior"] }), equipamentoDe());
+  assert.equal(soAnterior.anterior, true);
+  assert.equal(soAnterior.proxima, false);
   assert.deepEqual(controles.entradas, [{ rotulo: "Wi-Fi", valor: "wifi" }]);
   assert.deepEqual(controles.atalhos, []);
   // Why: half of the power pair is no switch, and a list the manifest cannot act on is not

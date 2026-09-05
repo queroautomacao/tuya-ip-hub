@@ -35,7 +35,7 @@ from iphub.api.comum import (
 )
 from iphub.api.formato import achado_json, equipamento_json, manifesto_json
 from iphub.config import LISTAS, LISTAS_MAXIMO, Cadastro, Item, ip_literal, item_valido
-from iphub.dpbus import mapa, perfil
+from iphub.dpbus import mapa, perfil, protocolo
 from iphub.dpbus import numeros as modulo_numeros
 from iphub.drivers import descoberta
 from iphub.drivers.gestor import ErroDeCadastro, Gestor
@@ -54,6 +54,12 @@ DESTINO = descoberta.DESTINO_PADRAO
 DESTINO_MDNS = descoberta.DESTINO_MDNS
 
 TEXTO_MAXIMO = 200
+
+# The actions of section 14 that a group routes to the master, which the book of licences
+# does; everything else goes straight to the equipment the way it always did.
+# As ações da seção 14 que um grupo roteia para o mestre, o que o livro de licenças faz; todo
+# o resto vai direto ao equipamento como sempre foi.
+ACOES_ROTEADAS = ("volume", *modulo_numeros.DO_MESTRE)
 
 CORPO_INVALIDO = "corpo_invalido"
 CAMPO_INVALIDO = "campo_invalido"
@@ -416,8 +422,39 @@ async def acao(request: web.Request) -> web.Response:
     valor = dados.get("valor")
     if not _valor_simples(valor):
         return _erro(INVALID_VALUE)
-    codigo = await _gestor(request).executar(_identidade(request), nome, valor)
+    identidade = _identidade(request)
+    livro = licencas_de(request.app)
+    # Why: section 14, the volume, the transport and the radios of a speaker that follows a
+    # master go to the master, and the book of licences is what knows who leads whom; a press
+    # on the detail screen takes the same road a scene step and the bus take, so it never lands
+    # on a slave that would refuse it or break the group. Only a slave takes that road: the
+    # book serializes it behind every set of the licence, and a solo equipment or the master
+    # answers for itself as fast as it always did.
+    # Por que: seção 14, o volume, o transporte e as rádios de uma caixa que segue um mestre
+    # vão para o mestre, e o livro de licenças é quem sabe quem lidera quem; uma apertada na
+    # tela de detalhe toma o mesmo caminho que um passo de cena e o barramento tomam, então
+    # nunca cai num escravo que a recusaria ou quebraria o grupo. Só um escravo toma esse
+    # caminho: o livro o serializa atrás de todo set da licença, e um equipamento solo ou o
+    # mestre responde por si tão rápido quanto sempre respondeu.
+    if nome in ACOES_ROTEADAS and livro.segue_um_mestre(identidade):
+        codigo = await livro.acionar(identidade, nome, valor)
+        return resposta_ok() if codigo is None else _erro(_do_barramento(codigo))
+    codigo = await _gestor(request).executar(identidade, nome, valor)
     return resposta_ok() if codigo is None else _erro(codigo)
+
+
+def _do_barramento(codigo: str) -> str:
+    """The code of the bus in the vocabulary of this route, so a refusal through the master
+    answers the same status the direct road answers.
+
+    O código do barramento no vocabulário desta rota, para uma recusa pelo mestre responder o
+    mesmo status que o caminho direto responde.
+    """
+    if codigo == protocolo.NUMERO_OFFLINE:
+        return "eq_offline"
+    if codigo == protocolo.VALOR_INVALIDO:
+        return INVALID_VALUE
+    return codigo
 
 
 def _valor_simples(valor: object) -> bool:

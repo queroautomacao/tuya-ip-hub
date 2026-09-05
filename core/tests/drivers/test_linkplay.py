@@ -36,7 +36,7 @@ from iphub.drivers.descoberta import montar
 from iphub.drivers.manifesto import Auth, validar
 from iphub.drivers.nativos import linkplay
 from iphub.drivers.nativos.linkplay import ENTRADA_DE_REDE, Escravo, LinkPlay
-from iphub.drivers.simulado import ServidorHttp, ServidorLinha
+from iphub.drivers.simulado import ServidorHttp
 
 CAMINHO = "/httpapi.asp?command="
 PEDE_IDENTIDADE = "getStatusEx"
@@ -65,9 +65,6 @@ MASCARA = "0x6"
 MODO_DE_REDE = "10"
 MODO_DE_LINHA = "40"
 MODO_ESCRAVO = "99"
-
-TERMINADOR = b"&"
-INTERVALO_S = 0.2
 
 URL = "http://10.0.0.2/audio/bipe.wav"
 
@@ -151,18 +148,10 @@ async def caixa(monkeypatch):
     """
     criados: list[LinkPlay] = []
 
-    def montar_driver(
-        aparelho: ServidorHttp | None = None,
-        controle: ServidorLinha | None = None,
-        *,
-        ip: str = "127.0.0.1",
-        **pecas,
-    ) -> LinkPlay:
+    def montar_driver(aparelho: ServidorHttp | None = None, *, ip: str = "127.0.0.1") -> LinkPlay:
         if aparelho is not None:
             monkeypatch.setattr(linkplay, "PORTA_HTTP", aparelho.endereco[1])
-        if controle is not None:
-            monkeypatch.setattr(linkplay, "PORTA_TCP", controle.endereco[1])
-        driver = LinkPlay(_Cadastro(ip=ip), **pecas)
+        driver = LinkPlay(_Cadastro(ip=ip))
         criados.append(driver)
         return driver
 
@@ -190,8 +179,10 @@ def test_o_manifesto_e_valido_e_nao_promete_ligar_nem_desligar():
         "fonte",
         "tocar",
         "pausar",
+        "proxima",
+        "anterior",
         "agrupar",
-        "comando_extra",
+        "atalho",
     )
     assert "ligar" not in manifesto.capacidades
     assert "desligar" not in manifesto.capacidades
@@ -211,7 +202,7 @@ def test_os_textos_do_manifesto_estao_nos_dois_idiomas():
     assert set(textos) == {"pt", "en"}
     assert set(textos["pt"]) == set(textos["en"])
     assert "descricao" in textos["pt"]
-    for capacidade in ("fonte", "tocar", "agrupar", "comando_extra"):
+    for capacidade in ("fonte", "tocar", "agrupar", "atalho"):
         assert f"cap_{capacidade}" in textos["pt"]
 
 
@@ -368,16 +359,14 @@ async def test_entrada_com_grupo_ativo_e_recusada_antes_do_fio(caixa, marcado):
     """
     modo = MODO_DE_REDE if marcado else MODO_ESCRAVO
     async with ServidorHttp(_fala(estado=_tocador(mode=modo))) as aparelho:
-        async with ServidorLinha({}, terminador=TERMINADOR) as controle:
-            driver = caixa(aparelho, controle)
-            await driver.atualizar()
-            if marcado:
-                driver.marcar_grupo(True)
-            antes = len(aparelho.pedidos)
-            assert await driver.executar("fonte", "line-in") == "nao_suportado"
-            assert await driver.executar("fonte", "wifi") == "nao_suportado"
-            assert len(aparelho.pedidos) == antes
-            assert controle.conexoes == 0
+        driver = caixa(aparelho)
+        await driver.atualizar()
+        if marcado:
+            driver.marcar_grupo(True)
+        antes = len(aparelho.pedidos)
+        assert await driver.executar("fonte", "line-in") == "nao_suportado"
+        assert await driver.executar("fonte", "wifi") == "nao_suportado"
+        assert len(aparelho.pedidos) == antes
 
 
 async def test_o_transporte_de_um_escravo_nunca_chega_ao_fio(caixa):
@@ -388,19 +377,20 @@ async def test_o_transporte_de_um_escravo_nunca_chega_ao_fio(caixa):
     mestre e este driver o recusa aqui em vez de perder o grupo.
     """
     async with ServidorHttp(_fala(estado=_tocador(mode=MODO_ESCRAVO))) as aparelho:
-        async with ServidorLinha({}, terminador=TERMINADOR) as controle:
-            driver = caixa(aparelho, controle)
-            await driver.atualizar()
-            antes = len(aparelho.pedidos)
-            for acao, valor in (
-                ("tocar", URL),
-                ("pausar", None),
-                ("volume", 30),
-                ("comando_extra", "preset:1"),
-            ):
-                assert await driver.executar(acao, valor) == "nao_suportado", acao
-            assert len(aparelho.pedidos) == antes
-            assert controle.conexoes == 0
+        driver = caixa(aparelho)
+        await driver.atualizar()
+        antes = len(aparelho.pedidos)
+        for acao, valor in (
+            ("tocar", URL),
+            ("pausar", None),
+            ("proxima", None),
+            ("anterior", None),
+            ("volume", 30),
+            ("atalho", "preset:1"),
+            ("atalho", URL),
+        ):
+            assert await driver.executar(acao, valor) == "nao_suportado", acao
+        assert len(aparelho.pedidos) == antes
 
 
 async def test_o_titulo_da_fonte_anterior_nao_vaza_para_a_entrada_de_linha(caixa):
@@ -524,83 +514,136 @@ async def test_tocar_sem_valor_retoma_o_que_estava_pausado(caixa, valor):
     assert _comandos(aparelho) == ["setPlayerCmd:resume"]
 
 
-async def test_o_mudo_e_o_preset_vao_pela_porta_de_controle(caixa):
-    """Section 14: the mute and the hardware preset live on the control port, and only there.
+async def test_o_mudo_a_proxima_a_anterior_e_o_preset_falam_a_api_http(caixa):
+    """The mute, the next and previous track and a preset key are commands of the HTTP API of
+    the module, so nothing but the HTTP surface is ever dialled.
 
-    Seção 14: o mudo e o preset de hardware moram na porta de controle, e só lá.
-    """
-    async with ServidorHttp(_fala()) as aparelho:
-        async with ServidorLinha({}, terminador=TERMINADOR) as controle:
-            driver = caixa(aparelho, controle)
-            assert await driver.executar("mudo", True) is None
-            assert await driver.executar("comando_extra", "preset:3") is None
-            assert driver.estado().mudo is True
-            await _ate(lambda: len(controle.recebidas) == 2)
-            assert controle.recebidas == [
-                b"MCU+PAS+RAKOIT:MUT:1",
-                b"MCU+PAS+RAKOIT:PRESET:03",
-            ]
-            assert aparelho.pedidos == [], "neither of them belongs to the HTTP surface"
-
-
-async def test_o_minimo_entre_dois_quadros_da_porta_de_controle_e_respeitado(caixa):
-    """Section 14: the control port needs 200 ms between two frames, and a driver that
-    ignores it loses the second command in silence.
-
-    Seção 14: a porta de controle precisa de 200 ms entre dois quadros, e um driver que os
-    ignora perde o segundo comando em silêncio.
-    """
-    relogio = [1000.0]
-    esperas: list[float] = []
-
-    async def dormir(segundos: float) -> None:
-        esperas.append(segundos)
-        relogio[0] += segundos
-
-    async with ServidorHttp(_fala()) as aparelho:
-        async with ServidorLinha({}, terminador=TERMINADOR) as controle:
-            driver = caixa(aparelho, controle, agora=lambda: relogio[0], dormir=dormir)
-            assert await driver.executar("mudo", True) is None
-            assert esperas == [], "the first frame of a session waits for nothing"
-            assert await driver.executar("mudo", False) is None
-            assert esperas == [pytest.approx(INTERVALO_S)]
-            # A speaker nobody talked to for a while takes the next frame at once.
-            # Uma caixa com quem ninguém falou por um tempo aceita o quadro seguinte na hora.
-            relogio[0] += 5.0
-            assert await driver.executar("mudo", True) is None
-            assert esperas == [pytest.approx(INTERVALO_S)]
-            await _ate(lambda: len(controle.recebidas) == 3)
-
-
-@pytest.mark.parametrize("valor", ["preset:0", "preset:9", "preset:", "preset:um", "3", 3, None])
-async def test_preset_fora_do_vocabulario_nunca_chega_ao_fio(caixa, valor):
-    async with ServidorHttp(_fala()) as aparelho:
-        async with ServidorLinha({}, terminador=TERMINADOR) as controle:
-            driver = caixa(aparelho, controle)
-            assert await driver.executar("comando_extra", valor) == "invalid_value"
-            assert controle.conexoes == 0
-            assert aparelho.pedidos == []
-
-
-async def test_trocar_para_a_rede_volta_pelo_http_e_a_entrada_fisica_pelo_controle(caixa):
-    """Section 14: the physical input lives on the control port and the way back to the
-    network lives on the HTTP surface.
-
-    Seção 14: a entrada física mora na porta de controle e a volta para a rede mora na
-    superfície HTTP.
+    O mudo, a próxima e a anterior faixa e uma tecla de preset são comandos da API HTTP do
+    módulo, então nada além da superfície HTTP é discado.
     """
     rotas = _fala()
-    rotas.update(_rotas({"setPlayerCmd:switchmode:wifi": "OK"}))
+    rotas.update(
+        _rotas(
+            {
+                "setPlayerCmd:mute:1": "OK",
+                "setPlayerCmd:mute:0": "OK",
+                "setPlayerCmd:next": "OK",
+                "setPlayerCmd:prev": "OK",
+                "MCUKeyShortClick:3": "OK",
+            }
+        )
+    )
     async with ServidorHttp(rotas) as aparelho:
-        async with ServidorLinha({}, terminador=TERMINADOR) as controle:
-            driver = caixa(aparelho, controle)
-            await driver.atualizar()
-            assert await driver.executar("fonte", "line-in") is None
-            await _ate(lambda: controle.recebidas == [b"MCU+PLM+040"])
-            assert driver.estado().fonte == "line-in"
-            assert await driver.executar("fonte", "wifi") is None
-            assert _comandos(aparelho)[-1] == "setPlayerCmd:switchmode:wifi"
-            assert driver.estado().fonte == "wifi"
+        driver = caixa(aparelho)
+        assert await driver.executar("mudo", True) is None
+        assert driver.estado().mudo is True
+        assert await driver.executar("mudo", False) is None
+        assert driver.estado().mudo is False
+        assert await driver.executar("proxima") is None
+        assert await driver.executar("anterior") is None
+        assert await driver.executar("atalho", "preset:3") is None
+        assert driver.estado().reproduzindo is True
+    assert _comandos(aparelho) == [
+        "setPlayerCmd:mute:1",
+        "setPlayerCmd:mute:0",
+        "setPlayerCmd:next",
+        "setPlayerCmd:prev",
+        "MCUKeyShortClick:3",
+    ]
+
+
+async def test_um_atalho_com_endereco_toca_a_radio(caixa):
+    """A shortcut written as an address is a radio or a stream, and it plays like tocar.
+
+    Um atalho escrito como endereço é uma rádio ou um fluxo, e toca como o tocar.
+    """
+    rotas = _fala()
+    rotas.update(_rotas({f"setPlayerCmd:play:{URL}": "OK"}))
+    async with ServidorHttp(rotas) as aparelho:
+        driver = caixa(aparelho)
+        assert await driver.executar("atalho", URL) is None
+        assert driver.estado().reproduzindo is True
+    assert _comandos(aparelho) == [f"setPlayerCmd:play:{URL}"]
+
+
+async def test_o_preset_respeita_as_teclas_que_a_caixa_diz_ter(caixa):
+    """The speaker says how many preset keys it has, and a key it does not have is refused
+    before the wire; a box that did not say gets the ceiling of the driver.
+
+    A caixa diz quantas teclas de preset tem, e uma tecla que ela não tem é recusada antes do
+    fio; uma caixa que não disse recebe o teto do driver.
+    """
+    rotas = _fala(identidade=_identidade(preset_key="6"))
+    rotas.update(_rotas({"MCUKeyShortClick:6": "OK"}))
+    async with ServidorHttp(rotas) as aparelho:
+        driver = caixa(aparelho)
+        await driver.atualizar()
+        assert await driver.executar("atalho", "preset:6") is None
+        assert await driver.executar("atalho", "preset:7") == "invalid_value"
+    assert _comandos(aparelho)[-1] == "MCUKeyShortClick:6"
+
+
+@pytest.mark.parametrize(
+    "valor",
+    ["preset:0", "preset:13", "preset:", "preset:um", "3", 3, None, "ftp://10.0.0.2/a.wav"],
+)
+async def test_atalho_fora_do_vocabulario_nunca_chega_ao_fio(caixa, valor):
+    async with ServidorHttp(_fala()) as aparelho:
+        driver = caixa(aparelho)
+        assert await driver.executar("atalho", valor) == "invalid_value"
+        assert aparelho.pedidos == []
+
+
+async def test_a_caixa_so_e_escrava_quando_o_getstatusex_diz_que_esta_num_grupo(caixa):
+    """Measured on 5/set/2026: a speaker idle after leaving a group keeps answering mode 99
+    with group 0 and no master, and the panel refused its volume and transport as if it
+    followed a master; the group field of getStatusEx is the fact, and the mode only stands
+    in when the field is absent.
+
+    Medido em 5/set/2026: uma caixa parada depois de sair de um grupo segue respondendo modo
+    99 com group 0 e sem mestre, e o painel recusava o volume e o transporte dela como se
+    seguisse um mestre; o campo group do getStatusEx é o fato, e o modo só vale quando o
+    campo falta.
+    """
+    parada = _tocador(mode=MODO_ESCRAVO, status="stop")
+    rotas = _fala(estado=parada, identidade=_identidade(group="0"))
+    rotas.update(_rotas({"setPlayerCmd:vol:30": "OK"}))
+    async with ServidorHttp(rotas) as aparelho:
+        driver = caixa(aparelho)
+        await driver.atualizar()
+        assert driver.e_escravo() is False
+        assert await driver.executar("volume", 30) is None
+    # A box that says group 1 and names its master is a slave whatever the mode says.
+    # Uma caixa que diz group 1 e nomeia o mestre é escrava diga o que disser o modo.
+    grupo = _identidade(group="1", master_uuid=OUTRA_IDENTIDADE)
+    rotas = _fala(estado=_tocador(mode=MODO_DE_REDE), identidade=grupo)
+    async with ServidorHttp(rotas) as aparelho:
+        driver = caixa(aparelho)
+        await driver.atualizar()
+        assert driver.e_escravo() is True
+        assert await driver.executar("volume", 30) == "nao_suportado"
+
+
+async def test_a_entrada_fisica_e_a_volta_para_a_rede_sao_um_switchmode(caixa):
+    """The physical input and the way back to the network are both a switchmode of the HTTP
+    API, with the name the module gives each input.
+
+    A entrada física e a volta para a rede são as duas um switchmode da API HTTP, com o nome
+    que o módulo dá a cada entrada.
+    """
+    rotas = _fala()
+    rotas.update(
+        _rotas({"setPlayerCmd:switchmode:wifi": "OK", "setPlayerCmd:switchmode:line-in": "OK"})
+    )
+    async with ServidorHttp(rotas) as aparelho:
+        driver = caixa(aparelho)
+        await driver.atualizar()
+        assert await driver.executar("fonte", "line-in") is None
+        assert _comandos(aparelho)[-1] == "setPlayerCmd:switchmode:line-in"
+        assert driver.estado().fonte == "line-in"
+        assert await driver.executar("fonte", "wifi") is None
+        assert _comandos(aparelho)[-1] == "setPlayerCmd:switchmode:wifi"
+        assert driver.estado().fonte == "wifi"
 
 
 async def test_agrupar_desagrupar_e_o_volume_de_um_escravo_falam_o_protocolo(caixa):
@@ -678,8 +721,7 @@ async def test_uma_lista_de_escravos_sem_fim_tem_teto(caixa):
 
 async def test_a_caixa_que_nao_responde_e_eq_offline_e_nunca_uma_excecao(caixa):
     async with ServidorHttp(_fala()) as aparelho:
-        async with ServidorLinha({}, terminador=TERMINADOR) as controle:
-            driver = caixa(aparelho, controle)
+        driver = caixa(aparelho)
     assert await driver.executar("volume", 30) == "eq_offline"
     assert await driver.executar("mudo", True) == "eq_offline"
     assert await driver.ler_grupo() is None
@@ -695,13 +737,11 @@ async def test_cadastro_sem_ip_nunca_fala_com_ninguem(caixa):
     O hub só fala com um endereço que alguém cadastrou, nunca com o padrão do resolvedor.
     """
     async with ServidorHttp(_fala()) as aparelho:
-        async with ServidorLinha({}, terminador=TERMINADOR) as controle:
-            driver = caixa(aparelho, controle, ip="")
-            assert await driver.executar("volume", 30) == "eq_offline"
-            assert await driver.executar("mudo", True) == "eq_offline"
-            await driver.atualizar()
-            assert aparelho.pedidos == []
-            assert controle.conexoes == 0
+        driver = caixa(aparelho, ip="")
+        assert await driver.executar("volume", 30) == "eq_offline"
+        assert await driver.executar("mudo", True) == "eq_offline"
+        await driver.atualizar()
+        assert aparelho.pedidos == []
 
 
 @pytest.mark.parametrize("corpo", ["Failed", "unknown command", ""])
@@ -743,18 +783,18 @@ async def test_uma_resposta_gigante_nao_enche_a_memoria(caixa):
     assert driver.identidade_do_aparelho() is None
 
 
-@pytest.mark.parametrize("acao", ["ligar", "desligar", "proxima", "anterior", "formatar_o_disco"])
+@pytest.mark.parametrize(
+    "acao", ["ligar", "desligar", "comando_extra", "tecla", "formatar_o_disco"]
+)
 async def test_acao_fora_das_capacidades_nunca_chega_a_rede(caixa, acao):
     """Section 6: the driver never implements a method only to refuse, and never dials out.
 
     Seção 6: o driver nunca implementa método só para recusar, e nunca disca para fora.
     """
     async with ServidorHttp(_fala()) as aparelho:
-        async with ServidorLinha({}, terminador=TERMINADOR) as controle:
-            driver = caixa(aparelho, controle)
-            assert await driver.executar(acao, 50) == "nao_suportado"
-            assert aparelho.pedidos == []
-            assert controle.conexoes == 0
+        driver = caixa(aparelho)
+        assert await driver.executar(acao, 50) == "nao_suportado"
+        assert aparelho.pedidos == []
 
 
 async def test_a_caixa_nao_pareia_e_o_contrato_nao_pede_pareamento(caixa):
@@ -973,3 +1013,131 @@ async def test_marcar_grupo_apaga_o_veredito_de_que_a_caixa_tinha_saido(caixa):
         # O dono forma um grupo novo com ela, o que invalida aquele veredito.
         driver.marcar_grupo(True)
         assert driver.saiu_do_grupo() is False
+
+
+async def test_um_json_fundo_demais_e_erro_aparelho_e_nunca_uma_excecao(caixa):
+    """A body nested deeper than the parser recurses is an answer the speaker chose, and it
+    leaves the poll, the group reading and the finding of the sweep the way any bad answer
+    does, never as an exception out of the driver.
+
+    Um corpo aninhado mais fundo do que o parser recursa é uma resposta que a caixa escolheu,
+    e sai do poll, da leitura do grupo e do achado da varredura como qualquer resposta ruim
+    sai, nunca como exceção fora do driver.
+    """
+    fundo = "[" * 60_000
+    async with ServidorHttp(_fala(estado=fundo)) as aparelho:
+        driver = caixa(aparelho)
+        await driver.atualizar()
+        await driver.atualizar()
+        assert driver.estado().online is False
+        assert driver.estado().detalhe == "erro_aparelho"
+    rotas = _fala()
+    rotas.update(_rotas({PEDE_ESCRAVOS: fundo}))
+    async with ServidorHttp(rotas) as aparelho:
+        driver = caixa(aparelho)
+        await driver.atualizar()
+        assert await driver.ler_grupo() is None
+    async with ServidorHttp(_fala(identidade=fundo)) as aparelho:
+        caixa(aparelho)
+        assert await LinkPlay.identificar("127.0.0.1") is None
+
+
+async def test_trocar_a_entrada_solta_o_titulo_da_rede_do_cache(caixa):
+    """Section 14: the firmware keeps the title of the last network source, so the cache of a
+    speaker switched to the line input would show the last track of the radio until the next
+    poll, and the bus publishes from that cache once a second.
+
+    Seção 14: o firmware guarda o título da última fonte de rede, então o cache de uma caixa
+    trocada para a entrada de linha mostraria a última faixa do rádio até o poll seguinte, e o
+    barramento publica desse cache uma vez por segundo.
+    """
+    rotas = _fala()
+    rotas.update(_rotas({"setPlayerCmd:switchmode:line-in": "OK"}))
+    async with ServidorHttp(rotas) as aparelho:
+        driver = caixa(aparelho)
+        await driver.atualizar()
+        assert driver.estado().tocando == f"{TITULO} - {ARTISTA}"
+        assert await driver.executar("fonte", "line-in") is None
+    assert driver.estado().fonte == "line-in"
+    assert driver.estado().tocando is None
+
+
+async def test_um_fluxo_ou_um_preset_prende_a_rede_no_cache_e_solta_o_titulo_antigo(caixa):
+    """A stream or a preset plays over the network whatever input the speaker was on, and the
+    title it will show is the poll's to read, never the one of what played before.
+
+    Um fluxo ou um preset toca pela rede em qualquer entrada em que a caixa estivesse, e o
+    título que ela vai mostrar é o poll quem lê, nunca o do que tocava antes.
+    """
+    rotas = _fala(identidade=_identidade(preset_key="6"))
+    rotas.update(_rotas({f"setPlayerCmd:play:{URL}": "OK", "MCUKeyShortClick:2": "OK"}))
+    async with ServidorHttp(rotas) as aparelho:
+        driver = caixa(aparelho)
+        await driver.atualizar()
+        assert driver.estado().tocando == f"{TITULO} - {ARTISTA}"
+        assert await driver.executar("tocar", URL) is None
+        estado = driver.estado()
+        assert (estado.fonte, estado.reproduzindo, estado.tocando) == ("wifi", True, None)
+        aparelho.rotas.update(
+            _fala(estado=_tocador(mode=MODO_DE_LINHA), identidade=_identidade(preset_key="6"))
+        )
+        await driver.atualizar()
+        assert driver.estado().fonte == "line-in"
+        assert await driver.executar("atalho", "preset:2") is None
+        estado = driver.estado()
+        assert (estado.fonte, estado.reproduzindo, estado.tocando) == ("wifi", True, None)
+
+
+async def test_uma_caixa_que_declara_zero_teclas_de_preset_recusa_todo_preset(caixa):
+    """preset_key 0 is an answer, not a silence: the speaker said it has no key, and the
+    ceiling of the driver only stands in for a box that did not say.
+
+    preset_key 0 é resposta, não silêncio: a caixa disse que não tem tecla, e o teto do driver
+    só vale para uma caixa que não disse.
+    """
+    async with ServidorHttp(_fala(identidade=_identidade(preset_key="0"))) as aparelho:
+        driver = caixa(aparelho)
+        await driver.atualizar()
+        assert await driver.executar("atalho", "preset:1") == "invalid_value"
+    assert not any(comando.startswith("MCUKeyShortClick") for comando in _comandos(aparelho))
+
+
+async def test_o_campo_group_tambem_pede_dois_polls_para_dizer_que_a_caixa_saiu(caixa):
+    """The group field of getStatusEx is the primary signal now, and the reconciliation of
+    section 14 (one poll out is a hiccup, two are a fact) has to hold on it as it held on the
+    mode.
+
+    O campo group do getStatusEx é o sinal principal agora, e a reconciliação da seção 14 (um
+    poll fora é soluço, dois são fato) tem de valer nele como valia no modo.
+    """
+    grupo = _identidade(group="1", master_uuid=OUTRA_IDENTIDADE)
+    async with ServidorHttp(_fala(identidade=grupo)) as aparelho:
+        driver = caixa(aparelho)
+        driver.espelhar("Faixa do mestre")
+        await driver.atualizar()
+        assert driver.e_escravo() is True
+        assert driver.estado().tocando == "Faixa do mestre"
+        aparelho.rotas.update(_fala(identidade=_identidade(group="0")))
+        await driver.atualizar()
+        assert driver.saiu_do_grupo() is False, "one poll out of the group is a hiccup"
+        assert driver.e_escravo() is True
+        await driver.atualizar()
+    assert driver.saiu_do_grupo() is True
+    assert driver.e_escravo() is False
+    assert driver.estado().tocando == f"{TITULO} - {ARTISTA}"
+
+
+async def test_um_fluxo_num_endereco_ipv6_chega_ao_fio_como_foi_escrito(caixa):
+    """The bytes the driver checks are the bytes the speaker reads: the client must not
+    rewrite the brackets of an IPv6 address on its own.
+
+    Os bytes que o driver confere são os bytes que a caixa lê: o cliente não pode reescrever
+    os colchetes de um endereço IPv6 por conta própria.
+    """
+    url = "http://[fe80::1]/a.wav"
+    rotas = _fala()
+    rotas.update(_rotas({f"setPlayerCmd:play:{url}": "OK"}))
+    async with ServidorHttp(rotas) as aparelho:
+        driver = caixa(aparelho)
+        assert await driver.executar("tocar", url) is None
+    assert _comandos(aparelho)[-1] == f"setPlayerCmd:play:{url}"

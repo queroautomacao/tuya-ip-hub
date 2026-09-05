@@ -1,11 +1,41 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Quero Automação Ltda
 
+import { useCallback, useEffect, useState } from "react";
 import { CartaoEquipamento, usarEquipamentos } from "./Equipamentos.tsx";
 import ListasDoPainel from "./ListasDoPainel.tsx";
 import NumeroNoApp from "./NumeroNoApp.tsx";
+import { lerLicencas } from "./api.ts";
+import { INTERVALO_MS } from "./equipamentos.ts";
 import { t, traduzirErro, type Idioma } from "./i18n";
+import { onde, type Licenca } from "./licencas.ts";
 import { caminhoDa, irPara } from "./rotas.ts";
+
+// Why: section 14, a speaker that follows a master has its volume and transport routed to
+// it, and the controls say so; the role comes from the book of licences of the daemon and
+// is read here so every card of the screen reads the same fact.
+// Por que: seção 14, uma caixa que segue um mestre tem o volume e o transporte roteados para
+// ele, e os controles dizem isso; o papel vem do livro de licenças do daemon e é lido aqui
+// para todo cartão da tela ler o mesmo fato.
+function usarLicencas(): Licenca[] {
+  const [licencas, setLicencas] = useState<Licenca[]>([]);
+  const recarregar = useCallback(async (): Promise<void> => {
+    try {
+      setLicencas((await lerLicencas()).licencas);
+    } catch {
+      // Why: the role is a hint on the controls; a listing that failed leaves the hint out
+      // and the cycle tries again on the next tick.
+      // Por que: o papel é uma dica nos controles; uma listagem que falhou deixa a dica de
+      // fora e o ciclo tenta de novo no tique seguinte.
+    }
+  }, []);
+  useEffect(() => {
+    void recarregar();
+    const temporizador = window.setInterval(() => void recarregar(), INTERVALO_MS);
+    return () => window.clearInterval(temporizador);
+  }, [recarregar]);
+  return licencas;
+}
 
 function Voltar() {
   return (
@@ -23,7 +53,9 @@ export default function DetalheEquipamento({
   idioma: Idioma;
 }) {
   const { catalogo, lista, erro, recarregar } = usarEquipamentos();
+  const licencas = usarLicencas();
   const equipamento = lista?.find((candidato) => candidato.identidade === identidade);
+  const papel = onde(licencas, identidade)?.numero.papel ?? "";
   return (
     <>
       <Voltar />
@@ -50,6 +82,7 @@ export default function DetalheEquipamento({
             equipamento={equipamento}
             item={(catalogo ?? []).find((candidato) => candidato.tipo === equipamento.tipo)}
             idioma={idioma}
+            papel={papel}
             aoMudar={() => void recarregar()}
             aoRemover={() => irPara({ tela: "inicio" })}
           />

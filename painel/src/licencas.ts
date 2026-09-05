@@ -33,7 +33,14 @@ export const SOLO = 0;
 export const CATEGORIA_DE_GRUPO = "multiroom";
 export const CAPACIDADE_DE_GRUPO = "agrupar";
 
-export const PAPEIS = ["", "mestre", "escravo"] as const;
+// Why: section 14, a speaker can be held in a group this hub does not lead (the app of the
+// manufacturer, a lost reply, a restart with a group up); the daemon names that role apart
+// because nothing routes its volume, transport or radios to a master the hub does not know.
+// Por que: seção 14, uma caixa pode estar presa num grupo que este hub não lidera (o app do
+// fabricante, uma resposta perdida, um reinício com um grupo de pé); o daemon nomeia esse papel
+// à parte porque nada roteia o volume, o transporte ou as rádios dela para um mestre que o hub
+// não conhece.
+export const PAPEIS = ["", "mestre", "escravo", "alheio"] as const;
 export type Papel = (typeof PAPEIS)[number];
 
 export const TIPOS_DE_DP = ["value", "bool", "enum", "string"] as const;
@@ -370,6 +377,8 @@ export interface ControlesDoNumero {
   nivel: boolean;
   mudo: boolean;
   transporte: boolean;
+  proxima: boolean;
+  anterior: boolean;
   entradas: Item[];
   atalhos: Item[];
   modos: Item[];
@@ -399,6 +408,8 @@ export function controlesDoNumero(
     nivel: tem("volume"),
     mudo: tem("mudo"),
     transporte: tem("tocar") && tem("pausar"),
+    proxima: tem("proxima"),
+    anterior: tem("anterior"),
     entradas: tem("fonte") ? (listas.entradas ?? []) : [],
     atalhos: tem("atalho") ? (listas.atalhos ?? []) : [],
     modos: tem("modo") && item?.produto !== "ar" ? (listas.modos ?? []) : [],
