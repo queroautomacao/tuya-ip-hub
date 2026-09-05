@@ -87,11 +87,12 @@ class Manifesto:
     auth: Auth                # NENHUMA | POPUP_NO_APARELHO | CODIGO | CHAVE
     descoberta: Descoberta    # ssdp_st, ssdp_fabricantes, mdns_servicos
     config_campos: tuple      # o que o cadastro pede além de ip (ex: porta)
+    sugestoes: tuple          # itens que o driver oferece para as listas do cadastro (§8)
     textos: dict              # {"pt": {...}, "en": {...}} tudo que o painel mostra
     motor: str                # "nativo" | "declarativo"
 
 CAPACIDADES = ("ligar", "desligar", "volume", "mudo", "fonte",
-               "tocar", "pausar", "proxima", "anterior",   # transporte
+               "tocar", "pausar", "parar", "proxima", "anterior",   # transporte
                "agrupar",                                   # multiroom
                "tecla",                                     # uma de TECLAS
                "atalho",                                    # valor da lista do cadastro
@@ -111,6 +112,19 @@ VENTOS = ("auto", "baixo", "medio", "alto")
 que a lista do cadastro mapeou a partir do rótulo (§8); `tecla`, `modo` e
 `vento` num ar condicionado recebem uma palavra do vocabulário acima, e o driver
 a traduz para o protocolo dele. `temperatura` recebe graus inteiros de 16 a 30.
+`parar` existe separado de `pausar` (decisão de 5/set/2026) porque uma pausa num
+fluxo mantém a caixa conectada à estação, e uma rádio precisa soltá-la; um driver
+que só pausa declara só `pausar`.
+
+**Sugestões de lista** (decisão de 5/set/2026): o valor de um atalho ou de uma
+entrada é uma string do protocolo do aparelho, que ninguém adivinha, então o
+manifesto carrega `sugestoes` (lista, rótulo, valor) e um **cadastro novo nasce
+com elas** quando o corpo não manda listas. Uma atualização que manda `listas`
+vazio esvazia de propósito e nada volta. A sugestão é julgada pela mesma regra de
+um item de cadastro e só vale para lista que uma capacidade declarada lê; o
+painel oferece os exemplos de novo pelo botão do cartão de listas. O driver
+sugere só o que ele sabe: a caixa LinkPlay sugere rádios, e nunca entradas, que
+são as que o `plm_support` dela declara a cada poll.
 
 ```python
 class Driver:
@@ -297,8 +311,8 @@ Máquina k (1..8) começa em `101 + 5·(k-1)`; o quinto número fica livre.
 
 **Canal de comando** (DP 143), do painel para o hub: `n:ligar`, `n:desligar`,
 `n:mudo` (alterna), `n:entrada:k`, `n:atalho:k`, `n:modo:k` (k é índice 1..N na
-lista do cadastro), `n:tecla:<TECLAS>`, `n:tocar`, `n:pausar`, `n:proxima`,
-`n:anterior`, `n:extra:<nome>`. O hub traduz para a capacidade do driver e
+lista do cadastro), `n:tecla:<TECLAS>`, `n:tocar`, `n:pausar`, `n:parar`,
+`n:proxima`, `n:anterior`, `n:extra:<nome>`. O hub traduz para a capacidade do driver e
 recusa com `nao_suportado` o que o manifesto não declara; o resultado nunca é
 ecoado, o estado volta pelos reports.
 
@@ -523,6 +537,11 @@ Custaram dias. Estão aqui para o driver LinkPlay e o DP-bus nascerem certos.
   sem `master_uuid` no `getStatusEx`, e o driver a tratava como escrava e recusava
   volume e transporte no painel. Escravo é `group 1` (ou `master_uuid` presente)
   no `getStatusEx`; o modo 99 só vale quando o campo `group` falta.
+- `setPlayerCmd:stop` é o que solta o fluxo: a pausa mantém a caixa conectada à
+  estação, e uma rádio que derrubou a conexão nesse meio tempo não retoma. Por
+  isso a §6 tem `parar` além de `pausar`. Rádio é a URL do fluxo que a caixa
+  busca sozinha, http simples, sem redirecionamento e sem query string (a guarda
+  do fio recusa `?`, `&` e `=`); o driver sugere três públicas no cadastro.
 - **A caixa responde `OK` a qualquer comando**, inclusive a um que não existe
   (medido em 4/set/2026 no firmware 4.6: `setPlayerCmd:naoexiste` devolve `OK`).
   Então a resposta HTTP não é confirmação de nada, e um comando que a caixa não

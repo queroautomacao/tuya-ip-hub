@@ -40,6 +40,7 @@ from iphub.dpbus import numeros as modulo_numeros
 from iphub.drivers import descoberta
 from iphub.drivers.gestor import ErroDeCadastro, Gestor
 from iphub.drivers.manifesto import Manifesto, TipoCampo, produto_de
+from iphub.drivers.manifesto import por_lista as sugestoes_por_lista
 from iphub.portao import resposta_erro
 
 log = logging.getLogger("iphub.api.equipamentos")
@@ -202,7 +203,7 @@ def _montar_cadastro(
         ip=endereco,
         campos=campos,
         segredos=segredos,
-        listas=_listas(dados.get("listas"), anterior),
+        listas=_listas(dados.get("listas"), anterior, manifesto),
     )
     # Why: section 8, the profile of an equipment fits 200 bytes on any number, and what does
     # not fit is refused where it is typed instead of leaving the panel of the platform blank.
@@ -213,13 +214,32 @@ def _montar_cadastro(
     return cadastro
 
 
-def _listas(brutas: object, anterior: Cadastro | None) -> dict[str, tuple[Item, ...]]:
-    """The lists of section 8 as the body sent them, or the stored ones when it sent none.
+def _listas(
+    brutas: object, anterior: Cadastro | None, manifesto: Manifesto
+) -> dict[str, tuple[Item, ...]]:
+    """The lists of section 8 as the body sent them; the stored ones on an update that sent
+    none, and what the driver suggests on a registration that sent none.
 
-    As listas da seção 8 como o corpo as mandou, ou as guardadas quando ele não mandou nenhuma.
+    Why: the value of a shortcut is a string of the protocol of the device, so an equipment
+    that arrives with an empty list leaves the integrator guessing what to type. A driver that
+    suggests items hands over three that work, and clearing them stays possible because an
+    update that sends an empty object is a body that sent lists.
+
+    As listas da seção 8 como o corpo as mandou; as guardadas numa atualização que não mandou
+    nenhuma, e o que o driver sugere num cadastro que não mandou nenhuma.
+
+    Por que: o valor de um atalho é uma string do protocolo do aparelho, então um equipamento
+    que chega com lista vazia deixa o integrador adivinhando o que escrever. Um driver que
+    sugere itens entrega três que funcionam, e apagá-los continua possível porque uma
+    atualização que manda um objeto vazio é um corpo que mandou listas.
     """
     if brutas is None:
-        return dict(anterior.listas) if anterior is not None else {}
+        if anterior is not None:
+            return dict(anterior.listas)
+        return {
+            lista: tuple(Item(rotulo=s.rotulo, valor=s.valor) for s in itens)
+            for lista, itens in sugestoes_por_lista(manifesto).items()
+        }
     if not isinstance(brutas, dict) or not set(brutas) <= set(LISTAS):
         raise _Recusa(LISTA_INVALIDA)
     listas: dict[str, tuple[Item, ...]] = {}

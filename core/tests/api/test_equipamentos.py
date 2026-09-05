@@ -21,7 +21,7 @@ from iphub.config import ARQUIVO as ARQUIVO_CONFIG
 from iphub.config import Cadastro, Config
 from iphub.drivers import catalogo as modulo_catalogo
 from iphub.drivers.base import DETALHES, Driver
-from iphub.drivers.manifesto import Auth, Campo, Descoberta, Manifesto, TipoCampo
+from iphub.drivers.manifesto import Auth, Campo, Descoberta, Manifesto, Sugestao, TipoCampo
 from iphub.drivers.simulado import RespondedorMdns, RespondedorSsdp
 
 TIPO = "exemplo"
@@ -48,6 +48,7 @@ def _manifesto(
     auth: Auth = Auth.NENHUMA,
     config_campos: tuple[Campo, ...] = CAMPOS,
     descoberta: Descoberta = SEM_DESCOBERTA,
+    sugestoes: tuple[Sugestao, ...] = (),
 ) -> Manifesto:
     textos = {
         "descricao": "Exemplo",
@@ -63,6 +64,7 @@ def _manifesto(
         descoberta=descoberta,
         config_campos=config_campos,
         textos={"pt": dict(textos), "en": dict(textos)},
+        sugestoes=sugestoes,
     )
 
 
@@ -768,3 +770,85 @@ async def test_uma_caixa_que_nao_responde_o_uuid_ainda_e_um_achado(
     (achado,) = corpo["achados"]
     assert achado["identidade"] == ""
     assert achado["ip"] == "127.0.0.1"
+
+
+SUGESTOES = (
+    Sugestao("atalhos", "Radio 1", "http://10.0.0.2/radio1"),
+    Sugestao("atalhos", "Radio 2", "http://10.0.0.2/radio2"),
+    Sugestao("atalhos", "Preset 1", "preset:1"),
+)
+
+
+async def test_um_cadastro_novo_nasce_com_os_atalhos_que_o_driver_sugere(abrir, amb):
+    """Section 8: the value of a shortcut is a string of the protocol of the device, so an
+    equipment that arrived with an empty list left the integrator guessing; what the driver
+    suggests fills the list of the registration, and reaches the file.
+
+    Seção 8: o valor de um atalho é uma string do protocolo do aparelho, então um equipamento
+    que chegava com lista vazia deixava o integrador adivinhando; o que o driver sugere
+    preenche a lista do cadastro, e chega ao arquivo.
+    """
+    manifesto = _manifesto(capacidades=("ligar", "volume", "atalho"), sugestoes=SUGESTOES)
+    cliente, auth = await abrir({TIPO: _fabrica(manifesto)})
+    assert (await _cadastrar(cliente, auth)).status == 200
+    (equipamento,) = await _lista(cliente, auth)
+    assert equipamento["listas"]["atalhos"] == [
+        {"rotulo": "Radio 1", "valor": "http://10.0.0.2/radio1"},
+        {"rotulo": "Radio 2", "valor": "http://10.0.0.2/radio2"},
+        {"rotulo": "Preset 1", "valor": "preset:1"},
+    ]
+    guardado = _config_do_disco(amb)["equipamentos"][0]["listas"]["atalhos"]
+    assert [item["valor"] for item in guardado] == [
+        "http://10.0.0.2/radio1",
+        "http://10.0.0.2/radio2",
+        "preset:1",
+    ]
+    # Why: an update that sends an empty object is someone clearing the list on purpose, and a
+    # suggestion that came back would be a list the integrator cannot empty.
+    # Por que: uma atualização que manda um objeto vazio é alguém limpando a lista de
+    # propósito, e uma sugestão que voltasse seria uma lista que o integrador não consegue
+    # esvaziar.
+    resposta = await cliente.post(
+        f"/api/equipamentos/{CORPO['identidade']}", json={**CORPO, "listas": {}}, headers=auth
+    )
+    assert resposta.status == 200, await resposta.text()
+    (equipamento,) = await _lista(cliente, auth)
+    assert equipamento["listas"] == {}
+
+
+async def test_o_corpo_do_cadastro_vence_a_sugestao_do_driver(abrir):
+    """A body that carries lists is the integrator saying what he wants, and nothing is added
+    to it.
+
+    Um corpo que leva listas é o integrador dizendo o que quer, e nada é acrescentado a ele.
+    """
+    manifesto = _manifesto(capacidades=("ligar", "volume", "atalho"), sugestoes=SUGESTOES)
+    cliente, auth = await abrir({TIPO: _fabrica(manifesto)})
+    listas = {"atalhos": [{"rotulo": "Minha radio", "valor": "http://10.0.0.9/x"}]}
+    assert (await _cadastrar(cliente, auth, listas=listas)).status == 200
+    (equipamento,) = await _lista(cliente, auth)
+    assert equipamento["listas"] == listas
+
+
+async def test_o_catalogo_leva_as_sugestoes_do_manifesto(abrir):
+    """The panel offers the examples again after someone deletes them, so it reads them from
+    the manifest like everything else it knows about a driver.
+
+    O painel oferece os exemplos de novo depois de alguém apagá-los, então ele os lê do
+    manifesto como tudo mais que sabe de um driver.
+    """
+    manifesto = _manifesto(capacidades=("ligar", "volume", "atalho"), sugestoes=SUGESTOES)
+    cliente, auth = await abrir({TIPO: _fabrica(manifesto)})
+    (item,) = (await (await cliente.get("/api/catalogo", headers=auth)).json())["catalogo"]
+    assert item["sugestoes"] == [
+        {"lista": "atalhos", "rotulo": "Radio 1", "valor": "http://10.0.0.2/radio1"},
+        {"lista": "atalhos", "rotulo": "Radio 2", "valor": "http://10.0.0.2/radio2"},
+        {"lista": "atalhos", "rotulo": "Preset 1", "valor": "preset:1"},
+    ]
+
+
+async def test_um_driver_sem_sugestao_cadastra_com_a_lista_vazia(hub):
+    cliente, auth, _ = hub
+    assert (await _cadastrar(cliente, auth)).status == 200
+    (equipamento,) = await _lista(cliente, auth)
+    assert equipamento["listas"] == {}

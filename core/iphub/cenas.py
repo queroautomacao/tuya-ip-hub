@@ -108,7 +108,7 @@ ACAO_GRUPO = "grupo"
 # agrupar; o movimento em si é a ação grupo, então uma cena nunca escreve agrupar num driver.
 ACOES = (*(acao for acao in CAPACIDADES if acao != "agrupar"), ACAO_GRUPO)
 
-SEM_VALOR = ("ligar", "desligar", "tocar", "pausar", "proxima", "anterior")
+SEM_VALOR = ("ligar", "desligar", "tocar", "pausar", "parar", "proxima", "anterior")
 COM_TEXTO = ("fonte", "atalho", "modo", "comando_extra")
 
 CAMPO = "cenas"

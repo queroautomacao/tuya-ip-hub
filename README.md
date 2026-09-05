@@ -34,7 +34,7 @@ Tuya app  -->  Tuya cloud  -->  Tuya device (bridge)
 When complete, the hub is three parts, and only three:
 
 1. A daemon in Python (asyncio + aiohttp): talks to the devices, keeps the configuration, exposes a local REST API and the DP-bus WebSocket.
-2. A web panel (React + Vite) for the integrator: first-run assistant, equipment (each with its number on the app and, when the driver groups, multiroom), drivers, scenes.
+2. A web panel (React + Vite) for the integrator: first-run assistant, equipment (the card of the home carries the transport keys and the volume, and the detail screen carries every control the driver declares, its number on the app and, when the driver groups, multiroom), drivers, scenes.
 3. A single Docker image, published on GHCR, with the panel built inside.
 
 ### Project status
@@ -229,7 +229,7 @@ App Tuya  -->  Nuvem Tuya  -->  Dispositivo Tuya (ponte)
 Quando completo, o hub são três peças, e só três:
 
 1. Um daemon em Python (asyncio + aiohttp): fala com os aparelhos, guarda a configuração, expõe uma API REST local e o WebSocket do DP-bus.
-2. Um painel web (React + Vite) para o integrador: assistente de primeiro uso, equipamentos (número no app e multiroom no detalhe de cada um), drivers, cenas.
+2. Um painel web (React + Vite) para o integrador: assistente de primeiro uso, equipamentos (o cartão do início leva as teclas de transporte e o volume, e a tela de detalhe leva todo controle que o driver declara, o número no app e multiroom quando o driver agrupa), drivers, cenas.
 3. Uma imagem Docker única, publicada no GHCR, com o painel construído dentro.
 
 ### Estado do projeto

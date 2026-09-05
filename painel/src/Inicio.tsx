@@ -8,6 +8,7 @@
 // ação para a qual ele existe é adicionar o próximo. Tudo que um cartão mostra vem do daemon e
 // do manifesto do driver, nunca de uma tabela desta tela.
 
+import ControlesRapidos from "./ControlesRapidos.tsx";
 import { usarEquipamentos } from "./Equipamentos.tsx";
 import { linhasDoEstado, rotuloDoTipo, type Equipamento, type ItemCatalogo } from "./equipamentos.ts";
 import { t, traduzirErro, type Idioma } from "./i18n";
@@ -38,16 +39,22 @@ function Cartao({
   equipamento,
   item,
   idioma,
+  aoMudar,
 }: {
   equipamento: Equipamento;
   item: ItemCatalogo | undefined;
   idioma: Idioma;
+  aoMudar: () => void;
 }) {
   const online = equipamento.estado.online;
+  // Why: the keys sit OUTSIDE the link, because a button inside an anchor is a key that also
+  // opens the screen behind it, and the whole point of these keys is not going there.
+  // Por que: as teclas ficam FORA do link, porque um botão dentro de uma âncora é uma tecla que
+  // também abre a tela atrás dela, e a razão de existir destas teclas é não ir até lá.
   return (
-    <li>
+    <li className={`cartao-equipamento ${online ? "cartao-online" : "cartao-offline"}`}>
       <a
-        className={`cartao-link ${online ? "cartao-online" : "cartao-offline"}`}
+        className="cartao-link"
         href={caminhoDa({ tela: "equipamento", identidade: equipamento.identidade })}
         aria-label={`${t("inicio_ver")}: ${equipamento.nome || equipamento.identidade}`}
       >
@@ -59,6 +66,7 @@ function Cartao({
           {online ? t("equipamentos_online") : t("equipamentos_offline")}
         </p>
       </a>
+      <ControlesRapidos equipamento={equipamento} item={item} aoMudar={aoMudar} />
     </li>
   );
 }
@@ -75,7 +83,7 @@ function Adicionar() {
 }
 
 export default function Inicio({ idioma }: { idioma: Idioma }) {
-  const { catalogo, lista, erro } = usarEquipamentos();
+  const { catalogo, lista, erro, recarregar } = usarEquipamentos();
   return (
     <>
       <div className="tela-cabeca">
@@ -107,6 +115,7 @@ export default function Inicio({ idioma }: { idioma: Idioma }) {
               equipamento={equipamento}
               item={(catalogo ?? []).find((candidato) => candidato.tipo === equipamento.tipo)}
               idioma={idioma}
+              aoMudar={() => void recarregar()}
             />
           ))}
         </ul>

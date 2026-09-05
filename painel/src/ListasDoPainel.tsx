@@ -18,6 +18,8 @@ import {
   ROTULO_MAXIMO,
   VALOR_DE_LISTA_MAXIMO,
   produtoDe,
+  sugeridos,
+  textoDoManifesto,
   type Equipamento,
   type Item,
   type ItemCatalogo,
@@ -25,7 +27,7 @@ import {
   type Listas,
 } from "./equipamentos.ts";
 import { imprimivel } from "./formulario.ts";
-import { t, traduzirErro, type Chave } from "./i18n";
+import { idiomaAtual, t, traduzirErro, type Chave } from "./i18n";
 
 // Which capability of section 6 reads each list, so a list is only offered when it is read.
 // Qual capacidade da seção 6 lê cada lista, para uma lista só ser oferecida quando é lida.
@@ -73,19 +75,31 @@ function limpas(listas: Listas): Listas {
 function Tabela({
   nome,
   itens,
+  ajuda,
+  exemplos,
   ocupado,
   aoMudar,
 }: {
   nome: Lista;
   itens: Item[];
+  ajuda: string;
+  exemplos: Item[];
   ocupado: boolean;
   aoMudar: (itens: Item[]) => void;
 }) {
   const cheia = itens.length >= LISTAS_MAXIMO[nome];
+  // Why: an example only helps while it is not already in the list, and it never pushes the
+  // list past the ceiling the daemon would refuse.
+  // Por que: um exemplo só ajuda enquanto não está na lista, e ele nunca empurra a lista além
+  // do teto que o daemon recusaria.
+  const faltando = exemplos
+    .filter((exemplo) => !itens.some((atual) => atual.valor === exemplo.valor))
+    .slice(0, LISTAS_MAXIMO[nome] - itens.length);
   return (
     <div className="listas-bloco">
       <h3>{t(`listas_${nome}` as const)}</h3>
       <p className="dica">{t(`listas_ajuda_${nome}` as const)}</p>
+      {ajuda && <p className="dica">{ajuda}</p>}
       {itens.length === 0 && <p className="texto-suave">{t("listas_vazia")}</p>}
       {itens.length > 0 && (
         <ol className="listas-itens">
@@ -128,14 +142,26 @@ function Tabela({
           ))}
         </ol>
       )}
-      <button
-        type="button"
-        className="botao secundario"
-        disabled={ocupado || cheia}
-        onClick={() => aoMudar([...itens, { rotulo: "", valor: "" }])}
-      >
-        + {t("listas_adicionar")}
-      </button>
+      <div className="listas-acoes">
+        <button
+          type="button"
+          className="botao secundario"
+          disabled={ocupado || cheia}
+          onClick={() => aoMudar([...itens, { rotulo: "", valor: "" }])}
+        >
+          + {t("listas_adicionar")}
+        </button>
+        {faltando.length > 0 && (
+          <button
+            type="button"
+            className="botao secundario"
+            disabled={ocupado}
+            onClick={() => aoMudar([...itens, ...faltando])}
+          >
+            {t("listas_exemplos")}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -199,6 +225,8 @@ export default function ListasDoPainel({
           key={nome}
           nome={nome}
           itens={listas[nome] ?? []}
+          ajuda={textoDoManifesto(item, idiomaAtual(), `lista_${nome}`)}
+          exemplos={sugeridos(item, nome)}
           ocupado={ocupado}
           aoMudar={(itens) => {
             setSalvo(false);

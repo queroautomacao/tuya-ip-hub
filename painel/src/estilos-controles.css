@@ -221,3 +221,23 @@
   border-color: var(--destaque);
   color: #ffffff;
 }
+
+/* The small round key of the card of the home, the same key of the detail screen one size
+   down, so the two screens are visibly the same panel.
+   A tecla redonda pequena do cartão do início, a mesma tecla da tela de detalhe um tamanho
+   abaixo, para as duas telas serem visivelmente o mesmo painel. */
+.botao-icone-pequeno {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.botao-icone-pequeno svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.listas-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

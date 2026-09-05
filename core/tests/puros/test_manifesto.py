@@ -14,9 +14,13 @@ from iphub.drivers.manifesto import (
     CAPACIDADES,
     CATEGORIAS,
     IDIOMAS,
+    LISTAS,
+    LISTAS_MAXIMO,
     MODOS_AR,
     MOTORES,
+    ROTULO_MAXIMO,
     TECLAS,
+    VALOR_DE_LISTA_MAXIMO,
     VENTOS,
     Auth,
     Campo,
@@ -24,7 +28,10 @@ from iphub.drivers.manifesto import (
     Estado,
     Manifesto,
     ManifestoInvalido,
+    Sugestao,
     TipoCampo,
+    item_valido,
+    por_lista,
     produto_de,
     template_de,
     validar,
@@ -333,3 +340,93 @@ def test_estado_nasce_offline_e_sem_opiniao():
 def test_estado_carrega_a_escala_unica_de_volume():
     assert Estado(online=True, volume=100).volume == 100
     assert Estado(online=True, volume=0).volume == 0
+
+
+def _com_sugestoes(*sugestoes: Sugestao, **mudancas) -> Manifesto:
+    return _manifesto(
+        capacidades=("ligar", "desligar", "volume", "atalho"), sugestoes=sugestoes, **mudancas
+    )
+
+
+def test_um_driver_sugere_itens_para_a_lista_que_uma_capacidade_dele_le():
+    """Section 8: what a driver suggests fills a list of the registration, so it is judged by
+    the rule the registration judges an item by, and offered only for a list something reads.
+
+    Seção 8: o que um driver sugere preenche uma lista do cadastro, então é julgado pela regra
+    que o cadastro julga um item, e oferecido só para uma lista que alguém lê.
+    """
+    manifesto = _com_sugestoes(Sugestao("atalhos", "Radio", "http://10.0.0.2/radio"))
+    assert validar(manifesto) is None
+    assert por_lista(manifesto) == {
+        "atalhos": (Sugestao("atalhos", "Radio", "http://10.0.0.2/radio"),)
+    }
+    assert por_lista(_manifesto()) == {}
+
+
+@pytest.mark.parametrize(
+    "sugestao",
+    [
+        Sugestao("radios", "Radio", "http://10.0.0.2/radio"),
+        Sugestao("atalhos", "", "http://10.0.0.2/radio"),
+        Sugestao("atalhos", "Radio", ""),
+        Sugestao("atalhos", "Radio, a boa", "http://10.0.0.2/radio"),
+        Sugestao("atalhos", "R" * (ROTULO_MAXIMO + 1), "http://10.0.0.2/radio"),
+        Sugestao("atalhos", "Radio", "x" * (VALOR_DE_LISTA_MAXIMO + 1)),
+        Sugestao("atalhos", "Radio\n", "http://10.0.0.2/radio"),
+    ],
+)
+def test_uma_sugestao_que_o_cadastro_recusaria_nao_embarca(sugestao):
+    assert "sugestoes" in _campos_quebrados(
+        {"capacidades": ("ligar", "desligar", "volume", "atalho"), "sugestoes": (sugestao,)}
+    )
+
+
+def test_sugestao_para_uma_lista_que_nenhuma_capacidade_le_nao_embarca():
+    """A list the manifest never acts on is a list the app draws and the daemon refuses.
+
+    Uma lista sobre a qual o manifesto nunca age é uma lista que o app desenha e o daemon recusa.
+    """
+    assert "sugestoes" in _campos_quebrados(
+        {"capacidades": ("ligar", "desligar"), "sugestoes": (Sugestao("atalhos", "R", "preset:1"),)}
+    )
+
+
+def test_um_ar_condicionado_nao_sugere_modo_porque_le_o_vocabulario():
+    quebrados = _campos_quebrados(
+        {
+            "categoria": "ar_condicionado",
+            "capacidades": ("ligar", "desligar", "modo", "vento", "temperatura"),
+            "modos": ("frio",),
+            "ventos": ("auto",),
+            "sugestoes": (Sugestao("modos", "Frio", "frio"),),
+        }
+    )
+    assert "sugestoes" in quebrados
+
+
+def test_sugestoes_acima_do_teto_da_lista_nao_embarcam():
+    demais = tuple(
+        Sugestao("atalhos", f"Radio {n}", f"http://10.0.0.2/r{n}")
+        for n in range(LISTAS_MAXIMO["atalhos"] + 1)
+    )
+    assert "sugestoes" in _campos_quebrados(
+        {"capacidades": ("ligar", "desligar", "volume", "atalho"), "sugestoes": demais}
+    )
+
+
+def test_a_regra_de_um_item_de_lista_e_a_mesma_do_cadastro():
+    """One rule, in the module the vocabulary lives in; the registration re-exports it instead
+    of writing a second one that would drift.
+
+    Uma regra, no módulo em que o vocabulário mora; o cadastro a reexporta em vez de escrever
+    uma segunda que divergiria.
+    """
+    from iphub import config
+
+    assert config.item_valido is item_valido
+    assert config.LISTAS == LISTAS
+    assert config.LISTAS_MAXIMO == LISTAS_MAXIMO
+    assert (config.ROTULO_MAXIMO, config.VALOR_DE_LISTA_MAXIMO) == (
+        ROTULO_MAXIMO,
+        VALOR_DE_LISTA_MAXIMO,
+    )

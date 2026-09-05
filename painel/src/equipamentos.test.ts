@@ -15,8 +15,10 @@ import {
   lerItemCatalogo,
   lerLista,
   linhasDoEstado,
+  paineis,
   prepararAcao,
   rotuloDoTipo,
+  sugeridos,
   textoDoManifesto,
   type Campo,
   type Equipamento,
@@ -57,6 +59,7 @@ function itemDe(parcial: Partial<ItemCatalogo> = {}): ItemCatalogo {
     rotulo: { pt: "Projetor de exemplo", en: "Example projector" },
     textos: { pt: { descricao: "Um projetor" }, en: { descricao: "A projector" } },
     config_campos: [],
+    sugestoes: [],
     ...parcial,
   };
 }
@@ -79,6 +82,20 @@ test("controles offers only what the manifest declares (oferece só o que o mani
     misturado.map((controle) => controle.especie),
     ["simples", "escala", "escolha", "texto"],
   );
+});
+
+test("the panel of a speaker carries every transport key the driver declares (o painel de uma caixa leva toda tecla de transporte que o driver declara)", () => {
+  // Why: section 6, stop is its own capability because a pause on a stream keeps the speaker
+  // connected to the station; a driver that declares it gets the key and one that does not
+  // never draws a key the daemon would refuse with nao_suportado.
+  // Por que: seção 6, parar é capacidade própria porque uma pausa num fluxo mantém a caixa
+  // conectada à estação; um driver que a declara ganha a tecla e um que não a declara nunca
+  // desenha uma tecla que o daemon recusaria com nao_suportado.
+  const caixa = paineis(["tocar", "pausar", "parar", "proxima", "anterior", "volume", "mudo"]);
+  assert.deepEqual(caixa.transporte, ["anterior", "tocar", "pausar", "parar", "proxima"]);
+  assert.deepEqual(paineis(["tocar", "pausar"]).transporte, ["tocar", "pausar"]);
+  assert.deepEqual(paineis(["ligar"]).transporte, []);
+  assert.deepEqual(controles(["parar"]), [{ acao: "parar", especie: "simples" }]);
 });
 
 test("prepararAcao refuses a value the action cannot take (recusa valor que a ação não aceita)", () => {
@@ -205,6 +222,22 @@ test("the catalog and the sweep are read against the contract (o catálogo e a v
     config_campos: [{ nome: "porta", tipo: "inteiro", obrigatorio: false, padrao: "4352" }],
   };
   assert.equal(lerItemCatalogo(cru)?.config_campos[0].tipo, "inteiro");
+  // Why: what the driver suggests fills a list of the registration, so a suggestion outside
+  // the shape of an item is refused with the whole catalog instead of drawing a broken chip.
+  // Por que: o que o driver sugere preenche uma lista do cadastro, então uma sugestão fora da
+  // forma de um item é recusada com o catálogo inteiro em vez de desenhar uma ficha quebrada.
+  assert.deepEqual(lerItemCatalogo(cru)?.sugestoes, []);
+  const comRadio = { ...cru, sugestoes: [{ lista: "atalhos", rotulo: "Radio", valor: "http://x" }] };
+  assert.deepEqual(lerItemCatalogo(comRadio)?.sugestoes, [
+    { lista: "atalhos", rotulo: "Radio", valor: "http://x" },
+  ]);
+  assert.deepEqual(sugeridos(lerItemCatalogo(comRadio) ?? undefined, "atalhos"), [
+    { rotulo: "Radio", valor: "http://x" },
+  ]);
+  assert.deepEqual(sugeridos(lerItemCatalogo(comRadio) ?? undefined, "entradas"), []);
+  assert.equal(lerItemCatalogo({ ...cru, sugestoes: [{ lista: "radios", rotulo: "R", valor: "x" }] }), null);
+  assert.equal(lerItemCatalogo({ ...cru, sugestoes: [{ lista: "atalhos", rotulo: "", valor: "x" }] }), null);
+  assert.equal(lerItemCatalogo({ ...cru, sugestoes: [{ lista: "atalhos", valor: "x" }] }), null);
   assert.equal(lerItemCatalogo({ ...cru, capacidades: "ligar" }), null);
   assert.equal(lerItemCatalogo({ ...cru, rotulo: { pt: 1 } }), null);
   assert.equal(lerItemCatalogo({ ...cru, config_campos: [{ nome: "porta", tipo: "senha" }] }), null);

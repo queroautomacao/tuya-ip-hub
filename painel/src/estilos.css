@@ -161,7 +161,7 @@ h3 {
 /* The material. Every top-level surface of the panel is one of these.
    O material. Toda superfície de primeiro nível do painel é uma destas. */
 .cartao,
-.cartao-link,
+.cartao-equipamento,
 .cena,
 .barra,
 .navegacao,
@@ -177,7 +177,7 @@ h3 {
 }
 
 .cartao,
-.cartao-link,
+.cartao-equipamento,
 .cena {
   border-radius: var(--raio);
 }

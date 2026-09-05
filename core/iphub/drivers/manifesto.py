@@ -18,6 +18,7 @@ CAPACIDADES = (
     "fonte",
     "tocar",
     "pausar",
+    "parar",
     "proxima",
     "anterior",
     "agrupar",
@@ -70,6 +71,23 @@ TECLAS = (
     "anterior",
     *(f"digito_{n}" for n in range(10)),
 )
+
+# Section 8: the lists a registration carries, each with its ceiling, plus the ceiling of a
+# label and of a value. They live here, with the vocabulary, because a manifest suggests items
+# for them and the registration judges items by the same rule; config re-exports them.
+# Seção 8: as listas que um cadastro carrega, cada uma com o teto dela, mais o teto de um
+# rótulo e de um valor. Vivem aqui, com o vocabulário, porque um manifesto sugere itens para
+# elas e o cadastro julga item pela mesma regra; o config as reexporta.
+LISTAS = ("entradas", "atalhos", "modos")
+LISTAS_MAXIMO = {"entradas": 10, "atalhos": 8, "modos": 8}
+ROTULO_MAXIMO = 16
+VALOR_DE_LISTA_MAXIMO = 64
+
+# Which capability of section 6 reads each list; a driver only suggests items for a list that
+# something reads, and an air conditioner reads modo from the vocabulary and not from a list.
+# Qual capacidade da seção 6 lê cada lista; um driver só sugere item para lista que alguém lê,
+# e um ar condicionado lê modo do vocabulário e não de uma lista.
+CAPACIDADE_DA_LISTA = {"entradas": "fonte", "atalhos": "atalho", "modos": "modo"}
 
 # The vocabulary of an air conditioner, which is the enum of section 8 word for word.
 # O vocabulário de um ar condicionado, que é o enum da seção 8 palavra por palavra.
@@ -151,6 +169,26 @@ class Campo:
 
 
 @dataclass(frozen=True)
+class Sugestao:
+    """One item a driver offers for a list of the registration, so an equipment that was just
+    added already carries something that works and shows the shape of the value.
+
+    Why: the value of a shortcut or of an input is a string of the protocol of the device, and
+    an empty list teaches nobody what to type; the driver is the one place that knows.
+
+    Um item que um driver oferece para uma lista do cadastro, para um equipamento recém
+    adicionado já carregar algo que funciona e mostrar a forma do valor.
+
+    Por que: o valor de um atalho ou de uma entrada é uma string do protocolo do aparelho, e
+    uma lista vazia não ensina ninguém a escrever; o driver é o único lugar que sabe.
+    """
+
+    lista: str
+    rotulo: str
+    valor: str
+
+
+@dataclass(frozen=True)
 class Descoberta:
     """The signatures this driver claims; the sweep plan is generated from them.
 
@@ -180,6 +218,9 @@ class Manifesto:
     teclas: tuple[str, ...] = ()
     modos: tuple[str, ...] = ()
     ventos: tuple[str, ...] = ()
+    # What this driver offers to fill the lists of a new registration with, section 8.
+    # O que este driver oferece para preencher as listas de um cadastro novo, seção 8.
+    sugestoes: tuple[Sugestao, ...] = ()
 
 
 @dataclass
@@ -262,6 +303,7 @@ def _problemas(manifesto: Manifesto) -> Iterator[str]:
     yield from _da_identidade(manifesto)
     yield from _da_descoberta(manifesto)
     yield from _das_capacidades(manifesto)
+    yield from _das_sugestoes(manifesto)
     yield from _do_rotulo(manifesto)
     yield from _dos_campos(manifesto)
     yield from _dos_textos(manifesto)
@@ -353,6 +395,69 @@ def _do_vocabulario(
         yield f"{campo}: capacidade {capacidade!r} needs at least one word"
     if palavras and not (declara and exige_palavras):
         yield f"{campo}: words declared without the capacidade {capacidade!r}"
+
+
+def _das_sugestoes(manifesto: Manifesto) -> Iterator[str]:
+    """A suggestion is judged by the rule the registration judges an item by, and offered only
+    for a list a declared capability reads.
+
+    Uma sugestão é julgada pela regra que o cadastro julga um item, e oferecida só para uma
+    lista que uma capacidade declarada lê.
+    """
+    sugestoes = manifesto.sugestoes
+    if not isinstance(sugestoes, tuple) or not all(isinstance(s, Sugestao) for s in sugestoes):
+        yield "sugestoes: must be a tuple of Sugestao"
+        return
+    capacidades = manifesto.capacidades if isinstance(manifesto.capacidades, tuple) else ()
+    fora = sorted({s.lista for s in sugestoes if s.lista not in LISTAS})
+    if fora:
+        yield f"sugestoes: lista must be one of {list(LISTAS)}, found {fora}"
+    for lista in LISTAS:
+        itens = [s for s in sugestoes if s.lista == lista]
+        if not itens:
+            continue
+        capacidade = CAPACIDADE_DA_LISTA[lista]
+        if capacidade not in capacidades:
+            yield f"sugestoes: {lista!r} is only read with the capacidade {capacidade!r}"
+        if lista == "modos" and manifesto.categoria == CATEGORIA_DE_AR:
+            yield "sugestoes: an air conditioner reads modo from the vocabulary, not from a list"
+        teto = LISTAS_MAXIMO[lista]
+        if len(itens) > teto:
+            yield f"sugestoes: {lista!r} has {len(itens)} items, the ceiling is {teto}"
+        invalidos = [s.rotulo for s in itens if not item_valido(s.rotulo, s.valor)]
+        if invalidos:
+            yield f"sugestoes: {lista!r} carries an item the registration would refuse: {invalidos}"
+
+
+def por_lista(manifesto: Manifesto) -> dict[str, tuple[Sugestao, ...]]:
+    """The suggestions of a manifest grouped by the list they fill, in the order declared.
+
+    As sugestões de um manifesto agrupadas pela lista que preenchem, na ordem declarada.
+    """
+    agrupadas = {}
+    for lista in LISTAS:
+        itens = tuple(s for s in manifesto.sugestoes if s.lista == lista)
+        if itens:
+            agrupadas[lista] = itens
+    return agrupadas
+
+
+def item_valido(rotulo: object, valor: object) -> bool:
+    """A label the app can show and a value the driver can take, section 8.
+
+    Um rótulo que o app pode mostrar e um valor que o driver pode receber, seção 8.
+    """
+    # Why: the label travels inside the profile string of section 8, where ',' '|' and ';'
+    # are the separators, and a control character would break the JSON of the bus.
+    # Por que: o rótulo viaja dentro da string de perfil da seção 8, onde ',' '|' e ';' são os
+    # separadores, e um caractere de controle quebraria o JSON do barramento.
+    if not isinstance(rotulo, str) or not isinstance(valor, str):
+        return False
+    if not 0 < len(rotulo) <= ROTULO_MAXIMO or not rotulo.isprintable():
+        return False
+    if any(separador in rotulo for separador in (",", "|", ";")):
+        return False
+    return 0 < len(valor) <= VALOR_DE_LISTA_MAXIMO and valor.isprintable()
 
 
 def _do_rotulo(manifesto: Manifesto) -> Iterator[str]:

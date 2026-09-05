@@ -57,6 +57,15 @@ def manifesto_json(manifesto: Manifesto) -> dict:
         "teclas": list(manifesto.teclas),
         "modos": list(manifesto.modos),
         "ventos": list(manifesto.ventos),
+        # Why: section 8, a list of the registration starts empty and its values are strings of
+        # the protocol of the device; what the driver suggests is what teaches the integrator
+        # the shape, so it travels with the manifest and the panel offers it.
+        # Por que: seção 8, uma lista do cadastro nasce vazia e os valores dela são strings do
+        # protocolo do aparelho; o que o driver sugere é o que ensina a forma ao integrador,
+        # então viaja com o manifesto e o painel a oferece.
+        "sugestoes": [
+            {"lista": s.lista, "rotulo": s.rotulo, "valor": s.valor} for s in manifesto.sugestoes
+        ],
         # Why: section 8, the product a type enters and the template its panel draws are
         # decided by the category, and the panel reads them here instead of deciding again.
         # Por que: seção 8, o produto em que um tipo entra e o template que o painel dele

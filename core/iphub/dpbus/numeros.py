@@ -130,10 +130,11 @@ ACAO_MUDO = "mudo"
 ACAO_FONTE = "fonte"
 ACAO_TOCAR = "tocar"
 ACAO_PAUSAR = "pausar"
+ACAO_PARAR = "parar"
 ACAO_TEMPERATURA = "temperatura"
 ACAO_MODO = "modo"
 ACAO_VENTO = "vento"
-TRANSPORTE = ("tocar", "pausar", "proxima", "anterior")
+TRANSPORTE = ("tocar", "pausar", "parar", "proxima", "anterior")
 # Why: section 14, a play on a slave dismantles the group, and so does a radio or a preset
 # pressed on it; everything that starts audio on a member of a group belongs to the master.
 # Por que: seção 14, um play num escravo desmonta o grupo, e uma rádio ou um preset apertado

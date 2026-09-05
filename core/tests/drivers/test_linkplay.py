@@ -33,7 +33,7 @@ import pytest
 from iphub.drivers import catalogo
 from iphub.drivers.base import CODIGOS
 from iphub.drivers.descoberta import montar
-from iphub.drivers.manifesto import Auth, validar
+from iphub.drivers.manifesto import Auth, item_valido, por_lista, validar
 from iphub.drivers.nativos import linkplay
 from iphub.drivers.nativos.linkplay import ENTRADA_DE_REDE, Escravo, LinkPlay
 from iphub.drivers.simulado import ServidorHttp
@@ -179,6 +179,7 @@ def test_o_manifesto_e_valido_e_nao_promete_ligar_nem_desligar():
         "fonte",
         "tocar",
         "pausar",
+        "parar",
         "proxima",
         "anterior",
         "agrupar",
@@ -1141,3 +1142,63 @@ async def test_um_fluxo_num_endereco_ipv6_chega_ao_fio_como_foi_escrito(caixa):
         driver = caixa(aparelho)
         assert await driver.executar("tocar", url) is None
     assert _comandos(aparelho)[-1] == f"setPlayerCmd:play:{url}"
+
+
+async def test_parar_solta_o_fluxo_e_pausar_apenas_pausa(caixa):
+    """A pause on a stream keeps the speaker connected to the station, so a radio needs the
+    stop of the protocol; both leave the transport off and clear the title of the cache.
+
+    Uma pausa num fluxo mantém a caixa conectada à estação, então uma rádio precisa do stop do
+    protocolo; os dois deixam o transporte desligado e limpam o título do cache.
+    """
+    rotas = _fala()
+    rotas.update(_rotas({"setPlayerCmd:stop": "OK", "setPlayerCmd:pause": "OK"}))
+    async with ServidorHttp(rotas) as aparelho:
+        driver = caixa(aparelho)
+        await driver.atualizar()
+        assert driver.estado().tocando == f"{TITULO} - {ARTISTA}"
+        assert await driver.executar("parar") is None
+        estado = driver.estado()
+        assert (estado.reproduzindo, estado.tocando) == (False, None)
+        assert await driver.executar("pausar") is None
+    assert _comandos(aparelho)[-2:] == ["setPlayerCmd:stop", "setPlayerCmd:pause"]
+
+
+async def test_parar_de_um_escravo_nunca_chega_ao_fio(caixa):
+    """Section 14: the transport of a group is the master's, and stop is transport.
+
+    Seção 14: o transporte de um grupo é do mestre, e parar é transporte.
+    """
+    grupo = _identidade(group="1", master_uuid=OUTRA_IDENTIDADE)
+    async with ServidorHttp(_fala(identidade=grupo)) as aparelho:
+        driver = caixa(aparelho)
+        await driver.atualizar()
+        antes = len(aparelho.pedidos)
+        assert await driver.executar("parar") == "nao_suportado"
+        assert len(aparelho.pedidos) == antes
+
+
+def test_a_caixa_sugere_radios_que_o_cadastro_aceita():
+    """Section 8: a shortcut is a URL the speaker fetches by itself, which nobody guesses, so
+    the driver offers examples and every one of them is an item the registration accepts and
+    an address the guard of the wire lets through.
+
+    Seção 8: um atalho é uma URL que a caixa busca sozinha, que ninguém adivinha, então o
+    driver oferece exemplos e cada um deles é um item que o cadastro aceita e um endereço que
+    a guarda do fio deixa passar.
+    """
+    sugestoes = por_lista(LinkPlay.MANIFESTO)
+    assert set(sugestoes) == {"atalhos"}
+    atalhos = sugestoes["atalhos"]
+    assert len(atalhos) >= 3
+    for sugestao in atalhos:
+        assert item_valido(sugestao.rotulo, sugestao.valor)
+        endereco = sugestao.valor.startswith("http://")
+        assert endereco or linkplay._preset_de(sugestao.valor, linkplay.PRESET_MAXIMO) is not None
+        if endereco:
+            assert linkplay._url_valida(sugestao.valor)
+    # Why: the inputs of a box are the ones its plm_support declares, read at every poll, so a
+    # suggested list would replace that true list with a guess.
+    # Por que: as entradas de uma caixa são as que o plm_support dela declara, lidas a cada
+    # poll, então uma lista sugerida trocaria essa lista verdadeira por um palpite.
+    assert "entradas" not in sugestoes

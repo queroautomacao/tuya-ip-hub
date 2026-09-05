@@ -43,10 +43,11 @@ import type { Papel } from "./licencas.ts";
 // requisição e um aparelho que ignorou o comando ainda solta o valor.
 const ESPERA_DE_LEITURA_MS = 4_000;
 
-const ICONES = {
+export const ICONES = {
   anterior: "M6 6h2v12H6zm3.5 6 8.5 6V6z",
   tocar: "M8 5v14l11-7z",
   pausar: "M7 5h4v14H7zM13 5h4v14h-4z",
+  parar: "M6 6h12v12H6z",
   proxima: "M16 6h2v12h-2zM6 18l8.5-6L6 6z",
   mudo: "M4 9v6h4l5 4V5L8 9H4zm12.5 3 2.5-2.5-1.4-1.4L15.1 10.6 12.6 8.1 11.2 9.5l2.5 2.5-2.5 2.5 1.4 1.4 2.5-2.5 2.5 2.5 1.4-1.4z",
 } as const;
@@ -60,7 +61,7 @@ export function palavra(prefixo: string, valor: string): string {
   return texto ?? valor;
 }
 
-function Icone({ desenho }: { desenho: string }) {
+export function Icone({ desenho }: { desenho: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <path d={desenho} />
@@ -370,6 +371,18 @@ export default function Controles({
               onClick={() => simples(tocando ? "pausar" : "tocar")}
             >
               <Icone desenho={tocando ? ICONES.pausar : ICONES.tocar} />
+            </button>
+          )}
+          {tem("parar") && (
+            <button
+              type="button"
+              className="botao-icone"
+              disabled={ocupado || preso}
+              aria-label={t("acao_parar")}
+              title={t("acao_parar")}
+              onClick={() => simples("parar")}
+            >
+              <Icone desenho={ICONES.parar} />
             </button>
           )}
           {tem("proxima") && (

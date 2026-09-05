@@ -95,6 +95,7 @@ ACOES = [
     "fonte",
     "tocar",
     "pausar",
+    "parar",
     "proxima",
     "anterior",
     "tecla",

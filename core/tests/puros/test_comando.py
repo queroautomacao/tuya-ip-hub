@@ -47,11 +47,21 @@ def test_o_vocabulario_do_canal_e_o_da_secao_8():
         "tecla",
         "tocar",
         "pausar",
+        "parar",
         "proxima",
         "anterior",
         "extra",
     }
-    assert set(SEM_VALOR) == {"ligar", "desligar", "mudo", "tocar", "pausar", "proxima", "anterior"}
+    assert set(SEM_VALOR) == {
+        "ligar",
+        "desligar",
+        "mudo",
+        "tocar",
+        "pausar",
+        "parar",
+        "proxima",
+        "anterior",
+    }
     assert COM_INDICE == {"entrada": "entradas", "atalho": "atalhos", "modo": "modos"}
     assert set(COM_INDICE.values()) == set(LISTAS)
     # Every word of the channel is one capability of section 6, and nothing outside it.

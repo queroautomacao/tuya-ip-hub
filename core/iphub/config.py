@@ -14,6 +14,7 @@ from iphub import arquivos
 from iphub.cenas import Cena, CenasInvalidas
 from iphub.cenas import validar as validar_cenas
 from iphub.dpbus import mapa
+from iphub.drivers import manifesto
 from iphub.versao import SCHEMA_VERSION
 
 ARQUIVO = "config.json"
@@ -23,14 +24,17 @@ CHAVE_LICENCAS = "licencas"
 CHAVE_NUMEROS = "numeros"
 CHAVE_CENAS = "cenas"
 
-# The lists a registration of section 8 carries, each with its ceiling, and the ceiling of
-# a label: the profile the panel reads is built from them and has to fit its string.
-# As listas que um cadastro da seção 8 carrega, cada uma com o teto dela, e o teto de um
-# rótulo: o perfil que o painel lê nasce delas e precisa caber na string dele.
-LISTAS = ("entradas", "atalhos", "modos")
-LISTAS_MAXIMO = {"entradas": 10, "atalhos": 8, "modos": 8}
-ROTULO_MAXIMO = 16
-VALOR_DE_LISTA_MAXIMO = 64
+# The lists a registration of section 8 carries, their ceilings and the rule of one item live
+# with the vocabulary of section 6, because a manifest suggests items for the same lists; they
+# are re-exported here because the registration is what carries them.
+# As listas que um cadastro da seção 8 carrega, os tetos delas e a regra de um item vivem com o
+# vocabulário da seção 6, porque um manifesto sugere itens para as mesmas listas; são
+# reexportados aqui porque o cadastro é quem as carrega.
+LISTAS = manifesto.LISTAS
+LISTAS_MAXIMO = manifesto.LISTAS_MAXIMO
+ROTULO_MAXIMO = manifesto.ROTULO_MAXIMO
+VALOR_DE_LISTA_MAXIMO = manifesto.VALOR_DE_LISTA_MAXIMO
+item_valido = manifesto.item_valido
 
 # Why: the id of a licence is a key of config.json and part of a route path, so it stays in
 # the alphabet a JSON key and a URL segment share.
@@ -448,24 +452,6 @@ def _listas_de(item: dict, onde: str) -> dict[str, tuple[Item, ...]]:
             itens.append(Item(rotulo=rotulo, valor=valor))
         listas[nome] = tuple(itens)
     return listas
-
-
-def item_valido(rotulo: object, valor: object) -> bool:
-    """A label the app can show and a value the driver can take.
-
-    Um rótulo que o app pode mostrar e um valor que o driver pode receber.
-    """
-    # Why: the label travels inside the profile string of section 8, where ',' '|' and ';'
-    # are the separators, and a control character would break the JSON of the bus.
-    # Por que: o rótulo viaja dentro da string de perfil da seção 8, onde ',' '|' e ';' são os
-    # separadores, e um caractere de controle quebraria o JSON do barramento.
-    if not isinstance(rotulo, str) or not isinstance(valor, str):
-        return False
-    if not 0 < len(rotulo) <= ROTULO_MAXIMO or not rotulo.isprintable():
-        return False
-    if any(separador in rotulo for separador in (",", "|", ";")):
-        return False
-    return 0 < len(valor) <= VALOR_DE_LISTA_MAXIMO and valor.isprintable()
 
 
 def _texto_de(item: dict, chave: str, onde: str) -> str:

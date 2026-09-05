@@ -16,6 +16,7 @@ export const CAPACIDADES = [
   "fonte",
   "tocar",
   "pausar",
+  "parar",
   "proxima",
   "anterior",
   "agrupar",
@@ -148,6 +149,10 @@ export interface Campo {
   padrao: string;
 }
 
+export interface Sugestao extends Item {
+  lista: Lista;
+}
+
 export interface ItemCatalogo {
   tipo: string;
   categoria: string;
@@ -162,6 +167,9 @@ export interface ItemCatalogo {
   rotulo: Record<string, string>;
   textos: Record<string, Record<string, string>>;
   config_campos: Campo[];
+  // What the driver offers to fill a list of the registration with, section 8.
+  // O que o driver oferece para preencher uma lista do cadastro, seção 8.
+  sugestoes: Sugestao[];
 }
 
 export interface EstadoEquipamento {
@@ -255,6 +263,8 @@ export function lerItemCatalogo(valor: unknown): ItemCatalogo | null {
   }
   const config_campos = lerLista(valor.config_campos, lerCampo);
   if (config_campos === null) return null;
+  const sugestoes = valor.sugestoes === undefined ? [] : lerLista(valor.sugestoes, lerSugestao);
+  if (sugestoes === null) return null;
   // Why: the words and the product come from the manifest of section 6 through the daemon, so
   // the panel reads them and never decides which category speaks which word.
   // Por que: as palavras e o produto vêm do manifesto da seção 6 pelo daemon, então o painel os
@@ -280,7 +290,25 @@ export function lerItemCatalogo(valor: unknown): ItemCatalogo | null {
     rotulo,
     textos,
     config_campos,
+    sugestoes,
   };
+}
+
+function lerSugestao(valor: unknown): Sugestao | null {
+  if (!ehObjeto(valor) || !ehTexto(valor.rotulo) || !ehTexto(valor.valor)) return null;
+  const lista = LISTAS.find((nome) => nome === valor.lista);
+  if (lista === undefined || !valor.rotulo || !valor.valor) return null;
+  return { lista, rotulo: valor.rotulo, valor: valor.valor };
+}
+
+// Why: a driver suggests items for a list, and what fills the list is the pair the
+// registration carries; the name of the list is how the card knows where each pair goes.
+// Por que: um driver sugere itens para uma lista, e o que preenche a lista é o par que o
+// cadastro carrega; o nome da lista é como o cartão sabe onde cada par vai.
+export function sugeridos(item: ItemCatalogo | undefined, lista: Lista): Item[] {
+  return (item?.sugestoes ?? [])
+    .filter((sugestao) => sugestao.lista === lista)
+    .map((sugestao) => ({ rotulo: sugestao.rotulo, valor: sugestao.valor }));
 }
 
 export function lerLista<T>(valor: unknown, ler: (bruto: unknown) => T | null): T[] | null {
@@ -407,6 +435,7 @@ const ESPECIES: Record<Capacidade, EspecieControle> = {
   fonte: "escolha",
   tocar: "simples",
   pausar: "simples",
+  parar: "simples",
   proxima: "simples",
   anterior: "simples",
   agrupar: "texto",
@@ -434,7 +463,7 @@ export function controles(capacidades: readonly string[]): Controle[] {
 export type Preparo = { ok: true; valor: unknown } | { ok: false; codigo: string };
 
 export const ENERGIA = ["ligar", "desligar"] as const;
-export const TRANSPORTE = ["anterior", "tocar", "pausar", "proxima"] as const;
+export const TRANSPORTE = ["anterior", "tocar", "pausar", "parar", "proxima"] as const;
 export type Energia = (typeof ENERGIA)[number];
 export type Transporte = (typeof TRANSPORTE)[number];
 

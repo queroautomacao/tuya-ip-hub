@@ -260,29 +260,69 @@
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
 }
 
-.cartao-link {
+.cartao-equipamento {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
   height: 100%;
-  padding: 1.1rem 1.2rem;
-  color: inherit;
-  text-decoration: none;
   transition:
     transform 0.2s ease,
     box-shadow 0.2s ease;
 }
 
-.cartao-link:hover {
+.cartao-equipamento:hover {
   transform: translateY(-2px);
   box-shadow:
     inset 0 1px 0 var(--vidro-brilho),
     0 18px 40px var(--vidro-sombra);
 }
 
+.cartao-link {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.1rem 1.2rem;
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--raio);
+}
+
 .cartao-link:focus-visible {
   outline: 2px solid var(--destaque);
-  outline-offset: 2px;
+  outline-offset: -2px;
+}
+
+/* The keys of the card: the transport in a row and the volume under it, small enough that the
+   card is still a glance and big enough for a thumb.
+   As teclas do cartão: o transporte numa linha e o volume embaixo, pequenas o bastante para o
+   cartão seguir sendo um relance e grandes o bastante para o polegar. */
+.rapidos {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.2rem 1.2rem 1.1rem;
+}
+
+.rapidos-teclas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.rapidos-volume {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.rapidos-volume input[type="range"] {
+  flex: 1;
+  min-width: 0;
+}
+
+.rapidos .erro {
+  margin: 0;
+  font-size: 0.85rem;
 }
 
 .cartao-link h3 {

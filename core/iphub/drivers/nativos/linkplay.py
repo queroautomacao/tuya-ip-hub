@@ -76,7 +76,7 @@ from yarl import URL
 from iphub.config import ip_literal
 from iphub.drivers import corpo
 from iphub.drivers.base import Cadastro, Driver
-from iphub.drivers.manifesto import Descoberta, Manifesto
+from iphub.drivers.manifesto import Descoberta, Manifesto, Sugestao
 
 log = logging.getLogger("iphub.drivers.nativos.linkplay")
 
@@ -109,6 +109,7 @@ MANDA_VOLUME = "setPlayerCmd:vol:{valor}"
 MANDA_TOCAR = "setPlayerCmd:play:{valor}"
 MANDA_RETOMAR = "setPlayerCmd:resume"
 MANDA_PAUSAR = "setPlayerCmd:pause"
+MANDA_PARAR = "setPlayerCmd:stop"
 MANDA_REDE = "setPlayerCmd:switchmode:wifi"
 MANDA_ENTRADA = "setPlayerCmd:switchmode:{valor}"
 MANDA_MUDO = "setPlayerCmd:mute:{valor}"
@@ -146,6 +147,7 @@ ACAO_MUDO = "mudo"
 ACAO_FONTE = "fonte"
 ACAO_TOCAR = "tocar"
 ACAO_PAUSAR = "pausar"
+ACAO_PARAR = "parar"
 ACAO_PROXIMA = "proxima"
 ACAO_ANTERIOR = "anterior"
 ACAO_AGRUPAR = "agrupar"
@@ -159,6 +161,7 @@ ACOES_DO_MESTRE = (
     ACAO_VOLUME,
     ACAO_TOCAR,
     ACAO_PAUSAR,
+    ACAO_PARAR,
     ACAO_PROXIMA,
     ACAO_ANTERIOR,
     ACAO_ATALHO,
@@ -239,11 +242,31 @@ ENTRADAS = (
     Entrada("optical", bit=4, modo=43, codigo="optical"),
 )
 
+# Why: a speaker that was just added carries an empty list of shortcuts, and the value of one
+# is a URL the speaker fetches by itself, which nobody guesses. These three are public radios
+# that answer plain HTTP with no redirect and no query string, which is what the speaker and
+# the guard of the address both need, plus the preset shape written once so it can be copied.
+# Only the shortcuts are suggested: the inputs of a box are the ones its plm_support declares,
+# read at each poll, and a suggested list would replace that true list with a guess.
+# Por que: uma caixa recém adicionada carrega uma lista de atalhos vazia, e o valor de um é uma
+# URL que a caixa busca sozinha, que ninguém adivinha. Estas três são rádios públicas que
+# respondem HTTP simples sem redirecionamento e sem query string, que é o que a caixa e a
+# guarda do endereço precisam, mais a forma do preset escrita uma vez para ser copiada. Só os
+# atalhos são sugeridos: as entradas de uma caixa são as que o plm_support dela declara, lidas
+# a cada poll, e uma lista sugerida trocaria essa lista verdadeira por um palpite.
+SUGESTOES = (
+    Sugestao("atalhos", "Groove Salad", "http://ice1.somafm.com/groovesalad-128-mp3"),
+    Sugestao("atalhos", "Secret Agent", "http://ice1.somafm.com/secretagent-128-mp3"),
+    Sugestao("atalhos", "Radio Paradise", "http://stream.radioparadise.com/mp3-192"),
+    Sugestao("atalhos", "Preset 1", "preset:1"),
+)
+
 TEXTOS = {
     "en": {
         "descricao": (
             "LinkPlay multiroom speaker (AudioCast, iEAST). Always on, so it declares no "
-            "power: volume, mute, input, transport, radios and presets, and native grouping."
+            "power: volume, mute, input, play, pause, stop, track, radios and presets, and "
+            "native grouping."
         ),
         "cap_fonte": (
             "Only the inputs the speaker declares are offered, and the input is refused "
@@ -258,15 +281,25 @@ TEXTOS = {
             "dismantles the group this speaker leads. Only speakers of the same kind."
         ),
         "cap_atalho": (
-            "A shortcut is a radio or a stream, written as its address, or a preset key of "
-            "the speaker itself, written as preset:1 up to the number of keys it has. In a "
-            "group it belongs to the master."
+            "A shortcut is a radio, written as the address of its stream "
+            "(http://ice1.somafm.com/groovesalad-128-mp3), or a preset key of the speaker "
+            "itself, written as preset:1 up to the number of keys it has. In a group it "
+            "belongs to the master."
+        ),
+        "lista_atalhos": (
+            "A radio is the address of its audio stream, which the speaker fetches by "
+            "itself: plain http, no redirect and no '?' in the address, for example "
+            "http://stream.radioparadise.com/mp3-192. Take it from the station itself or "
+            "from a public directory; the page of the station is not the stream. A preset "
+            "of the speaker is written preset:1 up to the number of keys it has, and plays "
+            "what was recorded on that key with the app of the manufacturer."
         ),
     },
     "pt": {
         "descricao": (
             "Caixa multiroom LinkPlay (AudioCast, iEAST). Sempre ligada, então não declara "
-            "energia: volume, mudo, entrada, transporte, rádios e presets, e agrupamento nativo."
+            "energia: volume, mudo, entrada, tocar, pausar, parar, faixa, rádios e presets, e "
+            "agrupamento nativo."
         ),
         "cap_fonte": (
             "Só as entradas que a caixa declara são oferecidas, e a entrada é recusada "
@@ -281,9 +314,18 @@ TEXTOS = {
             "que esta caixa lidera. Só caixas do mesmo tipo."
         ),
         "cap_atalho": (
-            "Um atalho é uma rádio ou um fluxo, escrito como o endereço dele, ou uma tecla de "
-            "preset da própria caixa, escrita como preset:1 até o número de teclas que ela tem. "
-            "Num grupo ele é do mestre."
+            "Um atalho é uma rádio, escrita como o endereço do fluxo dela "
+            "(http://ice1.somafm.com/groovesalad-128-mp3), ou uma tecla de preset da própria "
+            "caixa, escrita como preset:1 até o número de teclas que ela tem. Num grupo ele é "
+            "do mestre."
+        ),
+        "lista_atalhos": (
+            "Uma rádio é o endereço do fluxo de áudio dela, que a caixa busca sozinha: http "
+            "simples, sem redirecionamento e sem '?' no endereço, por exemplo "
+            "http://stream.radioparadise.com/mp3-192. Pegue o endereço com a própria estação "
+            "ou num diretório público; a página da estação não é o fluxo. Um preset da caixa "
+            "se escreve preset:1 até o número de teclas que ela tem, e toca o que foi gravado "
+            "naquela tecla pelo app do fabricante."
         ),
     },
 }
@@ -346,6 +388,7 @@ class LinkPlay(Driver):
             ACAO_FONTE,
             ACAO_TOCAR,
             ACAO_PAUSAR,
+            ACAO_PARAR,
             ACAO_PROXIMA,
             ACAO_ANTERIOR,
             ACAO_AGRUPAR,
@@ -354,6 +397,7 @@ class LinkPlay(Driver):
         descoberta=Descoberta(mdns_servicos=("_linkplay._tcp",)),
         textos=TEXTOS,
         motor="nativo",
+        sugestoes=SUGESTOES,
     )
 
     def __init__(self, cadastro: Cadastro) -> None:
@@ -557,6 +601,14 @@ class LinkPlay(Driver):
             return await self._tocar(valor)
         if acao == ACAO_PAUSAR:
             await self._mandar(MANDA_PAUSAR)
+            self._defina(reproduzindo=False, tocando=None)
+            return None
+        if acao == ACAO_PARAR:
+            # Why: a pause on a stream keeps the speaker connected to the radio, and a station
+            # that dropped the connection meanwhile never resumes; stop is what lets go of it.
+            # Por que: uma pausa num fluxo mantém a caixa conectada à rádio, e uma estação que
+            # derrubou a conexão nesse meio tempo nunca retoma; o stop é o que a solta.
+            await self._mandar(MANDA_PARAR)
             self._defina(reproduzindo=False, tocando=None)
             return None
         if acao == ACAO_PROXIMA:

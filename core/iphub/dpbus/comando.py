@@ -31,6 +31,7 @@ ACAO_MODO = "modo"
 ACAO_TECLA = "tecla"
 ACAO_TOCAR = "tocar"
 ACAO_PAUSAR = "pausar"
+ACAO_PARAR = "parar"
 ACAO_PROXIMA = "proxima"
 ACAO_ANTERIOR = "anterior"
 ACAO_EXTRA = "extra"
@@ -41,6 +42,7 @@ SEM_VALOR = (
     ACAO_MUDO,
     ACAO_TOCAR,
     ACAO_PAUSAR,
+    ACAO_PARAR,
     ACAO_PROXIMA,
     ACAO_ANTERIOR,
 )
@@ -61,6 +63,7 @@ CAPACIDADE_DA_ACAO = {
     ACAO_TECLA: "tecla",
     ACAO_TOCAR: "tocar",
     ACAO_PAUSAR: "pausar",
+    ACAO_PARAR: "parar",
     ACAO_PROXIMA: "proxima",
     ACAO_ANTERIOR: "anterior",
     ACAO_EXTRA: "comando_extra",

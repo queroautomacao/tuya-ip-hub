@@ -76,6 +76,7 @@ function itemDe(parcial: Partial<ItemCatalogo> = {}): ItemCatalogo {
     rotulo: { pt: "Caixa", en: "Speaker" },
     textos: { pt: {}, en: {} },
     config_campos: [],
+    sugestoes: [],
     ...parcial,
   };
 }

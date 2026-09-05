@@ -657,6 +657,7 @@ VALORES_ACEITOS = (
     ("desligar", None),
     ("tocar", None),
     ("pausar", None),
+    ("parar", None),
     ("proxima", None),
     ("anterior", None),
     ("volume", 0),
