@@ -852,3 +852,55 @@ async def test_um_driver_sem_sugestao_cadastra_com_a_lista_vazia(hub):
     assert (await _cadastrar(cliente, auth)).status == 200
     (equipamento,) = await _lista(cliente, auth)
     assert equipamento["listas"] == {}
+
+
+async def test_um_driver_de_nuvem_cadastra_sem_endereco_e_recusa_um(fabrica_cliente, posse, bearer):
+    """Section 1: a device with no local API is reached through the cloud of its maker, so its
+    registration carries no address; an address on one is somebody expecting the hub to dial
+    it, and it never will.
+
+    Seção 1: um aparelho sem API local é alcançado pela nuvem do fabricante, então o cadastro
+    dele não leva endereço; um endereço num deles é alguém esperando que o hub o disque, e ele
+    nunca vai.
+    """
+    from iphub.drivers.nativos.lg_thinq import LgThinq
+
+    cliente = await fabrica_cliente(catalogo={LgThinq.MANIFESTO.tipo: LgThinq})
+    auth = bearer(await posse(cliente))
+    corpo = {
+        "tipo": LgThinq.MANIFESTO.tipo,
+        "identidade": "ar-da-sala",
+        "nome": "Ar da sala",
+        "campos": {"pais": "BR", "token": "pat-de-teste-1234567890", "dispositivo": "abc123def456"},
+    }
+    resposta = await cliente.post("/api/equipamentos", json=corpo, headers=auth)
+    assert resposta.status == 200, await resposta.text()
+    listagem = await (await cliente.get("/api/equipamentos", headers=auth)).json()
+    cadastrado = listagem["equipamentos"][0]
+    assert cadastrado["ip"] == ""
+    # Why: section 9, the token is a secret of the registration and never comes back.
+    # Por que: seção 9, o token é segredo do cadastro e nunca volta.
+    assert "token" not in cadastrado["campos"]
+    assert cadastrado["segredos_definidos"] == ["token"]
+    resposta = await cliente.post(
+        "/api/equipamentos", json={**corpo, "identidade": "outro", "ip": "192.0.2.9"}, headers=auth
+    )
+    assert resposta.status == 400
+    assert (await resposta.json())["code"] == "ip_invalido"
+
+
+async def test_o_catalogo_diz_quais_drivers_sao_de_nuvem(fabrica_cliente, posse, bearer):
+    """The panel draws the form from the manifest, so it reads there that this one asks for a
+    credential and not for an address.
+
+    O painel desenha o formulário pelo manifesto, então lê ali que este pede credencial e não
+    endereço.
+    """
+    from iphub.drivers.nativos.lg_thinq import LgThinq
+
+    cliente = await fabrica_cliente(catalogo={LgThinq.MANIFESTO.tipo: LgThinq})
+    auth = bearer(await posse(cliente))
+    corpo = await (await cliente.get("/api/catalogo", headers=auth)).json()
+    item = next(linha for linha in corpo["catalogo"] if linha["tipo"] == LgThinq.MANIFESTO.tipo)
+    assert item["nuvem"] is True
+    assert item["auth"] == "chave"

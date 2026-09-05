@@ -60,6 +60,7 @@ function itemDe(parcial: Partial<ItemCatalogo> = {}): ItemCatalogo {
     textos: { pt: { descricao: "Um projetor" }, en: { descricao: "A projector" } },
     config_campos: [],
     sugestoes: [],
+    nuvem: false,
     ...parcial,
   };
 }

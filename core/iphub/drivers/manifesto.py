@@ -218,6 +218,13 @@ class Manifesto:
     teclas: tuple[str, ...] = ()
     modos: tuple[str, ...] = ()
     ventos: tuple[str, ...] = ()
+    # Why: section 1, a device with no local API at all is reached through the cloud of its
+    # maker, and then there is no address on the LAN to ask for or to validate; the identity
+    # is the id the cloud gives it and the discovery of section 6 has nothing to sweep.
+    # Por que: seção 1, um aparelho sem API local nenhuma é alcançado pela nuvem do fabricante,
+    # e aí não há endereço na LAN para pedir nem para validar; a identidade é o id que a nuvem
+    # dá a ele e a descoberta da seção 6 não tem o que varrer.
+    nuvem: bool = False
     # What this driver offers to fill the lists of a new registration with, section 8.
     # O que este driver oferece para preencher as listas de um cadastro novo, seção 8.
     sugestoes: tuple[Sugestao, ...] = ()
@@ -302,6 +309,7 @@ def validar(manifesto: Manifesto) -> None:
 def _problemas(manifesto: Manifesto) -> Iterator[str]:
     yield from _da_identidade(manifesto)
     yield from _da_descoberta(manifesto)
+    yield from _da_nuvem(manifesto)
     yield from _das_capacidades(manifesto)
     yield from _das_sugestoes(manifesto)
     yield from _do_rotulo(manifesto)
@@ -321,6 +329,33 @@ def _da_identidade(manifesto: Manifesto) -> Iterator[str]:
         yield f"auth: must be an Auth, found {manifesto.auth!r}"
     if not isinstance(manifesto.descoberta, Descoberta):
         yield f"descoberta: must be a Descoberta, found {manifesto.descoberta!r}"
+
+
+def _da_nuvem(manifesto: Manifesto) -> Iterator[str]:
+    """A cloud driver has nothing to sweep for and asks for a credential, never an address.
+
+    Um driver de nuvem não tem o que varrer e pede credencial, nunca endereço.
+    """
+    if not isinstance(manifesto.nuvem, bool):
+        yield f"nuvem: must be a bool, found {manifesto.nuvem!r}"
+        return
+    if not manifesto.nuvem:
+        return
+    descoberta = manifesto.descoberta
+    if isinstance(descoberta, Descoberta) and any(
+        getattr(descoberta, nome) for nome in ASSINATURAS
+    ):
+        # Why: a signature would put the device in the sweep plan of the LAN, where it will
+        # never answer, and the finding of a sweep is an address, which this driver has none of.
+        # Por que: uma assinatura poria o aparelho no plano de varredura da LAN, onde ele nunca
+        # responderá, e o achado de uma varredura é um endereço, que este driver não tem.
+        yield "nuvem: a cloud driver declares no descoberta signature"
+    if manifesto.auth is Auth.NENHUMA:
+        # Why: reaching a cloud means holding a credential of the customer, and section 9 has
+        # one place for that, which is the explicit autenticar of section 6.
+        # Por que: alcançar uma nuvem é guardar credencial do cliente, e a seção 9 tem um lugar
+        # só para isso, que é o autenticar explícito da seção 6.
+        yield "nuvem: a cloud driver authenticates, so auth cannot be NENHUMA"
 
 
 def _da_descoberta(manifesto: Manifesto) -> Iterator[str]:

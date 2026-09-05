@@ -92,7 +92,11 @@ export interface CorpoCadastro {
   tipo: string;
   identidade: string;
   nome: string;
-  ip: string;
+  // Why: section 1, a registration of a driver of the cloud of a maker carries no address at
+  // all, and the daemon refuses one that does; every other registration always carries it.
+  // Por que: seção 1, um cadastro de driver da nuvem de um fabricante não leva endereço
+  // nenhum, e o daemon recusa um que leve; todo outro cadastro sempre o leva.
+  ip?: string;
   campos: Record<string, string>;
   // Why: the lists of section 8 are edited on their own card, so the registration form never
   // sends them and the daemon keeps what it stores when the key is absent.
@@ -199,8 +203,12 @@ export function validarCadastro(
     return recusar("campo_invalido", "identidade");
   }
   if (!cabe(formulario.nome)) return recusar("campo_invalido", "nome");
-  const ip = formulario.ip.trim();
-  if (!ipLiteral(ip)) return recusar("ip_invalido", "ip");
+  // Why: section 1, a driver of the cloud of a maker has no address on the LAN, so the form
+  // neither asks for one nor sends one; every other driver keeps the literal ip rule exactly.
+  // Por que: seção 1, um driver da nuvem de um fabricante não tem endereço na LAN, então o
+  // formulário não pede nem manda um; todo outro driver mantém a regra do ip literal igual.
+  const ip = item.nuvem ? "" : formulario.ip.trim();
+  if (!item.nuvem && !ipLiteral(ip)) return recusar("ip_invalido", "ip");
   const campos: Record<string, string> = {};
   for (const campo of item.config_campos) {
     if (!anexar(campos, campo, formulario, guardados)) {
@@ -211,7 +219,7 @@ export function validarCadastro(
     tipo: item.tipo,
     identidade: formulario.identidade.trim(),
     nome: formulario.nome.trim(),
-    ip,
+    ...(item.nuvem ? {} : { ip }),
     campos,
   };
   return { ok: true, corpo };

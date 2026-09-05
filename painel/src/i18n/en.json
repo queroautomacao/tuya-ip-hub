@@ -67,6 +67,7 @@
   "cadastro_identidade_dica": "The device UUID, MAC or serial number. The IP is never the key: the discovery finds it again.",
   "cadastro_nome": "Name",
   "cadastro_ip": "IP address",
+  "cadastro_na_nuvem": "This device has no local API: the hub talks to the cloud of the maker, so there is no address to fill in. Fill the fields below and pair.",
   "cadastro_enviar": "Register",
   "cadastro_ok": "Equipment registered.",
   "catalogo_vazio": "This image ships no driver.",

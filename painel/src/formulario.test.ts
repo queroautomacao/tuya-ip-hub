@@ -32,6 +32,7 @@ function itemDe(parcial: Partial<ItemCatalogo> = {}): ItemCatalogo {
     textos: { pt: { descricao: "Um projetor" }, en: { descricao: "A projector" } },
     config_campos: [],
     sugestoes: [],
+    nuvem: false,
     ...parcial,
   };
 }
@@ -330,3 +331,26 @@ test("padroes offers the manifest default and never a secret (padroes oferece o 
   assert.deepEqual(padroes(item), { porta: "4352" });
   assert.deepEqual(padroes(undefined), {});
 });
+
+test("a cloud driver registers with no address and every other one still needs it (um driver de nuvem cadastra sem endereço e todo outro ainda o exige)", () => {
+  // Why: section 1, a device with no local API is reached through the cloud of its maker, so
+  // there is no address on this network to type; the rule of the literal ip is untouched for
+  // every driver that is not one of those.
+  // Por que: seção 1, um aparelho sem API local é alcançado pela nuvem do fabricante, então
+  // não há endereço nesta rede para digitar; a regra do ip literal fica intacta para todo
+  // driver que não é um desses.
+  const naNuvem = { ...itemDe(), tipo: "ar_lg_thinq", nuvem: true };
+  const formulario = { ...formularioDeTeste(), tipo: naNuvem.tipo, identidade: "ar-1", ip: "" };
+  const validado = validarCadastro(formulario, [naNuvem]);
+  assert.equal(validado.ok, true);
+  if (validado.ok) {
+    assert.equal("ip" in validado.corpo, false);
+    assert.equal(validado.corpo.identidade, "ar-1");
+  }
+  const local = { ...itemDe(), nuvem: false };
+  const semIp = { ...formularioDeTeste(), tipo: local.tipo, identidade: "eq-1", ip: "" };
+  const recusado = validarCadastro(semIp, [local]);
+  assert.equal(recusado.ok, false);
+  if (!recusado.ok) assert.equal(recusado.codigo, "ip_invalido");
+});
+

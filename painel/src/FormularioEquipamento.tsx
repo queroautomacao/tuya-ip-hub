@@ -144,17 +144,27 @@ export default function FormularioEquipamento({
         value={formulario.nome}
         onChange={(evento) => aoMudar({ ...formulario, nome: evento.target.value })}
       />
-      <label htmlFor={`${prefixo}-ip`}>{t("cadastro_ip")}</label>
-      <input
-        id={`${prefixo}-ip`}
-        name="ip"
-        type="text"
-        required
-        autoComplete="off"
-        spellCheck={false}
-        value={formulario.ip}
-        onChange={(evento) => aoMudar({ ...formulario, ip: evento.target.value })}
-      />
+      {/* Why: section 1, a driver of the cloud of a maker is reached over the internet and */}
+      {/* has no address on this network, so asking for one would be a field nobody can fill. */}
+      {/* Por que: seção 1, um driver da nuvem de um fabricante é alcançado pela internet e */}
+      {/* não tem endereço nesta rede, então pedir um seria campo que ninguém preenche. */}
+      {item?.nuvem === true ? (
+        <p className="dica">{t("cadastro_na_nuvem")}</p>
+      ) : (
+        <>
+          <label htmlFor={`${prefixo}-ip`}>{t("cadastro_ip")}</label>
+          <input
+            id={`${prefixo}-ip`}
+            name="ip"
+            type="text"
+            required
+            autoComplete="off"
+            spellCheck={false}
+            value={formulario.ip}
+            onChange={(evento) => aoMudar({ ...formulario, ip: evento.target.value })}
+          />
+        </>
+      )}
       {(item?.config_campos ?? []).map((campo) => (
         <EntradaCampo
           key={campo.nome}

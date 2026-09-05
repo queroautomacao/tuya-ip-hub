@@ -192,9 +192,7 @@ def _montar_cadastro(
     manifesto = manifestos.get(tipo) if isinstance(tipo, str) else None
     if manifesto is None:
         raise _Recusa(TIPO_DESCONHECIDO)
-    endereco = ip_literal(dados.get("ip"))
-    if endereco is None:
-        raise _Recusa(IP_INVALIDO)
+    endereco = _endereco_de(dados.get("ip"), manifesto)
     campos, segredos = _campos(manifesto, dados.get("campos", {}), anterior)
     cadastro = Cadastro(
         identidade=_identidade_do_corpo(dados, identidade),
@@ -212,6 +210,35 @@ def _montar_cadastro(
     if not perfil.cabe_em_qualquer_numero(cadastro, manifesto):
         raise _Recusa(PERFIL_LONGO)
     return cadastro
+
+
+def _endereco_de(bruto: object, manifesto: Manifesto) -> str:
+    """The address of the equipment, which a cloud driver does not have.
+
+    Why: section 9 keeps the hub from becoming a proxy of the LAN by taking nothing but an ip
+    literal, and section 1 says a device with no local API is reached through the cloud of its
+    maker, where there is no address to take. A driver that is not a cloud one keeps the rule
+    exactly as it was, so nothing else in the installation loosens.
+
+    O endereço do equipamento, que um driver de nuvem não tem.
+
+    Por que: a seção 9 impede o hub de virar proxy da LAN aceitando só IP literal, e a seção 1
+    diz que um aparelho sem API local é alcançado pela nuvem do fabricante, onde não há
+    endereço a aceitar. Um driver que não é de nuvem mantém a regra exatamente como era, então
+    nada mais da instalação afrouxa.
+    """
+    if manifesto.nuvem:
+        if bruto not in (None, ""):
+            # Why: an address on a cloud registration is somebody expecting the hub to dial it,
+            # and it never will; refusing it is what keeps that expectation from being silent.
+            # Por que: um endereço num cadastro de nuvem é alguém esperando que o hub o disque,
+            # e ele nunca vai; recusá-lo é o que impede essa expectativa de ficar calada.
+            raise _Recusa(IP_INVALIDO)
+        return ""
+    endereco = ip_literal(bruto)
+    if endereco is None:
+        raise _Recusa(IP_INVALIDO)
+    return endereco
 
 
 def _listas(

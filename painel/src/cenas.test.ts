@@ -77,6 +77,7 @@ function itemDe(parcial: Partial<ItemCatalogo> = {}): ItemCatalogo {
     textos: { pt: {}, en: {} },
     config_campos: [],
     sugestoes: [],
+    nuvem: false,
     ...parcial,
   };
 }

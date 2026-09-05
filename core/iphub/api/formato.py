@@ -63,6 +63,11 @@ def manifesto_json(manifesto: Manifesto) -> dict:
         # Por que: seção 8, uma lista do cadastro nasce vazia e os valores dela são strings do
         # protocolo do aparelho; o que o driver sugere é o que ensina a forma ao integrador,
         # então viaja com o manifesto e o painel a oferece.
+        # Why: section 1, a cloud driver has no address on the LAN, so the form of the panel
+        # asks for the credential and not for an ip that would never be dialled.
+        # Por que: seção 1, um driver de nuvem não tem endereço na LAN, então o formulário do
+        # painel pede a credencial e não um ip que nunca seria discado.
+        "nuvem": manifesto.nuvem,
         "sugestoes": [
             {"lista": s.lista, "rotulo": s.rotulo, "valor": s.valor} for s in manifesto.sugestoes
         ],

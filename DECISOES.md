@@ -13,6 +13,18 @@ que dá à plataforma Tuya o controle de equipamentos que só falam **IP**: caix
 de som multiroom, TVs, receivers, soundbars, projetores, matrizes HDMI, relés.
 A Tuya não alcança nada disso sozinha; o hub é a ponte.
 
+**Driver de nuvem** (decisão de 5/set/2026): a rede local é o caminho normal e
+continua sendo o primeiro a tentar, mas alguns aparelhos **não têm API local
+nenhuma** (o split LG ThinQ é o caso: a LG só publica a API de nuvem, e é por ela
+que o Home Assistant fala). Para esses, e só para esses, um driver nativo pode
+falar com a nuvem do fabricante, com quatro condições que a §9 cobra: o endereço
+é fixado pelo driver e nunca vem do cadastro, só HTTPS, nunca segue
+redirecionamento, e a credencial é um segredo do cadastro que nunca volta ao
+painel. Um manifesto que declara `nuvem` dispensa o campo `ip`, porque não existe
+endereço na LAN para validar, e a identidade do equipamento é o id que a nuvem dá.
+Um aparelho com API local nunca ganha driver de nuvem: a dependência de internet é
+uma perda para o cliente, não uma escolha de conveniência.
+
 Três peças, e só três:
 
 1. **Daemon** em Python (asyncio + aiohttp): fala com os aparelhos, guarda a
@@ -93,6 +105,7 @@ class Manifesto:
     ventos: tuple             # ar condicionado: subconjunto de VENTOS
     auth: Auth                # NENHUMA | POPUP_NO_APARELHO | CODIGO | CHAVE
     descoberta: Descoberta    # ssdp_st, ssdp_fabricantes, mdns_servicos
+    nuvem: bool               # o aparelho não tem API local; o cadastro não pede ip (§1)
     config_campos: tuple      # o que o cadastro pede além de ip (ex: porta)
     sugestoes: tuple          # itens que o driver oferece para as listas do cadastro (§8)
     textos: dict              # {"pt": {...}, "en": {...}} tudo que o painel mostra
@@ -179,7 +192,10 @@ Regras que o gestor impõe (e testa) para todo driver:
 - `estado()` é o dataclass acima. Chave nova no painel = campo novo aqui, com
   teste. Nunca "o driver X publica `modo` e o Y publica `modo_clima`".
 - Identidade de aparelho é UUID, MAC ou serial; **IP nunca é chave**. O IP é
-  re-resolvido por descoberta.
+  re-resolvido por descoberta. Num driver de **nuvem** (`nuvem=True` no manifesto)
+  a identidade é o id que a nuvem dá ao aparelho, o cadastro não pede `ip` e a
+  descoberta não existe: o integrador cola o id, e o `autenticar()` confere se ele
+  está na conta, registrando no log os que estão para ele achar o certo.
 - Toda mensagem que o painel mostra sobre o driver vem de `textos`, nos dois
   idiomas. O teste de paridade pt/en cobre os manifestos.
 - `CATALOGO` nasce de `pkgutil.iter_modules` sobre `drivers/nativos` mais os
@@ -432,7 +448,15 @@ driver existir:
 - Sem TLS local no beta: o README diz isso ao lado da URL do painel.
 - Container roda como **usuário não-root**; sem `docker.sock` montado.
 - O campo `ip` de qualquer rota que fala com aparelho é validado como IP
-  literal (sem nome, sem URL), para o hub não virar proxy da LAN.
+  literal (sem nome, sem URL), para o hub não virar proxy da LAN. Um cadastro de
+  driver de **nuvem** não leva `ip` nenhum, e um driver que não declara `nuvem`
+  continua exigindo o endereço literal.
+- **Nuvem do fabricante** (decisão de 5/set/2026, §1): o host é uma constante do
+  driver e nunca vem do cadastro, o esquema é sempre HTTPS, redirecionamento é
+  recusado, e a credencial (um token pessoal do dono da conta) é campo `segredo`
+  do cadastro: nasce no config.json 0600, nunca volta ao painel e nunca aparece
+  no log. O hub fala com a nuvem do fabricante e com mais ninguém; nenhuma rota
+  aceita URL de fora, então o hub não vira proxy da internet como não vira da LAN.
 - Toda resposta que a aplicação produz passa pelo portão, inclusive 500 (código
   `erro_interno`, sem traceback no corpo) e 417. A única exceção é o 400 que o
   parser HTTP do aiohttp emite para requisição malformada, antes de qualquer
@@ -581,6 +605,29 @@ Custaram dias. Estão aqui para o driver LinkPlay e o DP-bus nascerem certos.
 
 **DP-bus**: report otimista + releitura em 1,5 s funcionou com ack em ~30 ms.
 Nomes de equipamento, cena e grupo em JSON compacto cabem em 255 bytes com 6 equipamentos.
+
+**LG ThinQ (ar condicionado, lido na documentação da LG e no Home Assistant em
+5/set/2026)**: o split Wi-Fi da LG **não tem API local**; a única porta é a
+ThinQ Connect na nuvem, que é o que o `lg_thinq` do Home Assistant usa.
+- Base `https://api-{aic|eic|kic}.lgthinq.com/`, a região vem do país: BR, US e o
+  resto das Américas em `aic`, Europa/África/Oriente Médio em `eic`, Ásia em `kic`.
+- Cabeçalhos: `Authorization: Bearer <token pessoal>`, `x-api-key`
+  (constante pública do SDK da LG), `x-country`, `x-client-id`, `x-message-id`
+  (uuid em base64 por requisição), `x-service-phase: OP`.
+- `GET devices` lista a conta, `GET devices/{id}/profile` diz o que AQUELA
+  unidade aceita, `GET devices/{id}/state` lê, `POST devices/{id}/control` manda.
+  A resposta vem embrulhada em `{"response": {...}}`.
+- Comandos são pares recurso/propriedade: `{"operation": {"airConOperationMode":
+  "POWER_ON"}}`, `{"airConJobMode": {"currentJobMode": ...}}`, `{"temperature":
+  {"targetTemperature": N}}`, `{"airFlow": {"windStrength": ...}}`.
+- `x-conditional-control: true` faz a nuvem conferir o estado antes de agir; a
+  documentação manda usar **false** ao trocar o modo para refrigerar ou aquecer
+  com o aparelho ligado, senão o comando é recusado.
+- Com `airConOperationMode` em `POWER_OFF` o aparelho **não aceita comando**: é
+  preciso ligar primeiro.
+- As palavras de modo e de vento variam por modelo, então o driver as lê do
+  `profile` daquela unidade e casa com o vocabulário da §6 sem diferenciar caixa
+  nem sublinhado, em vez de embutir uma tabela que erra no primeiro modelo novo.
 
 **Receivers e TVs (das bibliotecas usadas)**: Denon aceita **uma** conexão
 telnet e briga com qualquer outro controlador, use só HTTP; Onkyo desligado

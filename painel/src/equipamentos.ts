@@ -170,6 +170,9 @@ export interface ItemCatalogo {
   // What the driver offers to fill a list of the registration with, section 8.
   // O que o driver oferece para preencher uma lista do cadastro, seção 8.
   sugestoes: Sugestao[];
+  // Section 1: the device has no local API, so the registration asks for no address.
+  // Seção 1: o aparelho não tem API local, então o cadastro não pede endereço.
+  nuvem: boolean;
 }
 
 export interface EstadoEquipamento {
@@ -265,6 +268,8 @@ export function lerItemCatalogo(valor: unknown): ItemCatalogo | null {
   if (config_campos === null) return null;
   const sugestoes = valor.sugestoes === undefined ? [] : lerLista(valor.sugestoes, lerSugestao);
   if (sugestoes === null) return null;
+  const nuvem = valor.nuvem === undefined ? false : valor.nuvem;
+  if (typeof nuvem !== "boolean") return null;
   // Why: the words and the product come from the manifest of section 6 through the daemon, so
   // the panel reads them and never decides which category speaks which word.
   // Por que: as palavras e o produto vêm do manifesto da seção 6 pelo daemon, então o painel os
@@ -291,6 +296,7 @@ export function lerItemCatalogo(valor: unknown): ItemCatalogo | null {
     textos,
     config_campos,
     sugestoes,
+    nuvem,
   };
 }
 

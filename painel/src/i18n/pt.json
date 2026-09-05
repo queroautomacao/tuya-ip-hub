@@ -67,6 +67,7 @@
   "cadastro_identidade_dica": "UUID, MAC ou número de série do aparelho. O IP nunca é a chave: a descoberta reencontra o IP.",
   "cadastro_nome": "Nome",
   "cadastro_ip": "Endereço IP",
+  "cadastro_na_nuvem": "Este aparelho não tem API local: o hub fala com a nuvem do fabricante, então não há endereço a preencher. Preencha os campos abaixo e pareie.",
   "cadastro_enviar": "Cadastrar",
   "cadastro_ok": "Equipamento cadastrado.",
   "catalogo_vazio": "Esta imagem não traz nenhum driver.",
