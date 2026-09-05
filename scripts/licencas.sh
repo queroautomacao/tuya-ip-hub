@@ -2,13 +2,13 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Quero Automação Ltda
 #
-# License gate for the runtime dependencies of core (CLAUDE.md, section 10):
+# License gate for the runtime dependencies of core (DECISOES.md, section 10):
 # MIT, BSD, ISC and Apache-2.0 enter, plus the Python Software Foundation
 # License (Python itself and the aiohttp helpers); anything else fails. Only the runtime
 # dependencies are installed, in a throwaway venv, so dev tooling never shows
 # up in the table. Usage: scripts/licencas.sh (PYTHON=... picks the interpreter)
 #
-# Portão de licenças das dependências de execução do core (CLAUDE.md, seção 10):
+# Portão de licenças das dependências de execução do core (DECISOES.md, seção 10):
 # MIT, BSD, ISC e Apache-2.0 entram, mais a Python Software Foundation License
 # (o próprio Python e as auxiliares do aiohttp); qualquer outra falha. Só as dependências
 # de execução são instaladas, num venv descartável, para ferramenta de dev

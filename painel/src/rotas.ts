@@ -17,9 +17,10 @@ export type Rota =
   | { tela: "cenas" }
   | { tela: "simulador" }
   | { tela: "drivers" }
+  | { tela: "diario" }
   | { tela: "conta" };
 
-export type Aba = "inicio" | "cenas" | "simulador" | "drivers" | "conta";
+export type Aba = "inicio" | "cenas" | "simulador" | "drivers" | "diario" | "conta";
 
 // The tabs of the navigation, in the order they are drawn; the label is an i18n key.
 // As abas da navegação, na ordem em que são desenhadas; o rótulo é uma chave de i18n.
@@ -28,6 +29,7 @@ export const ABAS: readonly { aba: Aba; rota: Rota; chave: `nav_${Aba}` }[] = [
   { aba: "cenas", rota: { tela: "cenas" }, chave: "nav_cenas" },
   { aba: "simulador", rota: { tela: "simulador" }, chave: "nav_simulador" },
   { aba: "drivers", rota: { tela: "drivers" }, chave: "nav_drivers" },
+  { aba: "diario", rota: { tela: "diario" }, chave: "nav_diario" },
   { aba: "conta", rota: { tela: "conta" }, chave: "nav_conta" },
 ];
 
@@ -98,6 +100,7 @@ export function lerRota(hash: string): Rota {
     primeiro === "cenas" ||
     primeiro === "simulador" ||
     primeiro === "drivers" ||
+    primeiro === "diario" ||
     primeiro === "conta"
   ) {
     return { tela: primeiro };

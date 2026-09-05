@@ -44,9 +44,19 @@ def preparar(amb: Ambiente) -> web.Application:
 
 
 def main() -> int:
+    # Why: the diary of the panel wants every command a driver wrote, which is DEBUG, and the
+    # log of the container wants the lines a human reads while it boots, which is INFO. The
+    # logger goes down to DEBUG so the diary sees everything, and the handler that writes to
+    # the terminal keeps its own floor so the container log stays readable.
+    # Por que: o diário do painel quer todo comando que um driver escreveu, que é DEBUG, e o
+    # log do container quer as linhas que um humano lê enquanto ele sobe, que é INFO. O logger
+    # desce para DEBUG para o diário ver tudo, e o handler que escreve no terminal guarda o
+    # piso dele para o log do container seguir legível.
     logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+        level=logging.DEBUG, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
+    for handler in logging.getLogger().handlers:
+        handler.setLevel(logging.INFO)
     try:
         amb = Ambiente.do_ambiente()
         app = preparar(amb)

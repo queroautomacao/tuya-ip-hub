@@ -105,6 +105,10 @@ CAMINHO = "/httpapi.asp?command="
 PEDE_IDENTIDADE = "getStatusEx"
 PEDE_ESTADO = "getPlayerStatus"
 PEDE_ESCRAVOS = "multiroom:getSlaveList"
+
+# The two questions of the poll, which answer the same thing every five seconds.
+# As duas perguntas do poll, que respondem a mesma coisa a cada cinco segundos.
+PERGUNTAS = (PEDE_IDENTIDADE, PEDE_ESTADO)
 MANDA_VOLUME = "setPlayerCmd:vol:{valor}"
 MANDA_TOCAR = "setPlayerCmd:play:{valor}"
 MANDA_RETOMAR = "setPlayerCmd:resume"
@@ -294,19 +298,10 @@ TEXTOS = {
             "itself, written as preset:1 up to the number of keys it has. In a group it "
             "belongs to the master."
         ),
-        "lista_entradas": (
-            "The values are the ones this speaker answers: wifi is the network, and the "
-            "physical ones are line-in, bluetooth, udisk and optical, only the ones its "
-            "plm_support declares. The panel offers exactly what this speaker answered, so "
-            "one press fills the list; the label is yours to name."
-        ),
+        "lista_entradas": "wifi is the network; the physical ones are the ones below.",
         "lista_atalhos": (
-            "A radio is the address of its audio stream, which the speaker fetches by "
-            "itself: plain http, no redirect and no '?' in the address, for example "
-            "http://stream.radioparadise.com/mp3-192. Take it from the station itself or "
-            "from a public directory; the page of the station is not the stream. A preset "
-            "of the speaker is written preset:1 up to the number of keys it has, and plays "
-            "what was recorded on that key with the app of the manufacturer."
+            "The address of a stream (plain http, no '?'), or preset:1 for a key of the "
+            "speaker. The page of a station is not its stream."
         ),
     },
     "pt": {
@@ -334,19 +329,10 @@ TEXTOS = {
             "caixa, escrita como preset:1 até o número de teclas que ela tem. Num grupo ele é "
             "do mestre."
         ),
-        "lista_entradas": (
-            "Os valores são os que esta caixa responde: wifi é a rede, e as físicas são "
-            "line-in, bluetooth, udisk e optical, só as que o plm_support dela declara. O "
-            "painel oferece exatamente o que esta caixa respondeu, então uma apertada "
-            "preenche a lista; o rótulo é você quem nomeia."
-        ),
+        "lista_entradas": "wifi é a rede; as físicas são as de baixo.",
         "lista_atalhos": (
-            "Uma rádio é o endereço do fluxo de áudio dela, que a caixa busca sozinha: http "
-            "simples, sem redirecionamento e sem '?' no endereço, por exemplo "
-            "http://stream.radioparadise.com/mp3-192. Pegue o endereço com a própria estação "
-            "ou num diretório público; a página da estação não é o fluxo. Um preset da caixa "
-            "se escreve preset:1 até o número de teclas que ela tem, e toca o que foi gravado "
-            "naquela tecla pelo app do fabricante."
+            "O endereço de um fluxo (http simples, sem '?'), ou preset:1 para uma tecla da "
+            "caixa. A página de uma estação não é o fluxo dela."
         ),
     },
 }
@@ -880,6 +866,11 @@ class LinkPlay(Driver):
         Seção 14: um poll perdido guarda o último estado, dois seguidos é offline.
         """
         self._falhas += 1
+        # Why: a poll that failed is the first line of every diagnosis of a speaker that
+        # "does nothing", and it is the one thing the diary must never be quiet about.
+        # Por que: um poll que falhou é a primeira linha de todo diagnóstico de uma caixa que
+        # "não faz nada", e é a única coisa sobre a qual o diário nunca pode ficar calado.
+        log.warning("%s: poll %d failed with %s", self.cadastro.identidade, self._falhas, codigo)
         if self._falhas < FALHAS_ATE_OFFLINE:
             return
         # Why: section 14, a speaker that went away comes back by its identity in about 50 s,
@@ -961,6 +952,22 @@ class LinkPlay(Driver):
                     estado = resposta.status
             except (TimeoutError, ClientError, OSError, ValueError) as erro:
                 raise _Falha(EQ_OFFLINE) from erro
+        # Why: the diary of the panel is a thousand lines, and a poll every five seconds on
+        # twelve speakers would fill it with two questions that always answer the same thing,
+        # evicting the commands that are the reason anybody opens it. A poll that FAILS is
+        # loud on its own, one line up in the code and at warning level.
+        # Por que: o diário do painel são mil linhas, e um poll a cada cinco segundos em doze
+        # caixas o encheria com duas perguntas que respondem sempre a mesma coisa, expulsando
+        # os comandos que são a razão de alguém o abrir. Um poll que FALHA é barulhento por
+        # conta própria, uma linha acima no código e em nível de aviso.
+        if estado != 200 or comando not in PERGUNTAS:
+            log.debug(
+                "%s <- %s -> HTTP %d %s",
+                self.cadastro.identidade,
+                comando,
+                estado,
+                bruto[:120].decode("utf-8", errors="replace").strip(),
+            )
         if estado >= 400:
             log.warning("the speaker answered HTTP %d to %s", estado, comando)
             raise _Falha(ERRO_APARELHO)

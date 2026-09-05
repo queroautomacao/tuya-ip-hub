@@ -8,7 +8,7 @@
 // compartilhados pelo início e pela tela de detalhe, então moram aqui, escritos uma vez;
 // nenhuma das telas decide como a lista é lida.
 
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Controles from "./ControlesEquipamento.tsx";
 import EditarEquipamento from "./EditarEquipamento.tsx";
 import {
@@ -65,6 +65,14 @@ export function usarEquipamentos(): Leitura & { recarregar: () => Promise<void> 
   return { ...leitura, recarregar };
 }
 
+// Why: the readings of the state are what the controls above already show, so repeating them
+// here made the first card of the screen the longest one on it and pushed the keys the
+// operator came for below the fold. What stays is what nothing else says: where the equipment
+// answers, what it calls itself, and the fields of its registration.
+// Por que: as leituras do estado são o que os controles acima já mostram, então repeti-las
+// aqui fazia do primeiro cartão da tela o mais comprido dela e empurrava para baixo as teclas
+// que o operador veio apertar. Fica o que mais nada diz: onde o equipamento responde, como ele
+// se chama, e os campos do cadastro dele.
 export function Linhas({
   equipamento,
   item,
@@ -76,39 +84,39 @@ export function Linhas({
 }) {
   const nomeDoCampo = (nome: string): string =>
     textoDoManifesto(item, idioma, `campo_${nome}`) || nome;
+  const detalhe = linhasDoEstado(equipamento.estado).find((linha) => linha.especie === "codigo");
   return (
-    <dl>
-      <dt>{t("equipamentos_endereco")}</dt>
-      <dd>{equipamento.ip}</dd>
-      <dt>{t("equipamentos_identidade")}</dt>
-      <dd>{equipamento.identidade}</dd>
+    <dl className="ficha-tecnica">
+      <div>
+        <dt>{t("equipamentos_endereco")}</dt>
+        <dd>{equipamento.ip}</dd>
+      </div>
+      <div>
+        <dt>{t("equipamentos_identidade")}</dt>
+        <dd>{equipamento.identidade}</dd>
+      </div>
       {camposVisiveis(item, equipamento.campos).map(({ nome, valor }) => (
-        <Fragment key={`campo-${nome}`}>
+        <div key={`campo-${nome}`}>
           <dt>{nomeDoCampo(nome)}</dt>
           <dd>{valor}</dd>
-        </Fragment>
+        </div>
       ))}
       {equipamento.segredos_definidos.map((nome) => (
-        <Fragment key={`segredo-${nome}`}>
+        <div key={`segredo-${nome}`}>
           <dt>{nomeDoCampo(nome)}</dt>
           <dd className="texto-suave">{t("segredo_definido")}</dd>
-        </Fragment>
+        </div>
       ))}
-      {linhasDoEstado(equipamento.estado).map((linha) => (
-        <Fragment key={`estado-${linha.campo}`}>
-          <dt>{t(`estado_${linha.campo}` as const)}</dt>
-          <dd>
-            {linha.especie === "logico" && t(linha.logico ? "sim" : "nao")}
-            {linha.especie === "numero" && String(linha.numero)}
-            {linha.especie === "texto" && linha.texto}
-            {/* Why: detalhe is a code of a fixed vocabulary, so the panel translates it */}
-            {/* like any other code and never prints a phrase the daemon invented. */}
-            {/* Por que: detalhe é um código de vocabulário fixo, então o painel o traduz */}
-            {/* como qualquer código e nunca imprime uma frase que o daemon inventou. */}
-            {linha.especie === "codigo" && t(`detalhe_${linha.codigo}` as const)}
-          </dd>
-        </Fragment>
-      ))}
+      {/* Why: detalhe is a code of a fixed vocabulary and it is the one reading that says why */}
+      {/* an equipment is offline, which no control above can show. */}
+      {/* Por que: detalhe é código de vocabulário fixo e é a única leitura que diz por que um */}
+      {/* equipamento está offline, que nenhum controle acima consegue mostrar. */}
+      {detalhe !== undefined && detalhe.especie === "codigo" && (
+        <div>
+          <dt>{t("estado_detalhe")}</dt>
+          <dd>{t(`detalhe_${detalhe.codigo}` as const)}</dd>
+        </div>
+      )}
     </dl>
   );
 }
@@ -118,6 +126,8 @@ export function CartaoEquipamento({
   item,
   idioma,
   papel = "",
+  apos,
+  configuracoes,
   aoMudar,
   aoRemover,
 }: {
@@ -125,6 +135,10 @@ export function CartaoEquipamento({
   item: ItemCatalogo | undefined;
   idioma: Idioma;
   papel?: Papel;
+  // What goes right under the controls, and what goes inside the card of the setup.
+  // O que vai logo abaixo dos controles, e o que vai dentro do cartão de configuração.
+  apos?: ReactNode;
+  configuracoes?: ReactNode;
   aoMudar: () => void;
   aoRemover: () => void;
 }) {
@@ -164,12 +178,24 @@ export function CartaoEquipamento({
 
   const ajuda = textoDoManifesto(item, idioma, "auth_ajuda");
   const capacidades = item?.capacidades ?? [];
+  // Why: the operator opens this screen to press something, so the keys come first and
+  // everything that is read and not pressed comes after them: the group right below, because
+  // it changes what the keys do, then the technical card, then the whole of the setup under
+  // one roof instead of three cards deep down the page.
+  // Por que: o operador abre esta tela para apertar algo, então as teclas vêm primeiro e tudo
+  // que é lido e não apertado vem depois delas: o grupo logo abaixo, porque ele muda o que as
+  // teclas fazem, depois a ficha técnica, e por fim toda a configuração sob um teto só em vez
+  // de três cartões lá embaixo.
   return (
     <div className="detalhe">
       <section className={`cartao ${equipamento.estado.online ? "cartao-online" : "cartao-offline"}`}>
+        {/* Why: the card that carries the keys is titled with the name of what they command, */}
+        {/* which is the one label an operator needs on the first card of the screen. */}
+        {/* Por que: o cartão que leva as teclas se intitula com o nome do que elas comandam, */}
+        {/* que é o único rótulo de que um operador precisa no primeiro cartão da tela. */}
         <div className="equipamento-cabeca">
           <div>
-            <h3>{equipamento.nome || equipamento.identidade}</h3>
+            <h2>{equipamento.nome || equipamento.identidade}</h2>
             <p className="texto-suave">{rotuloDoTipo(item, idioma, equipamento.tipo)}</p>
           </div>
           <p className="estado-curto">
@@ -177,10 +203,6 @@ export function CartaoEquipamento({
             {equipamento.estado.online ? t("equipamentos_online") : t("equipamentos_offline")}
           </p>
         </div>
-        <Linhas equipamento={equipamento} item={item} idioma={idioma} />
-      </section>
-      <section className="cartao">
-        <h2>{t("detalhe_controles")}</h2>
         {capacidades.length === 0 && <p className="texto-suave">{t("detalhe_sem_controle")}</p>}
         <Controles
           capacidades={capacidades}
@@ -219,8 +241,13 @@ export function CartaoEquipamento({
           </p>
         )}
       </section>
+      {apos}
+      <section className="cartao cartao-compacto">
+        <Linhas equipamento={equipamento} item={item} idioma={idioma} />
+      </section>
       <section className="cartao">
-        <h2>{t("detalhe_cadastro")}</h2>
+        <h2>{t("detalhe_configuracoes")}</h2>
+        <h3>{t("detalhe_cadastro")}</h3>
         {editando && item !== undefined ? (
           <EditarEquipamento
             equipamento={equipamento}
@@ -269,6 +296,7 @@ export function CartaoEquipamento({
             </button>
           </div>
         )}
+        {configuracoes}
       </section>
     </div>
   );

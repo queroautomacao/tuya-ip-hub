@@ -118,7 +118,7 @@
 .teclado {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem;
+  gap: 0.65rem;
 }
 
 .teclado {
@@ -136,8 +136,12 @@
 }
 
 .ficha[aria-pressed="true"] {
-  background: var(--acento);
-  color: var(--acento-texto, #fff);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--acento-botao) 84%, #ffffff),
+    var(--acento-botao)
+  );
+  color: #ffffff;
   border-color: transparent;
 }
 

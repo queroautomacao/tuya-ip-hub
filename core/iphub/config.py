@@ -220,7 +220,7 @@ def salvar(cfg: Config, dir_data: Path) -> None:
 
 def _conserto(dir_data: Path) -> str:
     return (
-        f"Section 2.4 of CLAUDE.md forbids migration code, so the fix is to erase the data "
+        f"Section 2.4 of DECISOES.md forbids migration code, so the fix is to erase the data "
         f"directory ({dir_data}) and configure the hub again."
     )
 

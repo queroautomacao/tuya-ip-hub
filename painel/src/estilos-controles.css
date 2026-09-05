@@ -293,3 +293,49 @@
   color: var(--texto-suave);
   overflow-wrap: anywhere;
 }
+
+/* The technical card: the few facts nothing else on the screen says, in pairs that wrap
+   instead of a column of rows as tall as the card above it.
+   A ficha técnica: os poucos fatos que mais nada na tela diz, em pares que quebram linha em
+   vez de uma coluna de linhas tão alta quanto o cartão acima dela. */
+.cartao-compacto {
+  padding: 0.9rem 1.2rem;
+}
+
+.ficha-tecnica {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.6rem;
+  margin: 0;
+}
+
+.ficha-tecnica > div {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.ficha-tecnica dt {
+  color: var(--texto-suave);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.ficha-tecnica dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A block of the settings card: a heading and its own breathing room, so three of them read
+   as three subjects and not as one long form.
+   Um bloco do cartão de configurações: um título e o respiro dele, para três deles se lerem
+   como três assuntos e não como um formulário comprido. */
+.bloco-de-configuracao {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 1.1rem;
+  margin-top: 1.1rem;
+  border-top: 1px solid var(--borda);
+}

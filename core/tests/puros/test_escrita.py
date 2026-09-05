@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Quero Automação Ltda
-"""Repository-wide writing rules from CLAUDE.md sections 10 and 11.
+"""Repository-wide writing rules from DECISOES.md sections 10 and 11.
 
-Regras de escrita do repositório inteiro, seções 10 e 11 do CLAUDE.md.
+Regras de escrita do repositório inteiro, seções 10 e 11 do DECISOES.md.
 """
 
 import json

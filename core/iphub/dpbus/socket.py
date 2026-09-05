@@ -552,12 +552,27 @@ class Barramento:
             # ruim não pode derrubar um socket que carrega uma licença inteira.
             leitura = protocolo.ler_quadro(bruto, produto)
             if leitura.consulta:
+                log.debug("%s: consulta %s", licenca, leitura.id)
                 await self._mandar(ws, self.snapshot(licenca, leitura.id))
                 continue
             if leitura.pedido is None:
+                log.debug("%s: quadro recusado, %s", licenca, leitura.codigo)
                 await self._mandar(ws, protocolo.ack(leitura.id, leitura.codigo))
                 continue
+            # Why: this line and the ack below are the two halves of what the bridge of the
+            # platform asked for, and the diary of the panel is where the integrator reads
+            # whether a button of the app of the customer ever reached the hub at all.
+            # Por que: esta linha e o ack abaixo são as duas metades do que a ponte da
+            # plataforma pediu, e o diário do painel é onde o integrador lê se um botão do app
+            # do cliente chegou ao hub.
+            log.debug(
+                "%s: set dp %d = %r",
+                licenca,
+                leitura.pedido.dp.dpid,
+                leitura.pedido.valor,
+            )
             codigo = await self.aplicar(licenca, leitura.pedido.dp.dpid, leitura.pedido.valor)
+            log.debug("%s: dp %d -> %s", licenca, leitura.pedido.dp.dpid, codigo or "ok")
             await self._mandar(ws, protocolo.ack(leitura.id, codigo))
 
     async def _otimista(self, licenca: str, dp: mapa.Dp, valor: object) -> None:
@@ -649,6 +664,7 @@ class Barramento:
             return
         canal.ultimos[dp.dpid] = valor
         canal.publicados[dp.dpid] = self._agora()
+        log.debug("report dp %d = %r para %d ouvinte(s)", dp.dpid, valor, len(canal.clientes))
         # Why: a report nobody is listening to never reaches the cloud, so it does not spend
         # the budget of the day; the books are still written, so a bridge that connects later
         # gets no burst of everything the hub already knew, only what changes from then on.

@@ -1,0 +1,143 @@
+/* SPDX-License-Identifier: AGPL-3.0-only
+   Copyright (C) 2026 Quero Automação Ltda
+
+   The diary: a terminal on the panel. Monospace, the newest line at the bottom, the origin of
+   each line in a colour so the eye separates three stories read together, and everything
+   inside a box that scrolls on its own so the page never grows with the log.
+   O diário: um terminal no painel. Monoespaçada, a linha mais nova embaixo, a origem de cada
+   linha numa cor para o olho separar três histórias lidas juntas, e tudo dentro de uma caixa
+   que rola sozinha para a página nunca crescer com o log. */
+
+.diario-barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.diario-busca {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.diario-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.9rem;
+  margin-bottom: 0.75rem;
+}
+
+.diario-seguir {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+}
+
+.diario-seguir input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--destaque);
+}
+
+.diario-caixa {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  height: min(60vh, 34rem);
+  min-height: 14rem;
+  margin: 0;
+  padding: 0.85rem 1rem;
+  overflow: auto;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-interno);
+  background: var(--campo);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diario-caixa:focus-visible {
+  outline: 2px solid var(--destaque);
+  outline-offset: 2px;
+}
+
+.diario-linha {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: baseline;
+}
+
+.diario-hora {
+  color: var(--texto-suave);
+  font-variant-numeric: tabular-nums;
+}
+
+.diario-origem {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.origem-driver {
+  color: #2f8f5b;
+}
+
+.origem-tuya {
+  color: #3f6fd8;
+}
+
+.origem-painel {
+  color: #a4632a;
+}
+
+.origem-hub {
+  color: var(--texto-suave);
+}
+
+.diario-texto {
+  min-width: 0;
+}
+
+.nivel-warning .diario-texto {
+  color: #a4632a;
+}
+
+.nivel-error .diario-texto,
+.nivel-critical .diario-texto {
+  color: var(--erro);
+  font-weight: 600;
+}
+
+@media (prefers-color-scheme: dark) {
+  .origem-driver {
+    color: #6fd39b;
+  }
+
+  .origem-tuya {
+    color: #92b1ff;
+  }
+
+  .origem-painel,
+  .nivel-warning .diario-texto {
+    color: #ffc470;
+  }
+}
+
+@media (max-width: 640px) {
+  .diario-linha {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .diario-origem {
+    grid-column: 2;
+  }
+
+  .diario-texto {
+    grid-column: 1 / -1;
+  }
+}

@@ -55,6 +55,7 @@ export default function DetalheEquipamento({
   const { catalogo, lista, erro, recarregar } = usarEquipamentos();
   const licencas = usarLicencas();
   const equipamento = lista?.find((candidato) => candidato.identidade === identidade);
+  const item = (catalogo ?? []).find((candidato) => candidato.tipo === equipamento?.tipo);
   const papel = onde(licencas, identidade)?.numero.papel ?? "";
   return (
     <>
@@ -80,20 +81,22 @@ export default function DetalheEquipamento({
         <>
           <CartaoEquipamento
             equipamento={equipamento}
-            item={(catalogo ?? []).find((candidato) => candidato.tipo === equipamento.tipo)}
+            item={item}
             idioma={idioma}
             papel={papel}
+            apos={<NumeroNoApp equipamento={equipamento} item={item} somenteGrupo />}
+            configuracoes={
+              <>
+                <NumeroNoApp equipamento={equipamento} item={item} />
+                <ListasDoPainel
+                  equipamento={equipamento}
+                  item={item}
+                  aoMudar={() => void recarregar()}
+                />
+              </>
+            }
             aoMudar={() => void recarregar()}
             aoRemover={() => irPara({ tela: "inicio" })}
-          />
-          <NumeroNoApp
-            equipamento={equipamento}
-            item={(catalogo ?? []).find((candidato) => candidato.tipo === equipamento.tipo)}
-          />
-          <ListasDoPainel
-            equipamento={equipamento}
-            item={(catalogo ?? []).find((candidato) => candidato.tipo === equipamento.tipo)}
-            aoMudar={() => void recarregar()}
           />
         </>
       )}

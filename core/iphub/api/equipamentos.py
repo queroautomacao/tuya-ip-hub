@@ -456,6 +456,7 @@ async def acao(request: web.Request) -> web.Response:
     # nunca cai num escravo que a recusaria ou quebraria o grupo. Só um escravo toma esse
     # caminho: o livro o serializa atrás de todo set da licença, e um equipamento solo ou o
     # mestre responde por si tão rápido quanto sempre respondeu.
+    log.debug("painel: %s %s %r", identidade, nome, valor)
     if nome in ACOES_ROTEADAS and livro.segue_um_mestre(identidade):
         codigo = await livro.acionar(identidade, nome, valor)
         return resposta_ok() if codigo is None else _erro(_do_barramento(codigo))

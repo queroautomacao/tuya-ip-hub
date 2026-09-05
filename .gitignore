@@ -10,6 +10,12 @@
 # Documento de fabricante nunca entra no repositório (redistribuição).
 *.pdf
 
+# Notes for the assistant of whoever is working here: a local file, pointing at
+# DECISOES.md, which is where the decisions of the project actually live.
+# Anotações para o assistente de quem estiver trabalhando aqui: arquivo local,
+# apontando para o DECISOES.md, que é onde as decisões do projeto moram.
+/CLAUDE.md
+
 # Local environment files: Docker Compose reads a .env in the project directory
 # for the ${IPHUB_IMAGEM} interpolation and Vite bakes every VITE_* value of
 # painel/.env into the bundle, so a secret in one of them would be published.

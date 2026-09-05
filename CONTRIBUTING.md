@@ -4,7 +4,7 @@
 
 ## English
 
-Thank you for helping. This document is short on purpose: the rules below are the ones the CI enforces, so reading them first saves a round trip on your pull request. The decisions behind them are in [CLAUDE.md](CLAUDE.md), which the code obeys.
+Thank you for helping. This document is short on purpose: the rules below are the ones the CI enforces, so reading them first saves a round trip on your pull request. The decisions behind them are in [DECISOES.md](DECISOES.md), which the code obeys.
 
 ### 1. The CLA comes first
 
@@ -22,7 +22,7 @@ Signing once covers all your future contributions under that version of the CLA.
 
 Everything the panel, the discovery, the scenes and the DP-bus know about a device comes from the driver's manifest (`Manifesto`). There are two driver engines, and only two:
 
-- **Declarative driver (JSON)**: the main path for the community, and the one to try first. A JSON file describes the transport (a line of text on a TCP port, a simple HTTP request, or UDP), the commands, and how to read state back (a regex or a JSON path). It is data, not a program: no conditionals, no loops, no expressions, no arithmetic. The whole format is section 7 of [CLAUDE.md](CLAUDE.md), and the image carries one worked example of each transport in `core/iphub/drivers/catalogo_json/`: an HDMI matrix over TCP, a relay board over HTTP and an audio amplifier over UDP. The daemon validates the file when it is saved, answering an error code per field, and loads it without restarting the hub; a file that does not validate is refused and logged, and never costs the boot. It fits any device that takes a line of text on a TCP port or a simple HTTP request.
+- **Declarative driver (JSON)**: the main path for the community, and the one to try first. A JSON file describes the transport (a line of text on a TCP port, a simple HTTP request, or UDP), the commands, and how to read state back (a regex or a JSON path). It is data, not a program: no conditionals, no loops, no expressions, no arithmetic. The whole format is section 7 of [DECISOES.md](DECISOES.md), and the image carries one worked example of each transport in `core/iphub/drivers/catalogo_json/`: an HDMI matrix over TCP, a relay board over HTTP and an audio amplifier over UDP. The daemon validates the file when it is saved, answering an error code per field, and loads it without restarting the hub; a file that does not validate is refused and logged, and never costs the boot. It fits any device that takes a line of text on a TCP port or a simple HTTP request.
 - **Native driver (Python)**: for protocols that need a library (pairing with a popup on the TV, multiroom grouping, and so on). A Python class implementing the `Driver` contract, with the same `Manifesto` as every other driver, compiled into the image. `core/iphub/drivers/nativos/pjlink.py` is the one that ships today.
 
 A declarative driver lives in one of three places, and they are not the same thing:
@@ -67,7 +67,7 @@ The CI has a test for most of these, so a pull request that ignores them fails b
   ```
 
 - **The API returns codes, not phrases**: every response is `{"ok": bool, "code": str|null, ...}`, the code is stable (`nao_encontrado`, `host_nao_permitido`, `painel_ausente`, ...) and the panel translates it. Log lines are in English.
-- **Identifiers follow the contract in CLAUDE.md**, in Portuguese (`versao`, `portao`, `saude`, `painel`, `Manifesto`, `Estado`). Do not rename them.
+- **Identifiers follow the contract in DECISOES.md**, in Portuguese (`versao`, `portao`, `saude`, `painel`, `Manifesto`, `Estado`). Do not rename them.
 - **A module does one thing**, and there is no line limit. A big file is a problem when it does two things; then it is split.
 - Do not cite other automation projects or products in code, comments or docs; describe what the code does. Naming the controlled brands (Denon, Samsung, LG, Sony, Onkyo, Yamaha, Roku, Sonos, LinkPlay, Tuya) is fine.
 - No real network addresses (examples use `192.0.2.x`), no prices, suppliers, customers or people's names.
@@ -113,7 +113,7 @@ Do not report vulnerabilities in a public issue or pull request. Read [SECURITY.
 
 ## Português
 
-Obrigado por ajudar. Este documento é curto de propósito: as regras abaixo são as que o CI impõe, então lê-las antes poupa uma volta no seu pull request. As decisões por trás delas estão em [CLAUDE.md](CLAUDE.md), que o código obedece.
+Obrigado por ajudar. Este documento é curto de propósito: as regras abaixo são as que o CI impõe, então lê-las antes poupa uma volta no seu pull request. As decisões por trás delas estão em [DECISOES.md](DECISOES.md), que o código obedece.
 
 ### 1. O CLA vem primeiro
 
@@ -131,7 +131,7 @@ Assinar uma vez cobre todas as suas contribuições futuras sob aquela versão d
 
 Tudo que o painel, a descoberta, as cenas e o DP-bus sabem de um aparelho vem do manifesto do driver (`Manifesto`). Há dois motores de driver, e só dois:
 
-- **Driver declarativo (JSON)**: o caminho principal da comunidade, e o primeiro a tentar. Um arquivo JSON descreve o transporte (uma linha de texto numa porta TCP, uma requisição HTTP simples ou UDP), os comandos e como ler o estado de volta (uma regex ou um caminho JSON). É dado, não programa: sem condicional, sem laço, sem expressão, sem aritmética. O formato inteiro é a seção 7 do [CLAUDE.md](CLAUDE.md), e a imagem carrega um exemplo pronto de cada transporte em `core/iphub/drivers/catalogo_json/`: uma matriz HDMI por TCP, uma placa de relés por HTTP e um amplificador de áudio por UDP. O daemon valida o arquivo ao salvar, respondendo um código de erro por campo, e o carrega sem reiniciar o hub; um arquivo que não valida é recusado e registrado, e nunca custa o boot. Cabe em qualquer aparelho que aceita uma linha de texto numa porta TCP ou uma requisição HTTP simples.
+- **Driver declarativo (JSON)**: o caminho principal da comunidade, e o primeiro a tentar. Um arquivo JSON descreve o transporte (uma linha de texto numa porta TCP, uma requisição HTTP simples ou UDP), os comandos e como ler o estado de volta (uma regex ou um caminho JSON). É dado, não programa: sem condicional, sem laço, sem expressão, sem aritmética. O formato inteiro é a seção 7 do [DECISOES.md](DECISOES.md), e a imagem carrega um exemplo pronto de cada transporte em `core/iphub/drivers/catalogo_json/`: uma matriz HDMI por TCP, uma placa de relés por HTTP e um amplificador de áudio por UDP. O daemon valida o arquivo ao salvar, respondendo um código de erro por campo, e o carrega sem reiniciar o hub; um arquivo que não valida é recusado e registrado, e nunca custa o boot. Cabe em qualquer aparelho que aceita uma linha de texto numa porta TCP ou uma requisição HTTP simples.
 - **Driver nativo (Python)**: para protocolos que exigem biblioteca (pareamento com popup na TV, agrupamento multiroom, etc.). Uma classe Python que implementa o contrato `Driver`, com o mesmo `Manifesto` de todos os outros drivers, compilada na imagem. O `core/iphub/drivers/nativos/pjlink.py` é o que embarca hoje.
 
 Um driver declarativo mora num de três lugares, e eles não são a mesma coisa:
@@ -176,7 +176,7 @@ O CI tem teste para a maioria destas, então um pull request que as ignora falha
   ```
 
 - **A API devolve códigos, não frases**: toda resposta é `{"ok": bool, "code": str|null, ...}`, o código é estável (`nao_encontrado`, `host_nao_permitido`, `painel_ausente`, ...) e o painel traduz. Linhas de log são em inglês.
-- **Identificadores seguem o contrato do CLAUDE.md**, em português (`versao`, `portao`, `saude`, `painel`, `Manifesto`, `Estado`). Não os renomeie.
+- **Identificadores seguem o contrato do DECISOES.md**, em português (`versao`, `portao`, `saude`, `painel`, `Manifesto`, `Estado`). Não os renomeie.
 - **Um módulo faz uma coisa só**, e não há limite de linhas. Um arquivo grande é problema quando faz duas coisas; aí ele é dividido.
 - Não cite outros projetos ou produtos de automação em código, comentário ou doc; descreva o que o código faz. Citar as marcas controladas (Denon, Samsung, LG, Sony, Onkyo, Yamaha, Roku, Sonos, LinkPlay, Tuya) é permitido.
 - Sem endereço de rede real (exemplos usam `192.0.2.x`), sem preço, fornecedor, cliente nem nome de pessoa.

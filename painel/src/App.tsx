@@ -7,6 +7,7 @@ import Cenas from "./Cenas.tsx";
 import Concha from "./Concha.tsx";
 import Conta from "./Conta.tsx";
 import DetalheEquipamento from "./DetalheEquipamento.tsx";
+import Diario from "./Diario.tsx";
 import DriversDeclarativos from "./DriversDeclarativos.tsx";
 import { usarEquipamentos } from "./Equipamentos.tsx";
 import Inicio from "./Inicio.tsx";
@@ -64,6 +65,8 @@ function Tela({
       return <Simulador nomeInstalacao={estado.nome_instalacao} />;
     case "drivers":
       return <DriversDeclarativos idioma={idioma} />;
+    case "diario":
+      return <Diario />;
     case "conta":
       return <Conta estado={estado} idioma={idioma} aoSair={aoSair} aoRenomear={aoRenomear} />;
   }

@@ -320,13 +320,16 @@ export default function Controles({
 
   if (player) {
     const tocando = estado.reproduzindo === true;
-    const titulo = estado.tocando || (tocando ? "" : t("controles_parado"));
     return (
       <div className="painel-controles player">
         {dicaDePapel}
         <div className={`agora ${tocando ? "agora-tocando" : ""}`} aria-live="polite">
           <span className="controle-rotulo">{t("controles_agora")}</span>
-          <strong className="agora-titulo">{titulo || t("controles_agora")}</strong>
+          {/* Why: a speaker that plays a raw stream with no metadata has no title to show, */}
+          {/* and a line inventing one would be the panel guessing out loud. */}
+          {/* Por que: uma caixa tocando um fluxo cru sem metadado não tem título a mostrar, */}
+          {/* e uma linha inventando um seria o painel adivinhando em voz alta. */}
+          <strong className="agora-titulo">{estado.tocando ?? ""}</strong>
           <span className="agora-fonte">{rotuloDe(entradas, estado.fonte)}</span>
         </div>
         {energia}

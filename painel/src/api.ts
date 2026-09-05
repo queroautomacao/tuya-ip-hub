@@ -239,6 +239,51 @@ function rotaDoEquipamento(identidade: string): string {
   return `/api/equipamentos/${encodeURIComponent(identidade)}`;
 }
 
+// Why: the diary is the last lines the daemon kept in memory, read whole on every tick
+// because it is small on purpose and because a page of a log is not worth a cursor.
+// Por que: o diário são as últimas linhas que o daemon guardou em memória, lidas inteiras a
+// cada tique porque ele é pequeno de propósito e porque uma página de log não vale um cursor.
+export interface LinhaDoDiario {
+  t: number;
+  nivel: string;
+  origem: string;
+  onde: string;
+  texto: string;
+}
+
+export interface Diario {
+  linhas: LinhaDoDiario[];
+  descartadas: number;
+  teto: number;
+}
+
+function lerLinhaDoDiario(valor: unknown): LinhaDoDiario | null {
+  if (typeof valor !== "object" || valor === null) return null;
+  const bruto = valor as Record<string, unknown>;
+  const { t: instante, nivel, origem, onde, texto } = bruto;
+  if (typeof instante !== "number" || !Number.isFinite(instante)) return null;
+  if (typeof nivel !== "string" || typeof origem !== "string") return null;
+  if (typeof onde !== "string" || typeof texto !== "string") return null;
+  return { t: instante, nivel, origem, onde, texto };
+}
+
+export async function lerDiario(): Promise<Diario> {
+  const dados = await pedir("/api/diario", "GET");
+  const linhas: LinhaDoDiario[] = [];
+  if (Array.isArray(dados.linhas)) {
+    for (const bruto of dados.linhas) {
+      const linha = lerLinhaDoDiario(bruto);
+      if (linha !== null) linhas.push(linha);
+    }
+  }
+  const { descartadas, teto } = dados as Record<string, unknown>;
+  return {
+    linhas,
+    descartadas: typeof descartadas === "number" ? descartadas : 0,
+    teto: typeof teto === "number" ? teto : 0,
+  };
+}
+
 export async function lerCatalogo(): Promise<ItemCatalogo[]> {
   const dados = await pedir("/api/catalogo", "GET");
   const catalogo = lerLista(dados.catalogo, lerItemCatalogo);

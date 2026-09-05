@@ -253,8 +253,8 @@ export default function ListasDoPainel({
   }
 
   return (
-    <section className="cartao">
-      <h2>{t("listas_titulo")}</h2>
+    <div className="bloco-de-configuracao">
+      <h3>{t("listas_titulo")}</h3>
       <p className="texto-suave">{t("listas_intro")}</p>
       {oferecidas.map((nome) => (
         <Tabela
@@ -313,6 +313,6 @@ export default function ListasDoPainel({
           </button>
         </div>
       )}
-    </section>
+    </div>
   );
 }

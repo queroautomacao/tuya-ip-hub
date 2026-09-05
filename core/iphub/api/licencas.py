@@ -554,6 +554,9 @@ async def grupo(request: web.Request) -> web.Response:
     dados = await ler_corpo(request)
     if dados is None:
         return erro(CORPO_INVALIDO)
+    log.debug(
+        "painel: grupo de %s = %r, membros %r", id_licenca, dados.get("v"), dados.get("membros")
+    )
     membros = _membros(dados.get("membros"), numeros.capacidade)
     if membros is _INVALIDO:
         return erro(protocolo.VALOR_INVALIDO)

@@ -161,9 +161,18 @@ function Multiroom({
 export default function NumeroNoApp({
   equipamento,
   item,
+  somenteGrupo = false,
 }: {
   equipamento: Equipamento;
   item: ItemCatalogo | undefined;
+  // Why: the group changes what the keys of the controls do, so it is a card of its own right
+  // under them; the number is setup, so it lives inside the card of the setup. The two read
+  // the same licences, so one component answers for both and each screen asks for its half.
+  // Por que: o grupo muda o que as teclas dos controles fazem, então é cartão próprio logo
+  // abaixo delas; o número é configuração, então mora dentro do cartão de configuração. Os
+  // dois leem as mesmas licenças, então um componente responde pelos dois e cada tela pede a
+  // metade dela.
+  somenteGrupo?: boolean;
 }) {
   const [leitura, setLeitura] = useState<LeituraDeLicencas | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -244,10 +253,34 @@ export default function NumeroNoApp({
     });
   }
 
+  if (somenteGrupo) {
+    if (!podeAgrupar(item)) return null;
+    if (posicao !== undefined && posicao.licenca.produto === "av") {
+      return (
+        <Multiroom
+          equipamento={equipamento}
+          licenca={posicao.licenca}
+          atual={posicao.numero}
+          ocupado={ocupado}
+          aoChamar={chamar}
+        />
+      );
+    }
+    if (posicao === undefined) {
+      return (
+        <section className="cartao">
+          <h2>{t("multiroom_titulo")}</h2>
+          <p className="dica">{t("multiroom_precisa_numero")}</p>
+        </section>
+      );
+    }
+    return null;
+  }
+
   return (
     <>
-      <section className="cartao">
-        <h2>{t("numero_titulo")}</h2>
+      <div className="bloco-de-configuracao">
+        <h3>{t("numero_titulo")}</h3>
         <p className="texto-suave">{t("numero_intro")}</p>
         {leitura !== null && licencas.length === 0 && (
           <p className="dica">{t("numero_sem_licenca")}</p>
@@ -286,22 +319,7 @@ export default function NumeroNoApp({
             {traduzirErro(erro)}
           </p>
         )}
-      </section>
-      {podeAgrupar(item) && posicao !== undefined && posicao.licenca.produto === "av" && (
-        <Multiroom
-          equipamento={equipamento}
-          licenca={posicao.licenca}
-          atual={posicao.numero}
-          ocupado={ocupado}
-          aoChamar={chamar}
-        />
-      )}
-      {podeAgrupar(item) && posicao === undefined && (
-        <section className="cartao">
-          <h2>{t("multiroom_titulo")}</h2>
-          <p className="dica">{t("multiroom_precisa_numero")}</p>
-        </section>
-      )}
+      </div>
     </>
   );
 }

@@ -2,7 +2,7 @@
 # Copyright (C) 2026 Quero Automação Ltda
 """The public documents against the repository: what ships is what the README says ships.
 
-Section 13 of CLAUDE.md lists the milestones and the README repeats them for whoever arrives
+Section 13 of DECISOES.md lists the milestones and the README repeats them for whoever arrives
 from outside, so the repeated copy rots in silence: it announced milestone 1 and no device
 controlled while the hub already carried the driver catalog, the discovery and the
 declarative engine. Here the delivery of a milestone is decided by the code, by the routes
@@ -10,7 +10,7 @@ the daemon registers and by the modules that exist, and the documents have to ag
 
 Os documentos públicos contra o repositório: o que embarca é o que o README diz que embarca.
 
-A seção 13 do CLAUDE.md lista os marcos e o README os repete para quem chega de fora, então a
+A seção 13 do DECISOES.md lista os marcos e o README os repete para quem chega de fora, então a
 cópia repetida apodrece em silêncio: anunciava o marco 1 e nenhum aparelho controlado
 enquanto o hub já carregava o catálogo de drivers, a descoberta e o motor declarativo. Aqui a
 entrega de um marco é decidida pelo código, pelas rotas que o daemon registra e pelos módulos

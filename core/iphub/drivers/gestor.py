@@ -185,6 +185,13 @@ class Gestor:
 
         None para feito, ou um dos códigos estáveis; nunca uma exceção saindo de um driver.
         """
+        # Why: this is the one door every action of section 6 goes through, whoever asked
+        # (the panel, a scene, the bus of the platform), so the diary of the hub reads the
+        # whole story here instead of once per caller.
+        # Por que: esta é a única porta por onde passa toda ação da seção 6, venha de quem
+        # vier (o painel, uma cena, o barramento da plataforma), então o diário do hub lê a
+        # história inteira aqui em vez de uma vez por chamador.
+        log.debug("%s: %s %r", identidade, acao, valor)
         if identidade not in self._cadastros:
             return EQ_NAO_ENCONTRADO
         manifesto = self.manifesto(identidade)
@@ -227,6 +234,7 @@ class Gestor:
             log.exception("equipment %s failed on %r: %s", identidade, acao, _causa(erro))
             return ERRO_APARELHO
         if resposta is None or resposta in CODIGOS:
+            log.debug("%s: %s -> %s", identidade, acao, resposta or "ok")
             return resposta
         # Why: a driver that answers a code of its own would reach the panel as an untranslated
         # phrase, and section 11 says the API never answers a phrase.

@@ -1,9 +1,8 @@
-# CLAUDE.md - Tuya IP Hub
+# Decisões do Tuya IP Hub
 
-> Instruções para o Claude Code construir o Tuya IP Hub do zero.
-> Leia inteiro antes de escrever a primeira linha. Este documento é a fonte
-> das decisões; o código obedece a ele, não o contrário. Quando uma decisão
-> mudar, mude aqui primeiro.
+> Como este projeto é construído, do zero. Leia inteiro antes de escrever a
+> primeira linha. Este documento é a fonte das decisões; o código obedece a ele,
+> não o contrário. Quando uma decisão mudar, mude aqui primeiro.
 
 ---
 
@@ -23,6 +22,14 @@ Três peças, e só três:
    de primeiro uso, equipamentos (número no app e multiroom no detalhe de cada
    um), drivers, cenas.
 3. **Imagem Docker** única, publicada no GHCR, com o painel construído dentro.
+
+O painel tem um **diário** (decisão de 5/set/2026): as últimas 1000 linhas do que
+o daemon fez, em memória, com o que cada driver pôs no fio, o que a ponte da Tuya
+pediu e o que o painel mudou, numa tela com filtro por origem, busca e botão de
+copiar. O logger `iphub` desce a DEBUG para o diário ver tudo e o handler do
+terminal fica em INFO, então o log do container não muda. Nada vai para o disco:
+um diário que sobrevivesse a um reboot seria um banco de dados. O poll bem
+sucedido de um driver não entra (encheria o anel); um poll que falha entra.
 
 Código aberto sob **AGPL-3.0-only**, com licença comercial oferecida em
 paralelo pela Quero Automação Ltda. O cadastro do produto na plataforma Tuya e

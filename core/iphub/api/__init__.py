@@ -7,7 +7,16 @@ API REST: um módulo por área, registrados aqui.
 
 from aiohttp import web
 
-from iphub.api import cenas, declarativos, equipamentos, health, licencas, setup, sistema
+from iphub.api import (
+    cenas,
+    declarativos,
+    diario,
+    equipamentos,
+    health,
+    licencas,
+    setup,
+    sistema,
+)
 from iphub.dpbus import socket
 from iphub.portao import TrataExpect, rota_delete, rota_get, rota_post
 
@@ -23,6 +32,7 @@ def registrar_rotas(app: web.Application, tratar_expect: TrataExpect) -> None:
     rota_post(app, "/api/instalacao", setup.instalacao, tratar_expect)
     rota_post(app, "/api/reiniciar", sistema.reiniciar, tratar_expect)
     rota_get(app, "/api/atualizacao", sistema.atualizacao, tratar_expect)
+    rota_get(app, "/api/diario", diario.listar, tratar_expect)
     rota_get(app, "/api/catalogo", equipamentos.catalogo, tratar_expect)
     rota_get(app, "/api/equipamentos", equipamentos.listar, tratar_expect)
     rota_post(app, "/api/equipamentos", equipamentos.cadastrar, tratar_expect)
