@@ -64,6 +64,30 @@ function Multiroom({
   const lidera = licenca.grupo === atual.numero;
   const segue = atual.papel === "escravo";
   const alheio = atual.papel === "alheio";
+  // Why: section 14, a master carries several slaves and the customer picks them one by one,
+  // so the card is a list of who follows and not a single switch; the boxes start on what the
+  // group has right now, and a licence whose group changed elsewhere reopens on the new one.
+  // Por que: seção 14, um mestre leva vários escravos e o cliente os escolhe um a um, então o
+  // cartão é uma lista de quem segue e não uma chave só; as caixas começam no que o grupo tem
+  // agora, e uma licença cujo grupo mudou em outro lugar reabre no novo.
+  const membrosAgora = lidera
+    ? pares.filter((numero) => numero.papel === "escravo").map((numero) => numero.numero)
+    : [];
+  const marca = `${licenca.id}:${licenca.grupo}:${membrosAgora.join(",")}`;
+  const [rascunho, setRascunho] = useState<number[] | null>(null);
+  const [marcaLida, setMarcaLida] = useState(marca);
+  if (marcaLida !== marca) {
+    setMarcaLida(marca);
+    setRascunho(null);
+  }
+  const escolhidos = rascunho ?? membrosAgora;
+  const alternar = (numero: number): void =>
+    setRascunho(
+      escolhidos.includes(numero)
+        ? escolhidos.filter((outro) => outro !== numero)
+        : [...escolhidos, numero].sort((um, outro) => um - outro),
+    );
+  const mestre = licenca.numeros.find((numero) => numero.numero === licenca.grupo);
   return (
     <section className="cartao">
       <h2>{t("multiroom_titulo")}</h2>
@@ -75,26 +99,50 @@ function Multiroom({
             {lidera
               ? t("multiroom_lidera")
               : segue
-                ? t("multiroom_segue")
+                ? `${t("multiroom_segue")} ${mestre === undefined ? "" : nomeDoNumero(mestre)}`.trim()
                 : alheio
                   ? t("multiroom_alheio")
                   : t("multiroom_solo")}
           </p>
-          <p className="texto-suave">{t("multiroom_membros")}</p>
-          <ul className="multiroom-membros">
-            {pares.map((numero) => (
-              <li key={numero.numero}>{`${numero.numero}: ${nomeDoNumero(numero)}`}</li>
-            ))}
-          </ul>
+          {!segue && !alheio && (
+            <>
+              <p className="texto-suave">{t("multiroom_escolha")}</p>
+              <ul className="multiroom-membros">
+                {pares.map((numero) => (
+                  <li key={numero.numero}>
+                    <label className="multiroom-membro">
+                      <input
+                        type="checkbox"
+                        checked={escolhidos.includes(numero.numero)}
+                        disabled={ocupado}
+                        onChange={() => alternar(numero.numero)}
+                      />
+                      <span>{`${numero.numero}: ${nomeDoNumero(numero)}`}</span>
+                      {numero.papel === "alheio" && (
+                        <span className="selo-papel">{t("multiroom_membro_alheio")}</span>
+                      )}
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
           <div className="acoes-largas">
-            <button
-              type="button"
-              className="botao"
-              disabled={ocupado || lidera}
-              onClick={() => aoChamar(() => definirGrupo(licenca.id, atual.numero))}
-            >
-              {t("multiroom_liderar")}
-            </button>
+            {!segue && !alheio && (
+              <button
+                type="button"
+                className="botao"
+                disabled={ocupado || escolhidos.length === 0}
+                onClick={() =>
+                  aoChamar(async () => {
+                    await definirGrupo(licenca.id, atual.numero, escolhidos);
+                    setRascunho(null);
+                  })
+                }
+              >
+                {lidera ? t("multiroom_aplicar") : t("multiroom_liderar")}
+              </button>
+            )}
             <button
               type="button"
               className="botao secundario"

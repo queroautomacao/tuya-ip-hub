@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 
 import pytest
 
+from iphub.config import Item
 from iphub.drivers import catalogo
 from iphub.drivers.base import CODIGOS
 from iphub.drivers.descoberta import montar
@@ -82,6 +83,11 @@ class _Cadastro:
     ip: str = "127.0.0.1"
     campos: dict[str, str] = field(default_factory=dict)
     segredos: dict[str, str] = field(default_factory=dict)
+    # Section 8: the lists of the registration, where a shortcut carries the label the
+    # integrator gave it and the value the driver puts on the wire.
+    # Seção 8: as listas do cadastro, onde um atalho carrega o rótulo que o integrador deu e o
+    # valor que o driver põe no fio.
+    listas: dict[str, tuple] = field(default_factory=dict)
 
 
 def _identidade(**extra: str) -> str:
@@ -148,10 +154,12 @@ async def caixa(monkeypatch):
     """
     criados: list[LinkPlay] = []
 
-    def montar_driver(aparelho: ServidorHttp | None = None, *, ip: str = "127.0.0.1") -> LinkPlay:
+    def montar_driver(
+        aparelho: ServidorHttp | None = None, *, ip: str = "127.0.0.1", listas: dict | None = None
+    ) -> LinkPlay:
         if aparelho is not None:
             monkeypatch.setattr(linkplay, "PORTA_HTTP", aparelho.endereco[1])
-        driver = LinkPlay(_Cadastro(ip=ip))
+        driver = LinkPlay(_Cadastro(ip=ip, listas=listas or {}))
         criados.append(driver)
         return driver
 
@@ -1202,3 +1210,70 @@ def test_a_caixa_sugere_radios_que_o_cadastro_aceita():
     # Por que: as entradas de uma caixa são as que o plm_support dela declara, lidas a cada
     # poll, então uma lista sugerida trocaria essa lista verdadeira por um palpite.
     assert "entradas" not in sugestoes
+
+
+async def test_o_nome_do_atalho_e_o_que_toca_ate_a_caixa_nomear_o_fluxo(caixa):
+    """A radio is a raw stream and this firmware answers an empty Title for one until the
+    station sends metadata, which many never do. The hub asked for the stream by a shortcut
+    the integrator named, so that name is what plays until the speaker names something.
+
+    Uma rádio é um fluxo cru e este firmware responde Title vazio para ela até a estação mandar
+    metadado, o que muitas nunca fazem. O hub pediu o fluxo por um atalho que o integrador
+    nomeou, então esse nome é o que toca até a caixa nomear alguma coisa.
+    """
+    radio = Item("Groove Salad", URL)
+    sem_titulo = _tocador(Title="", Artist="")
+    rotas = _fala(estado=sem_titulo)
+    rotas.update(_rotas({f"setPlayerCmd:play:{URL}": "OK", "setPlayerCmd:stop": "OK"}))
+    async with ServidorHttp(rotas) as aparelho:
+        driver = caixa(aparelho, listas={"atalhos": (radio,)})
+        await driver.atualizar()
+        assert driver.estado().tocando is None
+        assert await driver.executar("atalho", URL) is None
+        assert driver.estado().tocando == "Groove Salad"
+        # The poll finds no title of its own and keeps the name of what was asked for.
+        # O poll não acha título próprio e mantém o nome do que foi pedido.
+        await driver.atualizar()
+        assert driver.estado().tocando == "Groove Salad"
+        # A station that starts naming what it plays takes the line over.
+        # Uma estação que passa a nomear o que toca toma a linha.
+        aparelho.rotas.update(_fala(estado=_tocador()))
+        await driver.atualizar()
+        assert driver.estado().tocando == f"{TITULO} - {ARTISTA}"
+        # And stopping lets go of both.
+        # E parar solta os dois.
+        aparelho.rotas.update(_fala(estado=sem_titulo))
+        assert await driver.executar("parar", None) is None
+        await driver.atualizar()
+    assert driver.estado().tocando is None
+
+
+async def test_um_atalho_de_endereco_que_nao_esta_na_lista_nao_inventa_nome(caixa):
+    """The name only ever comes from the list of the registration, so a stream nobody named
+    plays with no title instead of with an address on the line of the panel.
+
+    O nome só vem da lista do cadastro, então um fluxo que ninguém nomeou toca sem título em
+    vez de com um endereço na linha do painel.
+    """
+    rotas = _fala(estado=_tocador(Title="", Artist=""))
+    rotas.update(_rotas({f"setPlayerCmd:play:{URL}": "OK"}))
+    async with ServidorHttp(rotas) as aparelho:
+        driver = caixa(aparelho, listas={"atalhos": (Item("Outra", "http://10.0.0.3/x.mp3"),)})
+        assert await driver.executar("tocar", URL) is None
+    assert driver.estado().tocando is None
+
+
+async def test_o_mestre_tira_um_membro_sem_derrubar_o_grupo(caixa):
+    """Section 14: a group is a master and the members the customer chose, so taking one out
+    is its own move on the master, and never the Ungroup that takes everyone down.
+
+    Seção 14: um grupo é um mestre e os membros que o cliente escolheu, então tirar um é um
+    movimento próprio no mestre, e nunca o Ungroup que derruba todo mundo.
+    """
+    rotas = _fala()
+    rotas.update(_rotas({f"multiroom:SlaveKickout:{IP_DO_ESCRAVO}": "OK"}))
+    async with ServidorHttp(rotas) as aparelho:
+        driver = caixa(aparelho)
+        assert await driver.tirar_do_grupo(IP_DO_ESCRAVO) is None
+        assert await driver.tirar_do_grupo("caixa.local") == "invalid_value"
+    assert _comandos(aparelho) == [f"multiroom:SlaveKickout:{IP_DO_ESCRAVO}"]

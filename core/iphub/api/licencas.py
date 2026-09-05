@@ -530,13 +530,23 @@ async def ajustar(request: web.Request) -> web.Response:
 
 @com_sessao
 async def grupo(request: web.Request) -> web.Response:
-    """The group data point by name: 0 takes the group down, n forms the one number n leads.
+    """The group of the licence: 0 takes it down, n makes number n lead, and membros names
+    exactly who follows.
 
-    O data point de grupo pelo nome: 0 derruba o grupo, n forma o que o número n lidera.
+    Why: section 14, a master carries up to seven slaves and the customer picks them one by
+    one, so the panel sends the set it wants. A body without membros keeps the meaning the
+    data point of the bus has, which is every speaker of the tipo of the master.
+
+    O grupo da licença: 0 o derruba, n faz o número n liderar, e membros nomeia exatamente
+    quem segue.
+
+    Por que: seção 14, um mestre leva até sete escravos e o cliente os escolhe um a um, então
+    o painel manda o conjunto que quer. Um corpo sem membros mantém o sentido que o data point
+    do barramento tem, que é toda caixa do tipo do mestre.
     """
-    app = request.app
     id_licenca = _id(request)
-    numeros = licencas_de(app).de(id_licenca)
+    livro = licencas_de(request.app)
+    numeros = livro.de(id_licenca)
     if numeros is None:
         return erro(LICENCA_NAO_ENCONTRADA)
     if not numeros.multiroom:
@@ -544,9 +554,35 @@ async def grupo(request: web.Request) -> web.Response:
     dados = await ler_corpo(request)
     if dados is None:
         return erro(CORPO_INVALIDO)
-    dpid = mapa.dp_de(numeros.produto, "grupo")
-    codigo = await app[BARRAMENTO].aplicar(id_licenca, dpid, dados.get("v"))
-    return resposta_ok(grupo=numeros.grupo()) if codigo is None else erro(codigo)
+    membros = _membros(dados.get("membros"), numeros.capacidade)
+    if membros is _INVALIDO:
+        return erro(protocolo.VALOR_INVALIDO)
+    codigo = await livro.formar(id_licenca, dados.get("v"), membros)
+    if codigo is not None:
+        return erro(codigo)
+    return resposta_ok(grupo=numeros.grupo(), membros=list(numeros.escravos()))
+
+
+# The answer of a body that named members outside the contract, which is not an empty choice.
+# A resposta de um corpo que nomeou membros fora do contrato, que não é escolha vazia.
+_INVALIDO: list[int] = []
+
+
+def _membros(bruto: object, capacidade: int) -> list[int] | None:
+    """The chosen members as numbers of this licence, None when the body chose nothing.
+
+    Os membros escolhidos como números desta licença, None quando o corpo não escolheu nada.
+    """
+    if bruto is None:
+        return None
+    if not isinstance(bruto, list) or len(bruto) > capacidade:
+        return _INVALIDO
+    escolhidos = []
+    for numero in bruto:
+        if type(numero) is not int or not 1 <= numero <= capacidade:
+            return _INVALIDO
+        escolhidos.append(numero)
+    return escolhidos
 
 
 @com_sessao

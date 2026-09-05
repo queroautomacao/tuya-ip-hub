@@ -188,6 +188,10 @@ def _fabrica() -> type[Driver]:
             self.chamadas.append(("entrar_no_grupo", ip_do_mestre))
             return self.recusa
 
+        async def tirar_do_grupo(self, ip_do_escravo: object) -> str | None:
+            self.chamadas.append(("tirar_do_grupo", ip_do_escravo))
+            return None
+
         async def desfazer_grupo(self) -> str | None:
             self.chamadas.append(("desfazer_grupo", None))
             return None

@@ -26,6 +26,7 @@ import {
   type Lista,
   type Listas,
 } from "./equipamentos.ts";
+import { palavra } from "./ControlesEquipamento.tsx";
 import { imprimivel } from "./formulario.ts";
 import { idiomaAtual, t, traduzirErro, type Chave } from "./i18n";
 
@@ -77,6 +78,8 @@ function Tabela({
   itens,
   ajuda,
   exemplos,
+  rotuloDosExemplos,
+  vazio,
   ocupado,
   aoMudar,
 }: {
@@ -84,6 +87,8 @@ function Tabela({
   itens: Item[];
   ajuda: string;
   exemplos: Item[];
+  rotuloDosExemplos: string;
+  vazio: string;
   ocupado: boolean;
   aoMudar: (itens: Item[]) => void;
 }) {
@@ -101,6 +106,21 @@ function Tabela({
       <p className="dica">{t(`listas_ajuda_${nome}` as const)}</p>
       {ajuda && <p className="dica">{ajuda}</p>}
       {itens.length === 0 && <p className="texto-suave">{t("listas_vazia")}</p>}
+      {itens.length === 0 && vazio !== "" && <p className="dica">{vazio}</p>}
+      {faltando.length > 0 && (
+        // Why: an example is worth more read than described, so the values themselves are on
+        // the screen before the button that puts them in the list.
+        // Por que: um exemplo vale mais lido que descrito, então os valores estão na tela
+        // antes do botão que os põe na lista.
+        <ul className="listas-exemplos">
+          {faltando.map((exemplo) => (
+            <li key={exemplo.valor}>
+              <b>{exemplo.rotulo}</b>
+              <code>{exemplo.valor}</code>
+            </li>
+          ))}
+        </ul>
+      )}
       {itens.length > 0 && (
         <ol className="listas-itens">
           {itens.map((item, indice) => (
@@ -158,7 +178,7 @@ function Tabela({
             disabled={ocupado}
             onClick={() => aoMudar([...itens, ...faltando])}
           >
-            {t("listas_exemplos")}
+            {rotuloDosExemplos}
           </button>
         )}
       </div>
@@ -185,6 +205,22 @@ export default function ListasDoPainel({
   const oferecidas = LISTAS.filter((nome) =>
     (item?.capacidades ?? []).includes(CAPACIDADE_DA_LISTA[nome]),
   );
+  // Why: the inputs of a speaker are the ones it declares at each poll, which no manifest can
+  // know in advance, so the examples of the entradas list are what THIS equipment answered;
+  // every other list takes what the driver suggests.
+  // Por que: as entradas de uma caixa são as que ela declara a cada poll, que manifesto nenhum
+  // sabe de antemão, então os exemplos da lista de entradas são o que ESTE equipamento
+  // respondeu; toda outra lista recebe o que o driver sugere.
+  const exemplosDe = (nome: Lista): Item[] => {
+    const doDriver = sugeridos(item, nome);
+    if (nome !== "entradas") return doDriver;
+    const doAparelho = equipamento.estado.fontes.map((valor) => ({
+      rotulo: palavra("fonte", valor),
+      valor,
+    }));
+    const vistos = new Set(doAparelho.map((fonte) => fonte.valor));
+    return [...doAparelho, ...doDriver.filter((sugerido) => !vistos.has(sugerido.valor))];
+  };
   // Why: an air conditioner has no list, its words come from the manifest; and a driver that
   // reads none of the lists offers nothing to fill.
   // Por que: um ar condicionado não tem lista, as palavras dele vêm do manifesto; e um driver
@@ -226,7 +262,17 @@ export default function ListasDoPainel({
           nome={nome}
           itens={listas[nome] ?? []}
           ajuda={textoDoManifesto(item, idiomaAtual(), `lista_${nome}`)}
-          exemplos={sugeridos(item, nome)}
+          exemplos={exemplosDe(nome)}
+          rotuloDosExemplos={
+            nome === "entradas" && equipamento.estado.fontes.length > 0
+              ? t("listas_exemplos_fontes")
+              : t("listas_exemplos")
+          }
+          vazio={
+            nome === "entradas" && equipamento.estado.fontes.length === 0
+              ? t("listas_sem_fontes")
+              : ""
+          }
           ocupado={ocupado}
           aoMudar={(itens) => {
             setSalvo(false);

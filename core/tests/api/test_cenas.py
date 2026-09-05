@@ -196,6 +196,9 @@ def _fabrica(
         async def desfazer_grupo(self) -> str | None:
             return await self._passo("desfazer_grupo", None)
 
+        async def tirar_do_grupo(self, ip_do_escravo: object) -> str | None:
+            return await self._passo("tirar_do_grupo", ip_do_escravo)
+
         async def volume_de_escravo(self, ip: object, valor: object) -> str | None:
             return await self._passo("volume_de_escravo", (ip, valor))
 

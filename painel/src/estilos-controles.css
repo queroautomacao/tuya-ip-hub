@@ -161,7 +161,8 @@
 
 .multiroom-membros {
   margin: 0;
-  padding-left: 1.2rem;
+  padding: 0;
+  list-style: none;
 }
 
 .multiroom-membros li {
@@ -240,4 +241,55 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+/* The members of a group, each a line the thumb can hit, and the seal of one already held by
+   another group; the list of examples of a panel list, label and value side by side.
+   Os membros de um grupo, cada um uma linha que o polegar acerta, e o selo de um que já está
+   em outro grupo; a lista de exemplos de uma lista do painel, rótulo e valor lado a lado. */
+.multiroom-membro {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0;
+  cursor: pointer;
+}
+
+.multiroom-membro input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--destaque);
+  flex: none;
+}
+
+.selo-papel {
+  font-size: 0.78rem;
+  color: var(--texto-suave);
+  border: 1px solid var(--borda);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+}
+
+.listas-exemplos {
+  list-style: none;
+  margin: 0.4rem 0 0.6rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.listas-exemplos li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.86rem;
+}
+
+.listas-exemplos code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  color: var(--texto-suave);
+  overflow-wrap: anywhere;
 }

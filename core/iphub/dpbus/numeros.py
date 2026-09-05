@@ -205,6 +205,7 @@ MOVIMENTOS = (
     "e_escravo",
     "entrar_no_grupo",
     "desfazer_grupo",
+    "tirar_do_grupo",
     "volume_de_escravo",
     "ler_grupo",
     "marcar_grupo",
@@ -520,7 +521,7 @@ class Numeros:
         """
         async with self._trava:
             if acao == ACAO_GRUPO:
-                return await self._grupo_por_nome(valor)
+                return await self._grupo_por_nome(identidade, valor)
             alvo = self._alvo(self.numero(identidade))
             if alvo is None:
                 return protocolo.NUMERO_OFFLINE
@@ -893,26 +894,82 @@ class Numeros:
             return await self._desfazer()
         return await self._formar(numero)
 
-    async def _grupo_por_nome(self, valor: object) -> str | None:
-        """The group action of a scene: the master by identity, or the empty string for solo.
+    async def _grupo_por_nome(self, identidade: str, valor: object) -> str | None:
+        """The group action of a scene: THIS equipment joins the master named in the value, or
+        leaves the group when the value is the empty string.
 
-        A ação grupo de uma cena: o mestre pela identidade, ou a string vazia para solo.
+        Why: section 14, a master carries up to seven slaves and the customer picks them one
+        by one, so a scene picks them one step at a time: "kitchen: group = living room" is
+        one member joining, and the step that names the master with an empty value is the one
+        that takes the whole group down.
+
+        A ação grupo de uma cena: ESTE equipamento entra no mestre nomeado no valor, ou sai do
+        grupo quando o valor é a string vazia.
+
+        Por que: seção 14, um mestre leva até sete escravos e o cliente os escolhe um a um,
+        então uma cena os escolhe um passo por vez: "cozinha: grupo = sala" é um membro
+        entrando, e o passo que nomeia o mestre com valor vazio é o que derruba o grupo todo.
         """
         if not self.multiroom:
             return NAO_SUPORTADO
+        proprio = self.numero(identidade)
+        if not proprio:
+            return protocolo.NUMERO_OFFLINE
         if valor == VAZIA or valor is None:
-            return await self._desfazer()
+            return await self._sair(proprio)
         if not isinstance(valor, str):
             return protocolo.VALOR_INVALIDO
         numero = self.numero(valor)
-        if not numero:
+        if not numero or numero == proprio:
             return protocolo.VALOR_INVALIDO
-        return await self._formar(numero)
+        membros = self._escravos if self._mestre == numero else ()
+        return await self._formar(numero, (*membros, proprio))
 
-    async def _formar(self, numero: int) -> str | None:
-        """Forms the group led by one number: every speaker of its tipo joins that master.
+    async def _sair(self, numero: int) -> str | None:
+        """One number leaves the group: the master takes the whole group down with it, and a
+        member only takes itself out.
 
-        Forma o grupo liderado por um número: toda caixa do tipo dele entra naquele mestre.
+        Um número sai do grupo: o mestre leva o grupo inteiro junto, e um membro tira só a si.
+        """
+        if not self._mestre or numero == self._mestre:
+            return await self._desfazer()
+        if numero not in self._escravos:
+            return None
+        return await self._formar(
+            self._mestre, tuple(outro for outro in self._escravos if outro != numero)
+        )
+
+    async def formar(self, mestre: object, membros: Sequence[int] | None = None) -> str | None:
+        """The group of this licence as the panel sets it: who leads and who follows.
+
+        O grupo desta licença como o painel o define: quem lidera e quem segue.
+        """
+        async with self._trava:
+            if not self.multiroom:
+                return NAO_SUPORTADO
+            if type(mestre) is not int or mestre < 0 or mestre > self.capacidade:
+                return protocolo.VALOR_INVALIDO
+            if mestre == SOLO:
+                return await self._desfazer()
+            return await self._formar(mestre, membros)
+
+    async def _formar(self, numero: int, membros: Sequence[int] | None = None) -> str | None:
+        """Forms the group led by one number with the members the customer chose; with no
+        choice, every speaker of the tipo of the master joins it.
+
+        Why: section 14, a LinkPlay master carries up to seven slaves and the customer picks
+        them one by one, so the group of a licence is a master and a SET of members. Re-forming
+        the same group with a different set moves only the difference: the ones that left are
+        taken out of the master and the ones that arrived are invited, and whoever stays never
+        hears a gap.
+
+        Forma o grupo liderado por um número com os membros que o cliente escolheu; sem
+        escolha, toda caixa do tipo do mestre entra nele.
+
+        Por que: seção 14, um mestre LinkPlay leva até sete escravos e o cliente os escolhe um
+        a um, então o grupo de uma licença é um mestre e um CONJUNTO de membros. Refazer o
+        mesmo grupo com um conjunto diferente move só a diferença: quem saiu é tirado do
+        mestre e quem chegou é convidado, e quem fica nunca escuta um buraco.
         """
         mestre = self._multiroom(numero)
         if mestre is None:
@@ -931,9 +988,33 @@ class Numeros:
             # Por que: um grupo de um não é grupo, e um barramento que respondesse ok por ele
             # publicaria um grupo que o cliente não escuta.
             return NAO_SUPORTADO
-        presentes = [alvo for alvo in map(self._multiroom, companheiras) if alvo is not None]
+        if membros is None:
+            escolhidos: tuple[int, ...] = companheiras
+        else:
+            fora = [membro for membro in membros if membro not in companheiras]
+            if fora:
+                # Why: a number that is not a companion is an empty slot, another tipo or the
+                # master itself, and inviting it would be a group the customer cannot hear.
+                # Por que: um número que não é companheiro é vaga vazia, outro tipo ou o
+                # próprio mestre, e convidá-lo seria um grupo que o cliente não escuta.
+                return protocolo.VALOR_INVALIDO
+            escolhidos = tuple(dict.fromkeys(membros))
+        if not escolhidos:
+            # Why: a group of one is not a group, so choosing nobody is asking for solo.
+            # Por que: um grupo de um não é grupo, então escolher ninguém é pedir solo.
+            return await self._desfazer()
+        presentes = [alvo for alvo in map(self._multiroom, escolhidos) if alvo is not None]
         if not presentes:
             return protocolo.NUMERO_OFFLINE
+        # Why: the members that are staying are invited again on purpose, because a speaker
+        # that silently dropped out of the group heals on the next set of the same group;
+        # joining a master a speaker already follows is the same move for this firmware.
+        # Por que: os membros que ficam são convidados de novo de propósito, porque uma caixa
+        # que caiu do grupo em silêncio se cura no set seguinte do mesmo grupo; entrar num
+        # mestre que a caixa já segue é o mesmo movimento para este firmware.
+        saida: str | None = None
+        if self._mestre == numero:
+            saida = await self._dispensar(mestre, escolhidos)
         if self._mestre and self._mestre != numero:
             codigo = await self._desfazer()
             if codigo is not None:
@@ -955,7 +1036,7 @@ class Numeros:
             *(self._chamar(alvo.driver.entrar_no_grupo(mestre.cadastro.ip)) for alvo in presentes)
         )
         entraram: list[int] = []
-        recusa: str | None = None
+        recusa: str | None = saida
         for alvo, codigo in zip(presentes, respostas, strict=True):
             if codigo is None:
                 alvo.driver.marcar_grupo(True)
@@ -964,7 +1045,7 @@ class Numeros:
                 log.warning("number %d did not join the group of number %d", alvo.numero, numero)
                 recusa = recusa or codigo
         for antigo in antigos:
-            if antigo in entraram or antigo == numero:
+            if antigo in entraram or antigo == numero or antigo not in escolhidos:
                 continue
             # Why: a member of the group being re-formed that did not answer the invitation is
             # still a slave when the speaker says so, and the books keep it; only a member
@@ -978,13 +1059,68 @@ class Numeros:
             else:
                 self._largar((antigo,))
         if not entraram:
+            # Why: a master with nobody following it is not a group, so a choice that emptied
+            # it takes the group down instead of publishing a leader of nobody.
+            # Por que: um mestre sem ninguém seguindo não é grupo, então uma escolha que o
+            # esvaziou derruba o grupo em vez de publicar um líder de ninguém.
+            if self._mestre == numero and not self._escravos:
+                await self._desfazer()
             return recusa
+        # Why: a member the master refused to take out is still following it, so it stays in
+        # the books even though the choice left it out; the panel showing it as solo is what
+        # would leave the customer with a speaker nobody can command.
+        # Por que: um membro que o mestre recusou tirar segue seguindo ele, então fica nos
+        # livros mesmo com a escolha o deixando de fora; o painel o mostrando solo é o que
+        # deixaria o cliente com uma caixa que ninguém comanda.
+        entraram.extend(
+            preso for preso in self._escravos if preso not in escolhidos and preso not in entraram
+        )
         entraram.sort()
         mestre.driver.marcar_grupo(True)
         self._mestre = numero
         self._escravos = tuple(entraram)
         self._espelhar(mestre)
-        return None
+        return saida
+
+    async def _dispensar(self, mestre: _Alvo, escolhidos: Sequence[int]) -> str | None:
+        """Takes out of the group the members the new choice left out, one by one on the
+        master, so the ones that stay keep playing.
+
+        Tira do grupo os membros que a escolha nova deixou de fora, um a um no mestre, para os
+        que ficam seguirem tocando.
+        """
+        saem = [numero for numero in self._escravos if numero not in escolhidos]
+        if not saem:
+            return None
+        respostas = await asyncio.gather(
+            *(
+                self._chamar(mestre.driver.tirar_do_grupo(self._endereco_de(numero)))
+                for numero in saem
+            )
+        )
+        ficaram = []
+        recusa: str | None = None
+        for numero, codigo in zip(saem, respostas, strict=True):
+            if codigo is None:
+                self._largar((numero,))
+            else:
+                # Why: a member the master refused to take out is still physically playing the
+                # audio of the group, and forgetting it here would leave the panel saying it
+                # is solo while it follows a master nobody may command it through.
+                # Por que: um membro que o mestre recusou tirar segue tocando fisicamente o
+                # áudio do grupo, e esquecê-lo aqui deixaria o painel dizendo que ele é solo
+                # enquanto segue um mestre por quem ninguém pode comandá-lo.
+                log.warning("number %d was not taken out of the group", numero)
+                ficaram.append(numero)
+                recusa = recusa or codigo
+        self._escravos = tuple(
+            numero for numero in self._escravos if numero in escolhidos or numero in ficaram
+        )
+        return recusa
+
+    def _endereco_de(self, numero: int) -> str:
+        alvo = self._alvo(numero)
+        return "" if alvo is None else alvo.cadastro.ip
 
     async def _desfazer(self, *, forcar: bool = False) -> str | None:
         """Dismantles the group from the MASTER, which is the only speaker that may do it.
@@ -1446,6 +1582,18 @@ class Licencas:
         """
         onde = self.onde(identidade)
         return onde is not None and self._por_id[onde[0]].segue_um_mestre(identidade)
+
+    async def formar(
+        self, id_licenca: str, mestre: object, membros: Sequence[int] | None = None
+    ) -> str | None:
+        """The group of one licence with the members the panel chose.
+
+        O grupo de uma licença com os membros que o painel escolheu.
+        """
+        numeros = self.de(id_licenca)
+        if numeros is None:
+            return protocolo.LICENCA_DESCONHECIDA
+        return await numeros.formar(mestre, membros)
 
     def perfis_cabem(self, substituto: Cadastro) -> bool:
         """True when an edited registration still packs in the licence that holds it.

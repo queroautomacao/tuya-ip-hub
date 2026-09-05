@@ -120,6 +120,11 @@ MANDA_ANTERIOR = "setPlayerCmd:prev"
 MANDA_PRESET = "MCUKeyShortClick:{valor}"
 ENTRA_NO_GRUPO = "ConnectMasterAp:JoinGroupMaster:eth{ip}:wifi0.0.0.0"
 DESFAZ_GRUPO = "multiroom:Ungroup"
+# Why: a group of section 14 is a master and the members the customer chose, so taking one
+# member out cannot mean taking the group down; this is the move that removes exactly one.
+# Por que: um grupo da seção 14 é um mestre e os membros que o cliente escolheu, então tirar
+# um membro não pode significar derrubar o grupo; este é o movimento que tira exatamente um.
+TIRA_DO_GRUPO = "multiroom:SlaveKickout:{ip}"
 MANDA_VOLUME_DE_ESCRAVO = "multiroom:SlaveVolume:{ip}:{valor}"
 
 RESPOSTA_OK = "ok"
@@ -258,7 +263,9 @@ SUGESTOES = (
     Sugestao("atalhos", "Groove Salad", "http://ice1.somafm.com/groovesalad-128-mp3"),
     Sugestao("atalhos", "Secret Agent", "http://ice1.somafm.com/secretagent-128-mp3"),
     Sugestao("atalhos", "Radio Paradise", "http://stream.radioparadise.com/mp3-192"),
-    Sugestao("atalhos", "Preset 1", "preset:1"),
+    Sugestao("atalhos", "Tecla 1 da caixa", "preset:1"),
+    Sugestao("atalhos", "Tecla 2 da caixa", "preset:2"),
+    Sugestao("atalhos", "Tecla 3 da caixa", "preset:3"),
 )
 
 TEXTOS = {
@@ -278,13 +285,20 @@ TEXTOS = {
         ),
         "cap_agrupar": (
             "Grouping takes the address of the master to join, and with no value it "
-            "dismantles the group this speaker leads. Only speakers of the same kind."
+            "dismantles the group this speaker leads. Only speakers of the same kind, one "
+            "master and up to seven members, chosen one by one."
         ),
         "cap_atalho": (
             "A shortcut is a radio, written as the address of its stream "
             "(http://ice1.somafm.com/groovesalad-128-mp3), or a preset key of the speaker "
             "itself, written as preset:1 up to the number of keys it has. In a group it "
             "belongs to the master."
+        ),
+        "lista_entradas": (
+            "The values are the ones this speaker answers: wifi is the network, and the "
+            "physical ones are line-in, bluetooth, udisk and optical, only the ones its "
+            "plm_support declares. The panel offers exactly what this speaker answered, so "
+            "one press fills the list; the label is yours to name."
         ),
         "lista_atalhos": (
             "A radio is the address of its audio stream, which the speaker fetches by "
@@ -311,13 +325,20 @@ TEXTOS = {
         ),
         "cap_agrupar": (
             "Agrupar recebe o endereço do mestre em que entrar, e sem valor desfaz o grupo "
-            "que esta caixa lidera. Só caixas do mesmo tipo."
+            "que esta caixa lidera. Só caixas do mesmo tipo, um mestre e até sete membros, "
+            "escolhidos um a um."
         ),
         "cap_atalho": (
             "Um atalho é uma rádio, escrita como o endereço do fluxo dela "
             "(http://ice1.somafm.com/groovesalad-128-mp3), ou uma tecla de preset da própria "
             "caixa, escrita como preset:1 até o número de teclas que ela tem. Num grupo ele é "
             "do mestre."
+        ),
+        "lista_entradas": (
+            "Os valores são os que esta caixa responde: wifi é a rede, e as físicas são "
+            "line-in, bluetooth, udisk e optical, só as que o plm_support dela declara. O "
+            "painel oferece exatamente o que esta caixa respondeu, então uma apertada "
+            "preenche a lista; o rótulo é você quem nomeia."
         ),
         "lista_atalhos": (
             "Uma rádio é o endereço do fluxo de áudio dela, que a caixa busca sozinha: http "
@@ -420,6 +441,15 @@ class LinkPlay(Driver):
         self._no_grupo = False
         self._espelho: str | None = None
         self._espelho_reproduzindo: bool | None = None
+        # Why: a radio is a raw stream, and this firmware answers an empty Title for one until
+        # the station sends metadata, which many never do. The hub asked for this stream by a
+        # shortcut the integrator named, so it publishes that name meanwhile: an empty "now
+        # playing" over a speaker that is audibly playing is the panel calling itself broken.
+        # Por que: uma rádio é um fluxo cru, e este firmware responde Title vazio para ela até
+        # a estação mandar metadado, o que muitas nunca fazem. O hub pediu esse fluxo por um
+        # atalho que o integrador nomeou, então ele publica esse nome enquanto isso: um
+        # "tocando agora" vazio numa caixa que toca é o painel se dizendo quebrado.
+        self._pedido: str | None = None
 
     @classmethod
     async def identificar(cls, ip: str) -> str | None:
@@ -556,6 +586,20 @@ class LinkPlay(Driver):
             return falha.codigo
         return None
 
+    async def tirar_do_grupo(self, ip_do_escravo: object) -> str | None:
+        """Run on the MASTER: it removes one member and keeps the rest of the group playing.
+
+        Roda no MESTRE: ele tira um membro e mantém o resto do grupo tocando.
+        """
+        endereco = ip_literal(ip_do_escravo)
+        if endereco is None:
+            return INVALID_VALUE
+        try:
+            await self._mandar(TIRA_DO_GRUPO.format(ip=endereco))
+        except _Falha as falha:
+            return falha.codigo
+        return None
+
     async def volume_de_escravo(self, ip_do_escravo: object, valor: object) -> str | None:
         """Run on the MASTER: section 14, the volume of a slave goes through the master.
 
@@ -601,6 +645,7 @@ class LinkPlay(Driver):
             return await self._tocar(valor)
         if acao == ACAO_PAUSAR:
             await self._mandar(MANDA_PAUSAR)
+            self._pedido = None
             self._defina(reproduzindo=False, tocando=None)
             return None
         if acao == ACAO_PARAR:
@@ -609,6 +654,7 @@ class LinkPlay(Driver):
             # Por que: uma pausa num fluxo mantém a caixa conectada à rádio, e uma estação que
             # derrubou a conexão nesse meio tempo nunca retoma; o stop é o que a solta.
             await self._mandar(MANDA_PARAR)
+            self._pedido = None
             self._defina(reproduzindo=False, tocando=None)
             return None
         if acao == ACAO_PROXIMA:
@@ -656,7 +702,18 @@ class LinkPlay(Driver):
         # cache would show the last track of the radio on a line input until the next poll.
         # Por que: seção 14, o firmware guarda o título da última fonte de rede, então o cache
         # mostraria a última faixa do rádio numa entrada de linha até o poll seguinte.
+        self._pedido = None
         self._defina(fonte=valor, tocando=None)
+        return None
+
+    def _rotulo_de(self, valor: object) -> str | None:
+        """The label the integrator gave this value in the shortcuts of the registration.
+
+        O rótulo que o integrador deu a este valor nos atalhos do cadastro.
+        """
+        for item in self.cadastro.listas.get("atalhos", ()):
+            if item.valor == valor:
+                return item.rotulo
         return None
 
     async def _tocar(self, valor: object) -> str | None:
@@ -675,7 +732,8 @@ class LinkPlay(Driver):
         if not _url_valida(valor):
             return INVALID_VALUE
         await self._mandar(MANDA_TOCAR.format(valor=valor))
-        self._defina(fonte=ENTRADA_DE_REDE, reproduzindo=True, tocando=None)
+        self._pedido = self._rotulo_de(valor)
+        self._defina(fonte=ENTRADA_DE_REDE, reproduzindo=True, tocando=self._pedido)
         return None
 
     async def _agrupar(self, valor: object) -> str | None:
@@ -694,7 +752,8 @@ class LinkPlay(Driver):
         if numero is None:
             return INVALID_VALUE
         await self._mandar(MANDA_PRESET.format(valor=numero))
-        self._defina(fonte=ENTRADA_DE_REDE, reproduzindo=True, tocando=None)
+        self._pedido = self._rotulo_de(valor)
+        self._defina(fonte=ENTRADA_DE_REDE, reproduzindo=True, tocando=self._pedido)
         return None
 
     def _ler_identidade(self, dados: dict) -> None:
@@ -793,7 +852,11 @@ class LinkPlay(Driver):
         artista = _titulo(dados.get(CHAVE_ARTISTA))
         if titulo and artista:
             return f"{titulo} - {artista}"[:TEXTO_MAXIMO]
-        return titulo or artista or None
+        # Why: the name of the shortcut only stands in while the speaker names nothing itself,
+        # and a station that starts sending metadata takes the line over on the next poll.
+        # Por que: o nome do atalho só vale enquanto a caixa não nomeia nada, e uma estação que
+        # comece a mandar metadado toma a linha no poll seguinte.
+        return titulo or artista or self._pedido
 
     def _marcar_escravo(self, escravo: bool) -> None:
         if escravo:

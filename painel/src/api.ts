@@ -398,8 +398,19 @@ export async function ajustarDp(id: string, dpid: number, valor: unknown): Promi
   await pedir(`${rotaDaLicenca(id)}/dp/${dpid}`, "POST", { v: valor }, PRAZO_VARREDURA_MS);
 }
 
-export async function definirGrupo(id: string, valor: number): Promise<void> {
-  await pedir(`${rotaDaLicenca(id)}/grupo`, "POST", { v: valor }, PRAZO_VARREDURA_MS);
+// Why: section 14, a master carries several slaves and the customer picks them one by one, so
+// the panel sends the set it wants; without membros the daemon keeps the meaning of the data
+// point of the bus, which is every speaker of the tipo of the master.
+// Por que: seção 14, um mestre leva vários escravos e o cliente os escolhe um a um, então o
+// painel manda o conjunto que quer; sem membros o daemon mantém o sentido do data point do
+// barramento, que é toda caixa do tipo do mestre.
+export async function definirGrupo(
+  id: string,
+  valor: number,
+  membros?: number[],
+): Promise<void> {
+  const corpo = membros === undefined ? { v: valor } : { v: valor, membros };
+  await pedir(`${rotaDaLicenca(id)}/grupo`, "POST", corpo, PRAZO_VARREDURA_MS);
 }
 
 export async function lerQrDaLicenca(id: string): Promise<Qr> {

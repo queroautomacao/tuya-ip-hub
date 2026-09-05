@@ -157,13 +157,16 @@ function Valor({
   if (especie === "grupo") {
     // Why: section 14, a group only exists between equipment of the same tipo, and section 8
     // makes it a group of one licence, so the master offered is one of this tipo with a number
-    // on the same licence as the step; the empty value takes the group down.
+    // on the same licence as the step; the step puts ITS OWN equipment in that master, one
+    // member per step, and the empty value takes it out. Nobody joins itself.
     // Por que: seção 14, um grupo só existe entre equipamentos do mesmo tipo, e a seção 8 faz
     // dele um grupo de uma licença, então o mestre oferecido é um deste tipo com número na
-    // mesma licença do passo; o valor vazio desfaz o grupo.
+    // mesma licença do passo; o passo põe o PRÓPRIO equipamento dele naquele mestre, um membro
+    // por passo, e o valor vazio o tira. Ninguém entra em si mesmo.
     const mestres = equipamentos.filter(
       (candidato) =>
         candidato.tipo === equipamento?.tipo &&
+        candidato.identidade !== equipamento?.identidade &&
         candidato.numero !== null &&
         candidato.licenca !== null &&
         candidato.licenca === equipamento?.licenca,

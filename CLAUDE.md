@@ -337,7 +337,12 @@ Template pela categoria: `tv` e `projetor` viram `tv`; o resto vira `au`.
 Até **32** cenas; a posição é o número. Um passo nomeia **equipamento, ação e
 valor**, mais `espera_ms` opcional; sem ela vale o `intervalo_ms` da cena
 (padrão 1000). Ações: as CAPACIDADES da §6, menos `agrupar`, mais `grupo`
-(valor: a identidade do mestre, ou vazio para solo). `agrupar` é a capacidade
+(valor: a identidade do mestre em que o **equipamento do passo** entra, ou vazio
+para ele sair). Um grupo é um mestre e o **conjunto de membros** que o cliente
+escolheu (decisão de 5/set/2026), então uma cena o monta **um membro por passo**;
+o passo que nomeia o mestre com valor vazio derruba o grupo inteiro, e ninguém
+entra em si mesmo. O DP 142 continua o atalho simples: `n` faz o número n liderar
+e toda caixa do tipo dele entra. `agrupar` é a capacidade
 que o manifesto declara para o equipamento admitir o passo `grupo`, nunca um
 passo: o movimento no driver recebe o IP do mestre, e IP nunca é chave (§6),
 então a licença resolve a identidade na hora de rodar. Um passo que falha é
@@ -524,7 +529,12 @@ Custaram dias. Estão aqui para o driver LinkPlay e o DP-bus nascerem certos.
 - Multiroom nativo: `ConnectMasterAp:JoinGroupMaster:...` no escravo,
   `multiroom:Ungroup` e afins no mestre. **Play em escravo desmonta o grupo**,
   e rádio ou preset apertado nele também: transporte e atalho vão sempre para
-  o mestre. Volume de escravo via `SlaveVolume` no mestre. **Escravo reporta `stop` mesmo tocando**: espelhe o estado do
+  o mestre. Volume de escravo via `SlaveVolume` no mestre. Um mestre leva **até
+  sete escravos** e o cliente **escolhe um a um**: tirar um membro é
+  `multiroom:SlaveKickout:<ip>` no mestre (o `Ungroup` derruba todos), então o
+  contrato de driver da §6 tem `tirar_do_grupo(ip)` ao lado de `entrar_no_grupo` e
+  `desfazer_grupo`. Um membro que o mestre recusou tirar continua nos livros,
+  porque ele segue tocando o áudio do grupo. **Escravo reporta `stop` mesmo tocando**: espelhe o estado do
   mestre nos escravos. Grupo só entre caixas do mesmo domínio (LinkPlay com
   LinkPlay); nunca oferecer grupo misto.
 - Tocar URL de áudio local (o hub serve por HTTP sem auth em `/audio/`, quem
@@ -543,6 +553,11 @@ Custaram dias. Estão aqui para o driver LinkPlay e o DP-bus nascerem certos.
   sem `master_uuid` no `getStatusEx`, e o driver a tratava como escrava e recusava
   volume e transporte no painel. Escravo é `group 1` (ou `master_uuid` presente)
   no `getStatusEx`; o modo 99 só vale quando o campo `group` falta.
+- **Rádio não tem título**: o firmware responde `Title` vazio para um fluxo cru até
+  a estação mandar metadado, o que muitas nunca fazem. O hub pediu o fluxo por um
+  atalho que o integrador nomeou, então o driver publica esse **rótulo** como
+  `tocando` até a caixa nomear algo ou o transporte parar; um "tocando agora"
+  vazio numa caixa que toca é o painel se dizendo quebrado.
 - `setPlayerCmd:stop` é o que solta o fluxo: a pausa mantém a caixa conectada à
   estação, e uma rádio que derrubou a conexão nesse meio tempo não retoma. Por
   isso a §6 tem `parar` além de `pausar`. Rádio é a URL do fluxo que a caixa

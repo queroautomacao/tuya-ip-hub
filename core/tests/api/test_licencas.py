@@ -134,6 +134,10 @@ def _fabrica(
             self.chamadas.append(("desfazer_grupo", None))
             return None
 
+        async def tirar_do_grupo(self, ip_do_escravo: object) -> str | None:
+            self.chamadas.append(("tirar_do_grupo", ip_do_escravo))
+            return None
+
         async def volume_de_escravo(self, ip: object, valor: object) -> str | None:
             self.chamadas.append(("volume_de_escravo", (ip, valor)))
             return None
@@ -1535,3 +1539,40 @@ async def test_a_acao_de_um_numero_solo_nao_espera_a_trava_da_licenca(duas):
     assert _caixa(classe, "uuid-2").chamadas == [("volume", 33)]
     porta.set()
     assert (await preso).status == 200
+
+
+async def test_a_rota_de_grupo_leva_os_membros_escolhidos(duas):
+    """Section 14: the panel picks who follows the master one by one, so the route carries the
+    set; a body without it keeps the meaning of the data point, which is everybody.
+
+    Seção 14: o painel escolhe quem segue o mestre um a um, então a rota leva o conjunto; um
+    corpo sem ele mantém o sentido do data point, que é todo mundo.
+    """
+    cliente, auth, classe = duas
+    resposta = await cliente.post(
+        f"/api/licencas/{AV}/grupo", json={"v": 1, "membros": []}, headers=auth
+    )
+    assert resposta.status == 200, await resposta.text()
+    corpo = await _json(resposta)
+    assert (corpo["grupo"], corpo["membros"]) == (0, [])
+    assert _caixa(classe, "uuid-2").chamadas == []
+    resposta = await cliente.post(
+        f"/api/licencas/{AV}/grupo", json={"v": 1, "membros": [2]}, headers=auth
+    )
+    assert resposta.status == 200, await resposta.text()
+    corpo = await _json(resposta)
+    assert (corpo["grupo"], corpo["membros"]) == (1, [2])
+    assert ("entrar_no_grupo", IP_1) in _caixa(classe, "uuid-2").chamadas
+    licenca = await _licenca(cliente, auth)
+    assert [numero["papel"] for numero in licenca["numeros"][:2]] == ["mestre", "escravo"]
+
+
+@pytest.mark.parametrize("membros", ["2", [0], [13], [1.0], [True], list(range(13))])
+async def test_membros_fora_do_contrato_sao_valor_invalido(duas, membros):
+    cliente, auth, classe = duas
+    resposta = await cliente.post(
+        f"/api/licencas/{AV}/grupo", json={"v": 1, "membros": membros}, headers=auth
+    )
+    assert resposta.status == 400, await resposta.text()
+    assert (await _json(resposta))["code"] == "valor_invalido"
+    assert _caixa(classe, "uuid-2").chamadas == []

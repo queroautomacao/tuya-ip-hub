@@ -210,6 +210,9 @@ def _fabrica(
             async def desfazer_grupo(self) -> str | None:
                 return await self._passo("desfazer_grupo", None)
 
+            async def tirar_do_grupo(self, ip_do_escravo: object) -> str | None:
+                return await self._passo("tirar_do_grupo", ip_do_escravo)
+
             async def volume_de_escravo(self, ip: object, valor: object) -> str | None:
                 return await self._passo("volume_de_escravo", (ip, valor))
 
@@ -1969,7 +1972,7 @@ async def test_um_driver_multiroom_sem_os_movimentos_de_grupo_nao_derruba_o_barr
     )
     numeros = Numeros(gestor, LICENCA_AV, ("uuid-1", "uuid-2"))
     assert await numeros.aplicar(GRUPO, 1) == "nao_suportado"
-    assert await numeros.acionar("uuid-1", "grupo", "uuid-1") == "nao_suportado"
+    assert await numeros.acionar("uuid-2", "grupo", "uuid-1") == "nao_suportado"
     await numeros.sanear()
     await numeros.sincronizar()
     assert numeros.escravos_alheios() == ()
@@ -2456,3 +2459,94 @@ async def test_perfis_cabem_julga_pelo_tipo_novo_do_cadastro():
         listas={"entradas": ENTRADAS_PESADAS, "atalhos": ATALHOS_PESADOS, "modos": MODOS_PESADOS},
     )
     assert not livro.perfis_cabem(receiver)
+
+
+async def test_o_grupo_leva_os_membros_escolhidos_e_nao_a_licenca_inteira(tres):
+    """Section 14: a master carries up to seven slaves and the customer picks them one by one,
+    so a group formed with a chosen set invites exactly that set and nobody else.
+
+    Seção 14: um mestre leva até sete escravos e o cliente os escolhe um a um, então um grupo
+    formado com um conjunto escolhido convida exatamente aquele conjunto e mais ninguém.
+    """
+    gestor, numeros = tres
+    assert await numeros.formar(1, [3]) is None
+    assert numeros.grupo() == 1
+    assert numeros.escravos() == (3,)
+    assert _chamadas(gestor, "uuid-3") == [("entrar_no_grupo", IP_1)]
+    assert _chamadas(gestor, "uuid-2") == []
+
+
+async def test_um_membro_tirado_do_grupo_sai_pelo_mestre_e_o_resto_segue_tocando(tres):
+    """Taking one member out is a move on the master and never the Ungroup of everybody: the
+    ones that stay never hear a gap.
+
+    Tirar um membro é um movimento no mestre e nunca o Ungroup de todo mundo: quem fica nunca
+    escuta um buraco.
+    """
+    gestor, numeros = tres
+    assert await numeros.formar(1) is None
+    assert numeros.escravos() == (2, 3)
+    _caixa(gestor, "uuid-1").chamadas.clear()
+    assert await numeros.formar(1, [2]) is None
+    assert numeros.escravos() == (2,)
+    assert ("tirar_do_grupo", IP_3) in _chamadas(gestor, "uuid-1")
+    assert ("desfazer_grupo", None) not in _chamadas(gestor, "uuid-1")
+    assert _caixa(gestor, "uuid-3").marcas[-1] is False
+    # The last member leaving is a group of one, which is no group at all.
+    # O último membro saindo é um grupo de um, que não é grupo nenhum.
+    assert await numeros.formar(1, []) is None
+    assert numeros.grupo() == 0
+    assert ("desfazer_grupo", None) in _chamadas(gestor, "uuid-1")
+
+
+async def test_um_membro_que_o_mestre_recusa_tirar_continua_nos_livros(tres):
+    """A member the master refused to take out is still physically playing the audio of the
+    group, so forgetting it here would draw it as solo while it follows a master.
+
+    Um membro que o mestre recusou tirar segue tocando fisicamente o áudio do grupo, então
+    esquecê-lo aqui o desenharia como solo enquanto ele segue um mestre.
+    """
+    gestor, numeros = tres
+    assert await numeros.formar(1) is None
+    _caixa(gestor, "uuid-1").recusa = "erro_aparelho"
+    assert await numeros.formar(1, [2]) == "erro_aparelho"
+    assert 3 in numeros.escravos()
+
+
+async def test_um_membro_fora_da_licenca_ou_o_proprio_mestre_e_valor_invalido(tres):
+    """A number that is not a companion is an empty slot, another tipo or the master itself.
+
+    Um número que não é companheiro é vaga vazia, outro tipo ou o próprio mestre.
+    """
+    _, numeros = tres
+    assert await numeros.formar(1, [1]) == "valor_invalido"
+    assert await numeros.formar(1, [9]) == "valor_invalido"
+    assert await numeros.formar(0, [2]) is None
+    assert await numeros.formar("1", [2]) == "valor_invalido"
+    assert numeros.grupo() == 0
+
+
+async def test_uma_cena_monta_o_grupo_um_membro_por_passo(tres):
+    """Section 14: the customer picks the members one by one, so a scene picks them one step
+    at a time, and a step that names the master with no value takes the whole group down.
+
+    Seção 14: o cliente escolhe os membros um a um, então uma cena os escolhe um passo por
+    vez, e um passo que nomeia o mestre sem valor derruba o grupo inteiro.
+    """
+    gestor, numeros = tres
+    assert await numeros.acionar("uuid-2", "grupo", "uuid-1") is None
+    assert numeros.escravos() == (2,)
+    assert await numeros.acionar("uuid-3", "grupo", "uuid-1") is None
+    assert numeros.escravos() == (2, 3)
+    # A member leaves alone and the group keeps playing without it.
+    # Um membro sai sozinho e o grupo segue tocando sem ele.
+    assert await numeros.acionar("uuid-2", "grupo", "") is None
+    assert numeros.escravos() == (3,)
+    assert numeros.grupo() == 1
+    # The master leaving takes everybody with it.
+    # O mestre saindo leva todo mundo junto.
+    assert await numeros.acionar("uuid-1", "grupo", "") is None
+    assert numeros.grupo() == 0
+    # Nobody joins itself.
+    # Ninguém entra em si mesmo.
+    assert await numeros.acionar("uuid-1", "grupo", "uuid-1") == "valor_invalido"
