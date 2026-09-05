@@ -318,8 +318,14 @@ ecoado, o estado volta pelos reports.
 
 **Perfil** de um equipamento, o que faz o painel se adaptar:
 `numero|template|nome|entradas|atalhos|modos|funcoes`, itens por vírgula,
-template `au` (áudio) ou `tv` (TV e projetor), funções como letras: L liga e
-desliga, N nível, M mudo, E entrada, T teclas, D modo, P transporte, G grupo.
+template `au` (áudio) ou `tv` (TV e projetor), funções como letras, nesta ordem
+fixa: **L** liga e desliga, **N** nível, **M** mudo, **E** entrada, **T** teclas,
+**D** modo, **A** anterior, **P** tocar e pausar, **S** parar, **F** próxima,
+**G** grupo. As quatro letras de transporte (A P S F, decisão de 5/set/2026) são
+as teclas de um player na ordem em que ele as desenha; cada uma é capacidade
+própria da §6, então cada uma é letra própria, e só L e P exigem as duas metades
+do par (uma chave que liga e não desliga não serve, e parar, anterior e próxima
+não têm metade oposta).
 Os perfis viajam nos DPs 149..153 separados por `;`, empacotados por tamanho.
 Tetos do cadastro: rótulo 16 caracteres, 10 entradas, 8 atalhos, 8 modos,
 perfil de até 200 bytes; o que não cabe é recusado ao salvar. O nome viaja

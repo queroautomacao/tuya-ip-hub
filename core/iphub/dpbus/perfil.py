@@ -39,7 +39,18 @@ LETRA_MUDO = "M"
 LETRA_ENTRADA = "E"
 LETRA_TECLAS = "T"
 LETRA_MODO = "D"
+# The four keys of the transport, in the order a player draws them: previous, the play and
+# pause pair, stop, next. Each one is a capability of its own in section 6, so each one is a
+# letter of its own: a speaker that skips tracks and one that only plays are different
+# equipment, and the panel of the platform reads the difference here.
+# As quatro teclas do transporte, na ordem em que um player as desenha: anterior, o par tocar
+# e pausar, parar, próxima. Cada uma é capacidade própria na seção 6, então cada uma é letra
+# própria: uma caixa que pula faixa e uma que só toca são equipamentos diferentes, e o painel
+# da plataforma lê a diferença aqui.
+LETRA_ANTERIOR = "A"
 LETRA_TRANSPORTE = "P"
+LETRA_PARAR = "S"
+LETRA_PROXIMA = "F"
 LETRA_GRUPO = "G"
 LETRAS = (
     LETRA_LIGAR,
@@ -48,7 +59,10 @@ LETRAS = (
     LETRA_ENTRADA,
     LETRA_TECLAS,
     LETRA_MODO,
+    LETRA_ANTERIOR,
     LETRA_TRANSPORTE,
+    LETRA_PARAR,
+    LETRA_PROXIMA,
     LETRA_GRUPO,
 )
 
@@ -112,8 +126,19 @@ def funcoes(cadastro: Cadastro, manifesto: Manifesto) -> str:
         letras.append(LETRA_TECLAS)
     if "modo" in capacidades and itens(cadastro, "modos"):
         letras.append(LETRA_MODO)
+    if "anterior" in capacidades:
+        letras.append(LETRA_ANTERIOR)
     if {"tocar", "pausar"} <= capacidades:
         letras.append(LETRA_TRANSPORTE)
+    # Why: stop, previous and next have no opposite half to wait for, unlike the power pair
+    # and the play and pause pair: a key that skips a track needs nothing to undo it.
+    # Por que: parar, anterior e próxima não têm metade oposta pela qual esperar, ao contrário
+    # do par de energia e do par tocar e pausar: uma tecla que pula faixa não precisa de nada
+    # que a desfaça.
+    if "parar" in capacidades:
+        letras.append(LETRA_PARAR)
+    if "proxima" in capacidades:
+        letras.append(LETRA_PROXIMA)
     if "agrupar" in capacidades:
         letras.append(LETRA_GRUPO)
     return "".join(letras)

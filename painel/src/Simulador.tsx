@@ -217,6 +217,19 @@ function CartaoAv({
             )}
           </button>
         )}
+        {controles.parar && (
+          <button
+            type="button"
+            className="app-play app-salto"
+            disabled={!online || ocupado}
+            aria-label={t("acao_parar")}
+            onClick={() => mandar("parar")}
+          >
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M6 6h12v12H6z" />
+            </svg>
+          </button>
+        )}
         {controles.proxima && (
           <button
             type="button"

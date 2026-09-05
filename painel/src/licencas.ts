@@ -377,6 +377,7 @@ export interface ControlesDoNumero {
   nivel: boolean;
   mudo: boolean;
   transporte: boolean;
+  parar: boolean;
   proxima: boolean;
   anterior: boolean;
   entradas: Item[];
@@ -408,6 +409,7 @@ export function controlesDoNumero(
     nivel: tem("volume"),
     mudo: tem("mudo"),
     transporte: tem("tocar") && tem("pausar"),
+    parar: tem("parar"),
     proxima: tem("proxima"),
     anterior: tem("anterior"),
     entradas: tem("fonte") ? (listas.entradas ?? []) : [],

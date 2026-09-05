@@ -241,10 +241,12 @@ test("controlesDoNumero draws only what the manifest and the lists offer (desenh
   // driver que as declara; uma tecla que o daemon recusaria com nao_suportado não é oferecida.
   assert.equal(controles.proxima, false);
   assert.equal(controles.anterior, false);
-  const caixa = controlesDoNumero(itemDe({ capacidades: ["tocar", "pausar", "proxima"] }), equipamentoDe());
+  assert.equal(controles.parar, false);
+  const caixa = controlesDoNumero(itemDe({ capacidades: ["tocar", "pausar", "proxima", "parar"] }), equipamentoDe());
   assert.equal(caixa.transporte, true);
   assert.equal(caixa.proxima, true);
   assert.equal(caixa.anterior, false);
+  assert.equal(caixa.parar, true);
   const soAnterior = controlesDoNumero(itemDe({ capacidades: ["anterior"] }), equipamentoDe());
   assert.equal(soAnterior.anterior, true);
   assert.equal(soAnterior.proxima, false);

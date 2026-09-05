@@ -113,11 +113,14 @@ def test_as_letras_sao_as_da_secao_8_na_ordem_fixa():
 
     A ordem das letras nunca segue a ordem em que o manifesto as declarou.
     """
-    assert LETRAS == ("L", "N", "M", "E", "T", "D", "P", "G")
+    assert LETRAS == ("L", "N", "M", "E", "T", "D", "A", "P", "S", "F", "G")
     invertidas = (
         "agrupar",
+        "proxima",
+        "parar",
         "pausar",
         "tocar",
+        "anterior",
         "modo",
         "tecla",
         "fonte",
@@ -127,7 +130,7 @@ def test_as_letras_sao_as_da_secao_8_na_ordem_fixa():
         "ligar",
     )
     manifesto = _manifesto(categoria="multiroom", capacidades=invertidas)
-    assert funcoes(_cadastro(), manifesto) == "LNMETDPG"
+    assert funcoes(_cadastro(), manifesto) == "LNMETDAPSFG"
 
 
 @pytest.mark.parametrize(
@@ -145,13 +148,19 @@ def test_as_letras_sao_as_da_secao_8_na_ordem_fixa():
         (("tocar",), ""),
         (("pausar",), ""),
         (("tocar", "pausar"), "P"),
-        (("comando_extra", "proxima", "anterior", "atalho"), ""),
+        (("parar",), "S"),
+        (("anterior",), "A"),
+        (("proxima",), "F"),
+        (("tocar", "pausar", "parar", "proxima", "anterior"), "APSF"),
+        (("comando_extra", "atalho"), ""),
     ],
 )
 def test_cada_letra_so_aparece_com_a_capacidade_dela(capacidades, esperado):
-    """Half of the power pair or of the transport pair is no control the customer can trust.
+    """Half of the power pair or of the play and pause pair is no control the customer can
+    trust; stop, previous and next answer for themselves, because no half is missing.
 
-    Metade do par de energia ou do par de transporte não é controle em que o cliente confie.
+    Metade do par de energia ou do par tocar e pausar não é controle em que o cliente confie;
+    parar, anterior e próxima respondem por si, porque não falta metade nenhuma.
     """
     assert funcoes(_cadastro(), _manifesto(capacidades=capacidades)) == esperado
 
