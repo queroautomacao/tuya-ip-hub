@@ -10,10 +10,10 @@ from aiohttp import web
 from iphub.api import (
     cenas,
     declarativos,
-    diario,
     equipamentos,
     health,
     licencas,
+    log,
     setup,
     sistema,
 )
@@ -32,7 +32,7 @@ def registrar_rotas(app: web.Application, tratar_expect: TrataExpect) -> None:
     rota_post(app, "/api/instalacao", setup.instalacao, tratar_expect)
     rota_post(app, "/api/reiniciar", sistema.reiniciar, tratar_expect)
     rota_get(app, "/api/atualizacao", sistema.atualizacao, tratar_expect)
-    rota_get(app, "/api/diario", diario.listar, tratar_expect)
+    rota_get(app, "/api/log", log.listar, tratar_expect)
     rota_get(app, "/api/catalogo", equipamentos.catalogo, tratar_expect)
     rota_get(app, "/api/equipamentos", equipamentos.listar, tratar_expect)
     rota_post(app, "/api/equipamentos", equipamentos.cadastrar, tratar_expect)

@@ -128,7 +128,7 @@
 .ficha {
   padding: 0.45rem 0.85rem;
   border-radius: 999px;
-  border: 1px solid var(--vidro-borda);
+  border: 1px solid color-mix(in srgb, var(--texto) 24%, transparent);
   background: var(--campo);
   color: inherit;
   font: inherit;

@@ -240,11 +240,13 @@ export function CartaoEquipamento({
             {traduzirErro(erro)}
           </p>
         )}
-      </section>
-      {apos}
-      <section className="cartao cartao-compacto">
+        {/* Why: where the equipment answers and what it calls itself belong to the card of */}
+        {/* the thing itself, in a footer under the keys, and not to a card of their own. */}
+        {/* Por que: onde o equipamento responde e como ele se chama são do cartão da coisa */}
+        {/* em si, num rodapé embaixo das teclas, e não de um cartão próprio. */}
         <Linhas equipamento={equipamento} item={item} idioma={idioma} />
       </section>
+      {apos}
       <section className="cartao">
         <h2>{t("detalhe_configuracoes")}</h2>
         <h3>{t("detalhe_cadastro")}</h3>

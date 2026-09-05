@@ -241,9 +241,9 @@ function rotaDoEquipamento(identidade: string): string {
 
 // Why: the diary is the last lines the daemon kept in memory, read whole on every tick
 // because it is small on purpose and because a page of a log is not worth a cursor.
-// Por que: o diário são as últimas linhas que o daemon guardou em memória, lidas inteiras a
+// Por que: o log são as últimas linhas que o daemon guardou em memória, lidas inteiras a
 // cada tique porque ele é pequeno de propósito e porque uma página de log não vale um cursor.
-export interface LinhaDoDiario {
+export interface LinhaDoLog {
   t: number;
   nivel: string;
   origem: string;
@@ -251,13 +251,13 @@ export interface LinhaDoDiario {
   texto: string;
 }
 
-export interface Diario {
-  linhas: LinhaDoDiario[];
+export interface Log {
+  linhas: LinhaDoLog[];
   descartadas: number;
   teto: number;
 }
 
-function lerLinhaDoDiario(valor: unknown): LinhaDoDiario | null {
+function lerLinhaDoLog(valor: unknown): LinhaDoLog | null {
   if (typeof valor !== "object" || valor === null) return null;
   const bruto = valor as Record<string, unknown>;
   const { t: instante, nivel, origem, onde, texto } = bruto;
@@ -267,12 +267,12 @@ function lerLinhaDoDiario(valor: unknown): LinhaDoDiario | null {
   return { t: instante, nivel, origem, onde, texto };
 }
 
-export async function lerDiario(): Promise<Diario> {
-  const dados = await pedir("/api/diario", "GET");
-  const linhas: LinhaDoDiario[] = [];
+export async function lerLog(): Promise<Log> {
+  const dados = await pedir("/api/log", "GET");
+  const linhas: LinhaDoLog[] = [];
   if (Array.isArray(dados.linhas)) {
     for (const bruto of dados.linhas) {
-      const linha = lerLinhaDoDiario(bruto);
+      const linha = lerLinhaDoLog(bruto);
       if (linha !== null) linhas.push(linha);
     }
   }

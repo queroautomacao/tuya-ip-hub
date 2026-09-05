@@ -62,6 +62,15 @@ function Icone({ aba }: { aba: Aba }) {
           <path d="m14 4-4 16" />
         </svg>
       );
+    case "log":
+      // Lines of text on a page, which is what the screen is.
+      // Linhas de texto numa página, que é o que a tela é.
+      return (
+        <svg {...TRACO}>
+          <path d="M5 3.5h14v17H5z" />
+          <path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4" />
+        </svg>
+      );
     case "conta":
       return (
         <svg {...TRACO}>

@@ -7,7 +7,7 @@
 @import "./estilos-concha.css";
 @import "./estilos-simulador.css";
 @import "./estilos-porta.css";
-@import "./estilos-diario.css";
+@import "./estilos-log.css";
 
 /* Liquid glass: every surface of the panel is a sheet of frosted glass over a softly lit
    background, with a bright edge on top where the light hits it and a soft shadow under it.
@@ -460,9 +460,15 @@ main {
   }
 }
 
+/* Why: a secondary button is the same material as the card under it, so the pale edge it had
+   left a row of them reading as one grey strip; the edge is drawn from the text colour, which
+   is the one token that contrasts with the surface in both themes.
+   Por que: um botão secundário é o mesmo material do cartão sob ele, então a borda pálida que
+   ele tinha deixava uma fileira deles se lendo como uma tira cinza só; a borda nasce da cor do
+   texto, que é o único token que contrasta com a superfície nos dois temas. */
 .botao.secundario {
   background: var(--cartao);
-  border-color: var(--vidro-borda);
+  border-color: color-mix(in srgb, var(--texto) 24%, transparent);
   color: var(--texto);
   margin-top: 0;
   box-shadow:

@@ -3,10 +3,10 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { LinhaDoDiario } from "./api.ts";
-import { ORIGENS, comoTexto, filtrar, horaDe } from "./diario.ts";
+import type { LinhaDoLog } from "./api.ts";
+import { ORIGENS, comoTexto, filtrar, horaDe } from "./log.ts";
 
-function linhaDe(parcial: Partial<LinhaDoDiario> = {}): LinhaDoDiario {
+function linhaDe(parcial: Partial<LinhaDoLog> = {}): LinhaDoLog {
   return { t: 1_700_000_000, nivel: "debug", origem: "driver", onde: "linkplay", texto: "oi", ...parcial };
 }
 

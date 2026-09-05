@@ -12,7 +12,7 @@ The ceiling is the whole point: a hub runs for months, so the diary keeps the LA
 forgets the rest, counting what it dropped so nobody reads a hole as silence. Nothing here
 touches disk: a diary that survived a reboot would be a database, and this is a window.
 
-O diário do hub: as últimas linhas do que o daemon fez, guardadas em memória para o painel
+O log do hub: as últimas linhas do que o daemon fez, guardadas em memória para o painel
 mostrar e para um relato levar.
 
 Por que: o que um driver pôs no fio, o que a ponte da plataforma pediu e o que o painel mudou
@@ -20,9 +20,9 @@ são três histórias que só fazem sentido lidas juntas, em ordem, na mesma tel
 container as conta, mas o integrador de pé numa casa tem um navegador e não um shell, e pedir
 `docker logs` é pedir justamente o que um tablet não faz.
 
-O teto é o ponto: um hub roda por meses, então o diário guarda as ÚLTIMAS linhas e esquece o
+O teto é o ponto: um hub roda por meses, então o log guarda as ÚLTIMAS linhas e esquece o
 resto, contando o que descartou para ninguém ler um buraco como silêncio. Nada aqui toca o
-disco: um diário que sobrevivesse a um reboot seria um banco de dados, e isto é uma janela.
+disco: um log que sobrevivesse a um reboot seria um banco de dados, e isto é uma janela.
 """
 
 import logging
@@ -40,7 +40,7 @@ LINHAS_MAXIMO = 1000
 # Why: a device that answers a megabyte of garbage would put that megabyte in every line of
 # the diary; the message is cut where a human stops reading anyway.
 # Por que: um aparelho que responde um megabyte de lixo poria esse megabyte em cada linha do
-# diário; a mensagem é cortada onde um humano para de ler de todo jeito.
+# log; a mensagem é cortada onde um humano para de ler de todo jeito.
 MENSAGEM_MAXIMA = 600
 
 # The origins the panel groups the lines by, decided by the logger that wrote each one.
@@ -65,7 +65,7 @@ _ORIGEM_POR_PREFIXO = (
 class Linha:
     """One line of the diary, as the panel reads it.
 
-    Uma linha do diário, como o painel a lê.
+    Uma linha do log, como o painel a lê.
     """
 
     # Why: the clock of the record and not of the reading, because a line is read minutes
@@ -107,7 +107,7 @@ def onde_de(nome: str) -> str:
     return nome.removeprefix("iphub.").split(".")[-1] or nome
 
 
-class Diario(logging.Handler):
+class Log(logging.Handler):
     """A ring of the last lines, filled by the logging of the whole daemon.
 
     Um anel das últimas linhas, preenchido pelo logging do daemon inteiro.
@@ -131,7 +131,7 @@ class Diario(logging.Handler):
             # Why: the traceback of an unexpected failure is the one thing worth more than the
             # message, but only its last line fits a diary; the container log keeps the rest.
             # Por que: o traceback de uma falha inesperada é a única coisa que vale mais que a
-            # mensagem, mas só a última linha dele cabe num diário; o log do container guarda
+            # mensagem, mas só a última linha dele cabe num log; o log do container guarda
             # o resto.
             excecao = record.exc_info[1]
             if excecao is not None:
@@ -167,23 +167,23 @@ def _apara(mensagem: str) -> str:
     return f"{limpo[:MENSAGEM_MAXIMA]}..."
 
 
-def instalar(limite: int = LINHAS_MAXIMO) -> Diario:
+def instalar(limite: int = LINHAS_MAXIMO) -> Log:
     """Puts a diary under the logging of the daemon and answers it.
 
     Why: the level of the diary is its own, so the container log stays at INFO while the panel
     still sees every command a driver wrote; the propagation to the root handler is untouched.
 
-    Põe um diário sob o logging do daemon e o devolve.
+    Põe um log sob o logging do daemon e o devolve.
 
-    Por que: o nível do diário é próprio dele, então o log do container fica em INFO enquanto o
+    Por que: o nível do log é próprio dele, então o log do container fica em INFO enquanto o
     painel ainda vê todo comando que um driver escreveu; a propagação para o handler raiz fica
     como está.
     """
-    diario = Diario(limite)
+    log = Log(limite)
     raiz = logging.getLogger("iphub")
-    for antigo in [alvo for alvo in raiz.handlers if isinstance(alvo, Diario)]:
+    for antigo in [alvo for alvo in raiz.handlers if isinstance(alvo, Log)]:
         raiz.removeHandler(antigo)
-    raiz.addHandler(diario)
+    raiz.addHandler(log)
     if raiz.level == logging.NOTSET or raiz.level > logging.DEBUG:
         raiz.setLevel(logging.DEBUG)
-    return diario
+    return log

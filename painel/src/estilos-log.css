@@ -4,11 +4,11 @@
    The diary: a terminal on the panel. Monospace, the newest line at the bottom, the origin of
    each line in a colour so the eye separates three stories read together, and everything
    inside a box that scrolls on its own so the page never grows with the log.
-   O diário: um terminal no painel. Monoespaçada, a linha mais nova embaixo, a origem de cada
+   O log: um terminal no painel. Monoespaçada, a linha mais nova embaixo, a origem de cada
    linha numa cor para o olho separar três histórias lidas juntas, e tudo dentro de uma caixa
    que rola sozinha para a página nunca crescer com o log. */
 
-.diario-barra {
+.log-barra {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -16,12 +16,12 @@
   margin-bottom: 0.75rem;
 }
 
-.diario-busca {
+.log-busca {
   flex: 1 1 12rem;
   min-width: 0;
 }
 
-.diario-acoes {
+.log-acoes {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -29,20 +29,20 @@
   margin-bottom: 0.75rem;
 }
 
-.diario-seguir {
+.log-seguir {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
   cursor: pointer;
 }
 
-.diario-seguir input {
+.log-seguir input {
   width: 1.05rem;
   height: 1.05rem;
   accent-color: var(--destaque);
 }
 
-.diario-caixa {
+.log-caixa {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
@@ -61,24 +61,24 @@
   overflow-wrap: anywhere;
 }
 
-.diario-caixa:focus-visible {
+.log-caixa:focus-visible {
   outline: 2px solid var(--destaque);
   outline-offset: 2px;
 }
 
-.diario-linha {
+.log-linha {
   display: grid;
   grid-template-columns: auto auto minmax(0, 1fr);
   gap: 0.65rem;
   align-items: baseline;
 }
 
-.diario-hora {
+.log-hora {
   color: var(--texto-suave);
   font-variant-numeric: tabular-nums;
 }
 
-.diario-origem {
+.log-origem {
   font-weight: 600;
   white-space: nowrap;
 }
@@ -99,16 +99,16 @@
   color: var(--texto-suave);
 }
 
-.diario-texto {
+.log-texto {
   min-width: 0;
 }
 
-.nivel-warning .diario-texto {
+.nivel-warning .log-texto {
   color: #a4632a;
 }
 
-.nivel-error .diario-texto,
-.nivel-critical .diario-texto {
+.nivel-error .log-texto,
+.nivel-critical .log-texto {
   color: var(--erro);
   font-weight: 600;
 }
@@ -123,21 +123,21 @@
   }
 
   .origem-painel,
-  .nivel-warning .diario-texto {
+  .nivel-warning .log-texto {
     color: #ffc470;
   }
 }
 
 @media (max-width: 640px) {
-  .diario-linha {
+  .log-linha {
     grid-template-columns: auto minmax(0, 1fr);
   }
 
-  .diario-origem {
+  .log-origem {
     grid-column: 2;
   }
 
-  .diario-texto {
+  .log-texto {
     grid-column: 1 / -1;
   }
 }

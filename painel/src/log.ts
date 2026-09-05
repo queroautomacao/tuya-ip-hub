@@ -4,11 +4,11 @@
 // Why: what the diary screen decides about a line (when it happened, whether a filter keeps it,
 // how it reads in a report someone pastes into an issue) is logic and not drawing, so it lives
 // here where a test reaches it without a browser.
-// Por que: o que a tela do diário decide sobre uma linha (quando aconteceu, se um filtro a
+// Por que: o que a tela do log decide sobre uma linha (quando aconteceu, se um filtro a
 // mantém, como ela se lê num relato que alguém cola numa issue) é lógica e não desenho, então
 // mora aqui, onde um teste a alcança sem navegador.
 
-import type { LinhaDoDiario } from "./api.ts";
+import type { LinhaDoLog } from "./api.ts";
 
 // The origins the daemon writes, in the order the filter draws them.
 // As origens que o daemon escreve, na ordem em que o filtro as desenha.
@@ -37,7 +37,7 @@ export function horaDe(instante: number): string {
 // same three facts the screen shows and nothing of the layout.
 // Por que: o que o botão de copiar põe na área de transferência é o que cai numa issue, então
 // leva os mesmos três fatos que a tela mostra e nada do layout.
-export function comoTexto(linhas: LinhaDoDiario[]): string {
+export function comoTexto(linhas: LinhaDoLog[]): string {
   return linhas
     .map((linha) => {
       const nivel = linha.nivel.toUpperCase().padEnd(7);
@@ -51,10 +51,10 @@ export function comoTexto(linhas: LinhaDoDiario[]): string {
 // Por que: nenhuma origem escolhida significa todas as origens, porque um filtro que começa
 // vazio e não mostra nada é uma tela que parece quebrada assim que abre.
 export function filtrar(
-  linhas: LinhaDoDiario[],
+  linhas: LinhaDoLog[],
   origens: readonly Origem[],
   busca: string,
-): LinhaDoDiario[] {
+): LinhaDoLog[] {
   const procurado = busca.trim().toLowerCase();
   return linhas.filter((linha) => {
     if (origens.length > 0 && !origens.includes(linha.origem as Origem)) return false;

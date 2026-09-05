@@ -22,13 +22,13 @@ from iphub.config import ARQUIVO as ARQUIVO_CONFIG
 from iphub.config import Config
 from iphub.config import carregar as carregar_config
 from iphub.config import salvar as salvar_config
-from iphub.diario import Diario
 from iphub.dpbus import mapa, protocolo
 from iphub.dpbus.numeros import Licencas
 from iphub.drivers.base import Driver
 from iphub.drivers.catalogo import Catalogo
 from iphub.drivers.gestor import Gestor
 from iphub.limite import Limite
+from iphub.log import Log
 from iphub.portao import Handler, resposta_erro
 from iphub.segredos import Segredos
 from iphub.sessoes import Sessoes
@@ -56,7 +56,7 @@ SESSOES = web.AppKey("sessoes", Sessoes)
 LIMITE = web.AppKey("limite", Limite)
 CATALOGO = web.AppKey("catalogo", Catalogo)
 GESTOR = web.AppKey("gestor", Gestor)
-DIARIO = web.AppKey("diario", Diario)
+LOG = web.AppKey("log", Log)
 VARREDURA = web.AppKey("varredura", Mutavel[asyncio.Task])
 # Why: with no ownership code, the ja_configurado check is the only guard of the claim
 # route, and a check that is not atomic with the write hands two owners to two racers.

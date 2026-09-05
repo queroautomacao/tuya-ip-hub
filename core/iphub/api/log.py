@@ -5,7 +5,7 @@
 Why: reading it needs a session, because the lines carry addresses of equipment, identities,
 licence ids and every command that crossed the installation. That is a map of the house.
 
-O diário do hub por HTTP: as últimas linhas do que o daemon fez, para o painel.
+O log do hub por HTTP: as últimas linhas do que o daemon fez, para o painel.
 
 Por que: lê-lo exige sessão, porque as linhas levam endereços de equipamentos, identidades,
 ids de licença e todo comando que atravessou a instalação. Isso é um mapa da casa.
@@ -13,8 +13,8 @@ ids de licença e todo comando que atravessou a instalação. Isso é um mapa da
 
 from aiohttp import web
 
-from iphub.api.comum import DIARIO, com_sessao, resposta_ok
-from iphub.diario import LINHAS_MAXIMO
+from iphub.api.comum import LOG, com_sessao, resposta_ok
+from iphub.log import LINHAS_MAXIMO
 
 
 @com_sessao
@@ -25,17 +25,17 @@ async def listar(request: web.Request) -> web.Response:
     way a terminal does; the count of what was dropped is what keeps a hole from reading as
     silence.
 
-    Toda linha que o diário ainda guarda, da mais velha para a mais nova, mais quantas ele
+    Toda linha que o log ainda guarda, da mais velha para a mais nova, mais quantas ele
     descartou.
 
     Por que: da mais velha para a mais nova é a ordem em que um log é lido, e o painel
     acrescenta embaixo como um terminal faz; a conta do que foi descartado é o que impede um
     buraco de ser lido como silêncio.
     """
-    diario = request.app[DIARIO]
-    linhas = diario.linhas()
+    log = request.app[LOG]
+    linhas = log.linhas()
     return resposta_ok(
         linhas=[linha.como_json() for linha in linhas],
-        descartadas=diario.descartadas,
+        descartadas=log.descartadas,
         teto=LINHAS_MAXIMO,
     )

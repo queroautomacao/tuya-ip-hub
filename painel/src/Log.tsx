@@ -11,8 +11,8 @@
 // tudo para um relato levar junto.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { codigoDoErro, lerDiario, type LinhaDoDiario } from "./api.ts";
-import { ORIGENS, comoTexto, filtrar, horaDe, type Origem } from "./diario.ts";
+import { codigoDoErro, lerLog, type LinhaDoLog } from "./api.ts";
+import { ORIGENS, comoTexto, filtrar, horaDe, type Origem } from "./log.ts";
 import { t, traduzirErro, type Chave } from "./i18n";
 
 // Why: a hub under a scene writes a few lines a second, and a screen that redrew faster than
@@ -21,8 +21,8 @@ import { t, traduzirErro, type Chave } from "./i18n";
 // redesenhasse mais rápido que isso só gastaria a bateria do tablet lendo a mesma coisa.
 const INTERVALO_MS = 2_000;
 
-export default function Diario() {
-  const [linhas, setLinhas] = useState<LinhaDoDiario[]>([]);
+export default function Log() {
+  const [linhas, setLinhas] = useState<LinhaDoLog[]>([]);
   const [descartadas, setDescartadas] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
   const [origens, setOrigens] = useState<Origem[]>([]);
@@ -33,9 +33,9 @@ export default function Diario() {
 
   const recarregar = useCallback(async (): Promise<void> => {
     try {
-      const diario = await lerDiario();
-      setLinhas(diario.linhas);
-      setDescartadas(diario.descartadas);
+      const log = await lerLog();
+      setLinhas(log.linhas);
+      setDescartadas(log.descartadas);
       setErro(null);
     } catch (falha) {
       setErro(codigoDoErro(falha));
@@ -97,13 +97,13 @@ export default function Diario() {
     <>
       <div className="tela-cabeca">
         <div>
-          <h2>{t("diario_titulo")}</h2>
-          <p>{t("diario_intro")}</p>
+          <h2>{t("log_titulo")}</h2>
+          <p>{t("log_intro")}</p>
         </div>
       </div>
       <section className="cartao">
-        <div className="diario-barra">
-          <div className="fichas" role="group" aria-label={t("diario_origens")}>
+        <div className="log-barra">
+          <div className="fichas" role="group" aria-label={t("log_origens")}>
             {ORIGENS.map((origem) => (
               <button
                 key={origem}
@@ -112,34 +112,34 @@ export default function Diario() {
                 aria-pressed={origens.includes(origem)}
                 onClick={() => alternar(origem)}
               >
-                {t(`diario_origem_${origem}` as Chave)}
+                {t(`log_origem_${origem}` as Chave)}
               </button>
             ))}
           </div>
           <input
             type="search"
-            className="diario-busca"
+            className="log-busca"
             value={busca}
-            placeholder={t("diario_busca")}
-            aria-label={t("diario_busca")}
+            placeholder={t("log_busca")}
+            aria-label={t("log_busca")}
             onChange={(evento) => setBusca(evento.target.value)}
           />
         </div>
-        <div className="diario-acoes">
+        <div className="log-acoes">
           <button type="button" className="botao" onClick={() => copiar()}>
-            {copiado ? t("diario_copiado") : t("diario_copiar")}
+            {copiado ? t("log_copiado") : t("log_copiar")}
           </button>
-          <label className="diario-seguir">
+          <label className="log-seguir">
             <input
               type="checkbox"
               checked={seguindo}
               onChange={(evento) => setSeguindo(evento.target.checked)}
             />
-            {t("diario_seguir")}
+            {t("log_seguir")}
           </label>
           <span className="texto-suave" role="status">
             {`${visiveis.length} / ${linhas.length}`}
-            {descartadas > 0 ? ` · ${descartadas} ${t("diario_descartadas")}` : ""}
+            {descartadas > 0 ? ` · ${descartadas} ${t("log_descartadas")}` : ""}
           </span>
         </div>
         {erro !== null && (
@@ -147,15 +147,15 @@ export default function Diario() {
             {traduzirErro(erro)}
           </p>
         )}
-        <pre className="diario-caixa" ref={caixa} tabIndex={0} aria-label={t("diario_titulo")}>
+        <pre className="log-caixa" ref={caixa} tabIndex={0} aria-label={t("log_titulo")}>
           {visiveis.length === 0 ? (
-            <span className="texto-suave">{t("diario_vazio")}</span>
+            <span className="texto-suave">{t("log_vazio")}</span>
           ) : (
             visiveis.map((linha, indice) => (
-              <span key={`${linha.t}-${indice}`} className={`diario-linha nivel-${linha.nivel}`}>
-                <span className="diario-hora">{horaDe(linha.t)}</span>
-                <span className={`diario-origem origem-${linha.origem}`}>{linha.onde}</span>
-                <span className="diario-texto">{linha.texto}</span>
+              <span key={`${linha.t}-${indice}`} className={`log-linha nivel-${linha.nivel}`}>
+                <span className="log-hora">{horaDe(linha.t)}</span>
+                <span className={`log-origem origem-${linha.origem}`}>{linha.onde}</span>
+                <span className="log-texto">{linha.texto}</span>
               </span>
             ))
           )}

@@ -17,10 +17,10 @@ from iphub.api.comum import (
     AMBIENTE,
     CATALOGO,
     CONFIG,
-    DIARIO,
     GESTOR,
     LICENCAS,
     LIMITE,
+    LOG,
     SEGREDOS,
     SESSOES,
     TRAVA_DRIVERS,
@@ -36,7 +36,6 @@ from iphub.api.health import INICIO
 from iphub.arquivos import garantir_diretorio
 from iphub.config import Config
 from iphub.config import carregar as carregar_config
-from iphub.diario import instalar as instalar_diario
 from iphub.dpbus.socket import (
     BARRAMENTO,
     Barramento,
@@ -50,6 +49,7 @@ from iphub.drivers.base import Driver
 from iphub.drivers.catalogo import Catalogo
 from iphub.drivers.gestor import Gestor
 from iphub.limite import Limite
+from iphub.log import instalar as instalar_log
 from iphub.painel import registrar_painel
 from iphub.portao import (
     criar_middleware_host,
@@ -155,9 +155,9 @@ def criar_app(
     app[INICIO] = time.monotonic()
     # Why: the diary is installed before anything else is built, so what the catalog, the
     # gestor and the bus say while they rise is already in it when the panel first asks.
-    # Por que: o diário é instalado antes de tudo o mais ser construído, então o que o
+    # Por que: o log é instalado antes de tudo o mais ser construído, então o que o
     # catálogo, o gestor e o barramento dizem ao subir já está nele quando o painel pergunta.
-    app[DIARIO] = instalar_diario()
+    app[LOG] = instalar_log()
     app[AMBIENTE] = amb
     app[CONFIG] = cfg
     app[SEGREDOS] = segs
