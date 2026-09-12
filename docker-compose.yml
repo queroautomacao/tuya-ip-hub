@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Quero Automação Ltda
+services:
+  iphub:
+    # IPHUB_IMAGEM lets the bench smoke run an image built elsewhere (CI)
+    # without touching this file.
+    image: ${IPHUB_IMAGEM:-ghcr.io/queroautomacao/tuya-ip-hub:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # The reference ARM appliance has no bridge network for build containers
+      # either; downloads during the build only work on the host network.
+      network: host
+    # No image has been published on GHCR yet, so compose builds locally.
+    # This line goes away with the first release, when the image is pulled.
+    pull_policy: build
+    # The reference ARM appliance has no bridge network, so the container
+    # shares the host stack and no port is published (a published port would
+    # not work there). Docker Desktop uses docker-compose.desktop.yml on top.
+    network_mode: host
+    restart: unless-stopped
+    # The address of the relay of the remote access. It is the same for a whole fleet and
+    # it is not a credential, so it travels in the image or in a .env beside this file and
+    # nobody types it at an installation.
+    environment:
+      IPHUB_REMOTO_RELAY: ${IPHUB_REMOTO_RELAY:-}
+      # The name the hub answers by on mDNS (iphub.local) and whether it answers at all.
+      IPHUB_NOME: ${IPHUB_NOME:-iphub}
+      IPHUB_MDNS: ${IPHUB_MDNS:-1}
+    volumes:
+      - iphub-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-m", "iphub.saude"]
+      interval: 10s
+      timeout: 5s
+      start_period: 45s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  iphub-data:

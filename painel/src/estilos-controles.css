@@ -1,0 +1,442 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (C) 2026 Quero Automação Ltda */
+
+/* The controls of an equipment, drawn like a remote: power keys, a volume slider, round
+   transport keys, the input as a list. Each key is a touch target of 2.75rem, phone first. */
+
+.painel-controles {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  margin-top: 0.75rem;
+}
+
+.controle-grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.controle-rotulo {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+
+.segmentos {
+  display: inline-flex;
+  gap: 0.2rem;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.2rem;
+  border: 1px solid var(--vidro-borda);
+  border-radius: 999px;
+  background: var(--campo);
+  box-shadow: inset 0 1px 0 var(--vidro-brilho);
+}
+
+.segmentos button {
+  font: inherit;
+  font-weight: 600;
+  min-height: 2.4rem;
+  padding: 0 1.2rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--texto);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.segmentos button:active {
+  transform: scale(0.97);
+}
+
+.segmentos button[aria-pressed="true"] {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acento-botao) 84%, #ffffff), var(--acento-botao));
+  color: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.segmentos button[disabled] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.controle-volume {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.controle-volume input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  min-height: 2.75rem;
+  accent-color: var(--destaque);
+}
+
+.controle-volume-valor {
+  width: 2.25rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--texto-suave);
+}
+
+.controle-volume .botao[aria-pressed="true"] {
+  background: var(--destaque);
+  border-color: var(--destaque);
+  color: #ffffff;
+}
+
+.transporte {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.botao-icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.9rem;
+  height: 2.9rem;
+  border: 1px solid var(--vidro-borda);
+  border-radius: 50%;
+  background: var(--cartao);
+  color: var(--texto);
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 var(--vidro-brilho),
+    0 4px 12px var(--vidro-sombra);
+  transition: transform 0.15s ease;
+}
+
+.botao-icone:active {
+  transform: scale(0.94);
+}
+
+.botao-icone svg {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+.botao-icone[disabled] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.controle-linha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.controle-linha input {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+
+/* The number of the equipment on the app and its multiroom card share the detail screen. */
+.numero-opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.numero-opcoes select {
+  flex: 1 1 12rem;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.multiroom-membros {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.multiroom-membros li {
+  overflow-wrap: anywhere;
+}
+
+/* The player: what plays now, the transport with play or pause as one big key, the volume
+   with mute beside it, the inputs and the radios as chips. */
+.agora {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.9rem 1rem;
+  border-radius: calc(var(--raio) - 4px);
+  background: var(--campo);
+  border: 1px solid var(--vidro-borda);
+}
+
+.agora-titulo {
+  font-size: 1.15rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.agora-fonte {
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+  min-height: 1.2em;
+}
+
+.agora-tocando {
+  border-color: color-mix(in srgb, var(--destaque) 50%, var(--vidro-borda));
+}
+
+.transporte-player {
+  justify-content: center;
+  align-items: center;
+  gap: 1.2rem;
+}
+
+.botao-icone-grande {
+  width: 4rem;
+  height: 4rem;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acento-botao) 84%, #ffffff), var(--acento-botao));
+  color: #ffffff;
+  border-color: transparent;
+}
+
+.botao-icone-grande svg {
+  width: 1.8rem;
+  height: 1.8rem;
+}
+
+.botao-icone-aceso {
+  background: var(--destaque);
+  border-color: var(--destaque);
+  color: #ffffff;
+}
+
+/* The small round key of the card of the home, the same key of the detail screen one size
+   down, so the two screens are visibly the same panel. */
+.botao-icone-pequeno {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.botao-icone-pequeno svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.listas-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+/* The members of a group, each a line the thumb can hit, and the seal of one already held by
+   another group; the list of examples of a panel list, label and value side by side. */
+.multiroom-membro {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0;
+  cursor: pointer;
+}
+
+.multiroom-membro input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--destaque);
+  flex: none;
+}
+
+.selo-papel {
+  font-size: 0.78rem;
+  color: var(--texto-suave);
+  border: 1px solid var(--borda);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+}
+
+.listas-exemplos {
+  list-style: none;
+  margin: 0.4rem 0 0.6rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.listas-exemplos li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.86rem;
+}
+
+.listas-exemplos code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  color: var(--texto-suave);
+  overflow-wrap: anywhere;
+}
+
+/* The technical card: the few facts nothing else on the screen says, in pairs that wrap
+   instead of a column of rows as tall as the card above it. */
+.ficha-tecnica {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.6rem;
+  margin: 1.1rem 0 0;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--borda);
+  font-size: 0.9rem;
+}
+
+.ficha-tecnica > div {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+/* A label that refuses to wrap and is longer than the card pushes the value out of the
+   row, and the value then breaks one letter per line, which is how a field of a manifest
+   read as a label turned a reading into a vertical column of characters. Two words wrap on
+   nothing; a paragraph that got in here wraps instead of starving what it labels. */
+.ficha-tecnica dt {
+  color: var(--texto-suave);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.ficha-tecnica dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A block of the settings card: a heading and its own breathing room, so three of them read
+   as three subjects and not as one long form. */
+.bloco-de-configuracao {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 1.1rem;
+  margin-top: 1.1rem;
+  border-top: 1px solid var(--borda);
+}
+
+/* The remote: a cross for the thumb, the two rockers it presses over and over beside it, the
+   actions under them and the keypad last. Only what the driver declares is drawn, so a zone
+   with nothing in it takes no space at all. */
+.remoto {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.remoto-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.remoto-tecla {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3rem;
+  min-height: 3rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--texto) 24%, transparent);
+  border-radius: var(--raio-interno);
+  background: var(--campo);
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.remoto-tecla:hover:not(:disabled) {
+  background: var(--cartao);
+}
+
+.remoto-tecla:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.remoto-tecla svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+/* The cross is a three by three grid with the corners empty, which is the only layout a
+   thumb reads without looking; the ok sits in the middle and is round because it is the one
+   key that is not a direction. */
+.remoto-cruz {
+  display: grid;
+  grid-template-columns: repeat(3, 3.25rem);
+  grid-template-rows: repeat(3, 3.25rem);
+  grid-template-areas:
+    ".        cima     ."
+    "esquerda ok       direita"
+    ".        baixo    .";
+  gap: 0.3rem;
+  flex: 0 0 auto;
+}
+
+.remoto-cruz .remoto-tecla {
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.remoto-cruz .ok {
+  border-radius: 999px;
+  font-weight: 650;
+}
+
+.remoto-balancins {
+  display: flex;
+  gap: 1rem;
+}
+
+/* A rocker is one column because that is the shape of the thing on the remote in the
+   hand, and the label between the two halves says which of them it is without a legend. */
+.remoto-balancim {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.3rem;
+  min-width: 4rem;
+}
+
+.remoto-balancim-rotulo {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+}
+
+.remoto-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.remoto-digitos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(3rem, 4.5rem));
+  gap: 0.3rem;
+}
+
+/* The zero is the wide key under the seven eight nine of a keypad, which is where a
+   finger that has used a telephone expects it. */
+.remoto-digitos .remoto-tecla:first-child {
+  order: 1;
+  grid-column: 1 / -1;
+}

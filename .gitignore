@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Quero Automação Ltda
+/interno/
+*.pdf
+.env
+.env.*
+/data/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+node_modules/
+painel/dist/
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.local

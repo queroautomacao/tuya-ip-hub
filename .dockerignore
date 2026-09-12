@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Quero Automação Ltda
+# An env file must not enter the build context; Docker Compose reads a.env
+# for the ${IPHUB_IMAGEM} interpolation and Vite bakes every VITE_* value of
+# painel/.env into the bundle, so a secret in one of them would ship in the image.
+**/.env
+**/.env.*
+**/*.local
+.git
+.github
+interno
+docs
+painel/node_modules
+painel/dist
+core/.venv
+core/tests
+**/__pycache__
+**/*.pyc
+**/*.pdf
+**/*.egg-info
+**/.pytest_cache
+**/.ruff_cache
+.venv
+**/.DS_Store
+data

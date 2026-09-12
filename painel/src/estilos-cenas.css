@@ -1,0 +1,273 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (C) 2026 Quero Automação Ltda */
+
+/* The eight slots are always on the screen, empty ones included, because the number of a
+   scene is its position and a slot with no step is a number held open for the automations
+   already built on it. A step reads left to right in the order it happens: which block, what to
+   do, which value, how long to wait after; on a phone the line folds and keeps that order. */
+.cenas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr));
+}
+
+.cena {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.1rem 1.2rem;
+}
+
+.cena.cena-vazia {
+  border-style: dashed;
+  background-color: color-mix(in srgb, var(--vidro) 45%, transparent);
+}
+
+.cena-cabeca {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.cena-numero {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acento-botao) 84%, #ffffff), var(--acento-botao));
+  color: #ffffff;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.cena-nome {
+  flex: 1 1 10rem;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.cena-executar {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.9rem;
+}
+
+.cena-executar svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.cena-dica {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* The interval is one fact about the whole scene, so it sits once above the steps and
+   every step without a wait of its own shows it greyed as its placeholder. */
+.cena-intervalo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.cena-intervalo-ajuda {
+  flex-basis: 100%;
+}
+
+.passos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  counter-reset: passo;
+}
+
+.passo {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 2.75rem 0.6rem 2.1rem;
+  border: 1px solid var(--vidro-borda);
+  border-radius: var(--raio-interno);
+  background: var(--campo);
+  counter-increment: passo;
+}
+
+.passo::before {
+  content: counter(passo);
+  position: absolute;
+  left: 0.65rem;
+  top: 0.9rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--texto-suave);
+}
+
+.passo-alvo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.passo-alvo select {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+/* The name of the equipment is the longest text of a step and a select clips it, so the
+   equipment takes the whole first line and what to do with it comes on the next. */
+.passo-alvo select:first-child {
+  flex-basis: 100%;
+}
+
+.passo select,
+.passo .curto {
+  background: var(--cartao);
+}
+
+.curto {
+  width: 6.5rem;
+}
+
+.passo-espera {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.passo-remover {
+  position: absolute;
+  right: 0.35rem;
+  top: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--texto-suave);
+  cursor: pointer;
+}
+
+.passo-remover svg {
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.passo-remover:hover,
+.passo-remover:focus-visible {
+  background: var(--cartao);
+  color: var(--texto);
+  outline: none;
+}
+
+/* The save bar sticks over the bottom navigation while there is a draft, so on a phone
+   the operator never scrolls eight cards to find the button. */
+.cenas-rodape {
+  position: sticky;
+  bottom: calc(5.4rem + env(safe-area-inset-bottom));
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--raio);
+}
+
+.cenas-rodape .sucesso,
+.cenas-rodape .erro {
+  margin: 0;
+}
+
+.problemas {
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--erro);
+}
+
+.problemas code {
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 900px) {
+  .cenas-rodape {
+    bottom: 1rem;
+  }
+}
+
+/* Schedules: one row per schedule, the days as seven toggles under it. */
+.agendamentos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.agendamento {
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.agendamento-campos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+.agendamento-campos select {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+.dias {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.dia {
+  border: 1px solid var(--borda);
+  background: transparent;
+  color: var(--texto);
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.dia-marcado {
+  background: var(--acento-botao);
+  border-color: var(--acento-botao);
+  color: #ffffff;
+}
+.visualmente-oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

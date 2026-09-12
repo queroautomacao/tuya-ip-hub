@@ -1,0 +1,557 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (C) 2026 Quero Automação Ltda */
+@import "./estilos-equipamentos.css";
+@import "./estilos-controles.css";
+@import "./estilos-cenas.css";
+@import "./estilos-licencas.css";
+@import "./estilos-concha.css";
+@import "./estilos-simulador.css";
+@import "./estilos-porta.css";
+@import "./estilos-log.css";
+
+/* Liquid glass: every surface of the panel is a sheet of frosted glass over a softly lit
+   background, with a bright edge on top where the light hits it and a soft shadow under it.
+   The tokens below are the whole material: a screen names a surface (.cartao.barra,
+   .navegacao) and never mixes its own colour. Blur is spent on the top-level surfaces only;
+   what sits inside a surface is a translucent fill without blur, because every backdrop
+   filter is a full-screen pass on a phone. */
+:root {
+  color-scheme: light dark;
+  --online: #1e9e5a;
+  --offline: #d13b3b;
+  --verificando: #8a919c;
+  --desfoque: 18px;
+  --raio: 22px;
+  --raio-interno: 14px;
+  --fundo: #eef0f4;
+  --cartao: rgba(255, 255, 255, 0.55);
+  --campo: rgba(255, 255, 255, 0.64);
+  --vidro: rgba(255, 255, 255, 0.6);
+  --vidro-borda: rgba(255, 255, 255, 0.72);
+  --vidro-brilho: rgba(255, 255, 255, 0.95);
+  --vidro-sombra: rgba(24, 28, 44, 0.14);
+  --vidro-reflexo: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 45%);
+  --texto: #1c1f26;
+  --texto-suave: #5b6270;
+  --borda: rgba(28, 31, 38, 0.1);
+  --destaque: #c8423a;
+  --acento-botao: #c8423a;
+  --perigo-botao: #b8362c;
+  --erro: #b32626;
+  --sucesso: #17794a;
+  --luz-1: rgba(200, 66, 58, 0.22);
+  --luz-2: rgba(70, 120, 255, 0.18);
+  --luz-3: rgba(255, 176, 60, 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fundo: #0e1016;
+    --cartao: rgba(44, 48, 60, 0.5);
+    --campo: rgba(0, 0, 0, 0.28);
+    --vidro: rgba(30, 33, 43, 0.58);
+    --vidro-borda: rgba(255, 255, 255, 0.12);
+    --vidro-brilho: rgba(255, 255, 255, 0.16);
+    --vidro-sombra: rgba(0, 0, 0, 0.5);
+    --vidro-reflexo: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 45%);
+    --texto: #e8eaee;
+    --texto-suave: #a3a9b4;
+    --borda: rgba(255, 255, 255, 0.1);
+    --destaque: #f2837b;
+    --acento-botao: #d9584e;
+    --perigo-botao: #c9423a;
+    --erro: #ff8b8b;
+    --sucesso: #67d6a2;
+    --luz-1: rgba(242, 131, 123, 0.16);
+    --luz-2: rgba(90, 130, 255, 0.16);
+    --luz-3: rgba(255, 176, 60, 0.08);
+  }
+}
+
+/* The operator may pin the theme, so the pinned one wins over the system in both
+   directions; color-scheme follows it so the native controls and scrollbars agree. */
+:root[data-tema="light"] {
+  color-scheme: light;
+  --fundo: #eef0f4;
+  --cartao: rgba(255, 255, 255, 0.55);
+  --campo: rgba(255, 255, 255, 0.64);
+  --vidro: rgba(255, 255, 255, 0.6);
+  --vidro-borda: rgba(255, 255, 255, 0.72);
+  --vidro-brilho: rgba(255, 255, 255, 0.95);
+  --vidro-sombra: rgba(24, 28, 44, 0.14);
+  --vidro-reflexo: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 45%);
+  --texto: #1c1f26;
+  --texto-suave: #5b6270;
+  --borda: rgba(28, 31, 38, 0.1);
+  --destaque: #c8423a;
+  --acento-botao: #c8423a;
+  --perigo-botao: #b8362c;
+  --erro: #b32626;
+  --sucesso: #17794a;
+  --luz-1: rgba(200, 66, 58, 0.22);
+  --luz-2: rgba(70, 120, 255, 0.18);
+  --luz-3: rgba(255, 176, 60, 0.18);
+}
+
+:root[data-tema="dark"] {
+  color-scheme: dark;
+  --fundo: #0e1016;
+  --cartao: rgba(44, 48, 60, 0.5);
+  --campo: rgba(0, 0, 0, 0.28);
+  --vidro: rgba(30, 33, 43, 0.58);
+  --vidro-borda: rgba(255, 255, 255, 0.12);
+  --vidro-brilho: rgba(255, 255, 255, 0.16);
+  --vidro-sombra: rgba(0, 0, 0, 0.5);
+  --vidro-reflexo: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 45%);
+  --texto: #e8eaee;
+  --texto-suave: #a3a9b4;
+  --borda: rgba(255, 255, 255, 0.1);
+  --destaque: #f2837b;
+  --acento-botao: #d9584e;
+  --perigo-botao: #c9423a;
+  --erro: #ff8b8b;
+  --sucesso: #67d6a2;
+  --luz-1: rgba(242, 131, 123, 0.16);
+  --luz-2: rgba(90, 130, 255, 0.16);
+  --luz-3: rgba(255, 176, 60, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  background: var(--fundo);
+  color: var(--texto);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Glass needs something behind it to refract, so the page carries three soft lights,
+   fixed to the viewport; a flat colour behind frosted glass reads as grey plastic. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(55rem 38rem at 8% -8%, var(--luz-1), transparent 62%),
+    radial-gradient(48rem 34rem at 105% 5%, var(--luz-2), transparent 60%),
+    radial-gradient(44rem 30rem at 50% 108%, var(--luz-3), transparent 60%);
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.01em;
+}
+
+/* The material. Every top-level surface of the panel is one of these. */
+.cartao,
+.cartao-equipamento,
+.cena,
+.barra,
+.navegacao,
+.cenas-rodape {
+  background-color: var(--vidro);
+  background-image: var(--vidro-reflexo);
+  -webkit-backdrop-filter: blur(var(--desfoque)) saturate(1.6);
+  backdrop-filter: blur(var(--desfoque)) saturate(1.6);
+  border: 1px solid var(--vidro-borda);
+  box-shadow:
+    inset 0 1px 0 var(--vidro-brilho),
+    0 14px 36px var(--vidro-sombra);
+}
+
+.cartao,
+.cartao-equipamento,
+.cena {
+  border-radius: var(--raio);
+}
+
+/* Every field and every list of choices in the panel is one of these, wherever it is
+   drawn, so the shape is written once here and no screen styles its own; on a phone the size
+   keeps iOS from zooming on focus and the height keeps the thumb from missing. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+select,
+textarea {
+  font: inherit;
+  font-size: max(1rem, 16px);
+  min-height: 2.75rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio-interno);
+  background: var(--campo);
+  color: var(--texto);
+  max-width: 100%;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+select {
+  appearance: none;
+  padding-right: 2.4rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238a919c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.9rem center;
+  background-size: 1.1rem;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 0;
+  border-color: var(--destaque);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--destaque) 22%, transparent);
+}
+
+input[disabled],
+select[disabled] {
+  opacity: 0.6;
+}
+
+input[type="range"] {
+  accent-color: var(--destaque);
+}
+
+.pagina {
+  max-width: 560px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: calc(1.5rem + env(safe-area-inset-top)) 1.25rem calc(2rem + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.cabecalho {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.cabecalho h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.subtitulo {
+  margin: 0.25rem 0 0;
+  color: var(--texto-suave);
+}
+
+.idiomas {
+  display: flex;
+  gap: 0.25rem;
+}
+
+/* Capsules: the small controls of the bar are glass pills, pressed one filled. */
+.idiomas button {
+  font: inherit;
+  font-size: 0.85rem;
+  min-height: 2.2rem;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--vidro-borda);
+  border-radius: 999px;
+  background: var(--cartao);
+  color: var(--texto);
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 var(--vidro-brilho);
+}
+
+.idiomas button[aria-pressed="true"] {
+  background: var(--texto);
+  border-color: var(--texto);
+  color: var(--fundo);
+  font-weight: 600;
+}
+
+.cartao {
+  padding: 1.25rem 1.5rem;
+}
+
+.cartao h2 {
+  margin: 0 0 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+
+.estado {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 1rem;
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.ponto {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 50%;
+  background: var(--verificando);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--verificando) 25%, transparent);
+}
+
+.cartao-online .ponto {
+  background: var(--online);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--online) 25%, transparent);
+}
+
+.cartao-offline .ponto {
+  background: var(--offline);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--offline) 25%, transparent);
+}
+
+.cartao dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.35rem 1.25rem;
+  margin: 0;
+}
+
+.cartao dt {
+  color: var(--texto-suave);
+}
+
+.cartao dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+main {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.texto-suave {
+  color: var(--texto-suave);
+}
+
+.carregando {
+  margin: 0;
+  color: var(--texto-suave);
+}
+
+.instalacao {
+  margin: 0 0 1rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.formulario {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.formulario label {
+  font-size: 0.85rem;
+  color: var(--texto-suave);
+  margin-top: 0.5rem;
+}
+
+.dica {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--texto-suave);
+}
+
+/* Buttons: capsules. The primary one is the brand colour with a lit top edge, the secondary
+   one is glass, the dangerous one is the colour of an error. A press sinks the capsule a
+   little, the way a glass key does. */
+.botao {
+  font: inherit;
+  font-weight: 600;
+  margin-top: 1rem;
+  min-height: 2.75rem;
+  padding: 0.6rem 1.25rem;
+  border: 1px solid color-mix(in srgb, var(--acento-botao) 70%, #ffffff);
+  border-radius: 999px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acento-botao) 84%, #ffffff), var(--acento-botao));
+  color: #ffffff;
+  cursor: pointer;
+  align-self: flex-start;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 8px 20px color-mix(in srgb, var(--acento-botao) 32%, transparent);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    filter 0.15s ease;
+}
+
+.botao:hover {
+  filter: brightness(1.05);
+}
+
+.botao:active {
+  transform: scale(0.97);
+}
+
+.botao:focus-visible {
+  outline: 0;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 0 0 4px color-mix(in srgb, var(--destaque) 30%, transparent);
+}
+
+.botao[disabled] {
+  opacity: 0.6;
+  cursor: progress;
+  filter: none;
+  transform: none;
+}
+
+/* A row of actions under the readings of a card needs air above it, or the buttons read
+   as part of the last line. */
+.cartao .acoes-largas,
+.cartao .manutencao {
+  margin-top: 1.1rem;
+}
+
+.manutencao {
+  display: grid;
+  gap: 1rem;
+}
+
+.pilha {
+  gap: 0.75rem;
+}
+
+/* What the rail of the shell shows on a desktop is not repeated on the account screen
+   there, and exists on the account screen only where there is no rail. */
+@media (min-width: 900px) {
+  .so-celular {
+    display: none;
+  }
+}
+
+/* A secondary button is the same material as the card under it, so the pale edge it had
+   left a row of them reading as one grey strip; the edge is drawn from the text colour, which
+   is the one token that contrasts with the surface in both themes. */
+.botao.secundario {
+  background: var(--cartao);
+  border-color: color-mix(in srgb, var(--texto) 24%, transparent);
+  color: var(--texto);
+  margin-top: 0;
+  box-shadow:
+    inset 0 1px 0 var(--vidro-brilho),
+    0 4px 12px var(--vidro-sombra);
+}
+
+.botao.secundario:hover {
+  filter: none;
+  background: color-mix(in srgb, var(--cartao) 70%, var(--vidro-brilho));
+}
+
+/* Restarting the hub is the one button on the panel that takes every equipment off the
+   bus for a few seconds, so it is drawn in the colour of an error and never like a setting. */
+.botao.perigo {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--perigo-botao) 82%, #ffffff), var(--perigo-botao));
+  border-color: color-mix(in srgb, var(--perigo-botao) 70%, #ffffff);
+  color: #ffffff;
+  margin-top: 0;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 8px 20px color-mix(in srgb, var(--perigo-botao) 30%, transparent);
+}
+
+.etiqueta {
+  font-size: 0.75rem;
+  border: 1px solid var(--vidro-borda);
+  border-radius: 999px;
+  padding: 2px 9px;
+  background: var(--campo);
+  color: var(--texto-suave);
+}
+
+.erro {
+  margin: 0.75rem 0 0;
+  color: var(--erro);
+}
+
+.sucesso {
+  margin: 0.75rem 0 0;
+  color: var(--sucesso);
+}
+
+.aviso {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--vidro-borda);
+  border-left: 4px solid var(--destaque);
+  background: var(--campo);
+  border-radius: var(--raio-interno);
+  color: var(--texto-suave);
+}
+
+.rodape {
+  margin-top: auto;
+  color: var(--texto-suave);
+  font-size: 0.9rem;
+}
+
+.rodape.miudo {
+  font-size: 0.72rem;
+  line-height: 1.4;
+  opacity: 0.85;
+}
+
+.rodape p {
+  margin: 0.35rem 0;
+}
+
+.rodape a {
+  color: var(--destaque);
+}
+
+.discreto {
+  font-size: 0.8rem;
+}
+
+/* The motion of the glass is decoration, and somebody who asked the system for less of
+   it gets none of it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* The instructions of a driver that pairs are read BEFORE the fields, not skimmed after
+   them, so they sit apart from the hint of a single field and are not the same grey whisper. */
+.dica-de-cadastro {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0 0 0.5rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--raio-interno);
+  border: 1px solid color-mix(in srgb, var(--texto) 18%, transparent);
+  background: var(--campo);
+  color: var(--texto);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  /* Instructions in numbered steps are written with line breaks and read as steps, not
+     as one paragraph the eye slides off; the manifest writes them that way and this keeps
+     them that way on the screen. */
+  white-space: pre-line;
+}
+
+.dica-de-cadastro-bloco {
+  margin: 0;
+}

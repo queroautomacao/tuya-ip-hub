@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Quero Automação Ltda
+# The relay runs on a server of the maker, not on a hub. It holds no data of any customer:
+# what it keeps is a map of short lived addresses to the sockets the hubs opened.
+services:
+  relay:
+    image: ${RELAY_IMAGEM:-ghcr.io/queroautomacao/tuya-ip-hub-relay:latest}
+    build:
+      context: ..
+      dockerfile: relay/Dockerfile
+    pull_policy: build
+    restart: unless-stopped
+    environment:
+      # The address browsers reach this by, which is what a hub publishes to the app of its
+      # customer. Put the TLS in front, in a reverse proxy; this one speaks plain
+      # HTTP to it and never terminates a certificate of its own.
+      RELAY_BASE: ${RELAY_BASE:?set RELAY_BASE to the public address of this relay}
+      RELAY_PORTA: 8090
+      # The reverse proxies in front of this, so a hub or a browser is counted by its own
+      # address and not by the proxy's. Empty means no proxy: the peer is the client.
+      RELAY_PROXIES: ${RELAY_PROXIES:-}
+      # The registry of homes this relay serves (see LEIA-ME.md): a Directus, a token of a
+      # role that reads one collection, and the collection and field holding the id of the
+      # home. Without the first two ANY hub that dials in is served, which is fine on a
+      # bench and not on the internet.
+      RELAY_DIRECTUS_URL: ${RELAY_DIRECTUS_URL:-}
+      RELAY_DIRECTUS_TOKEN: ${RELAY_DIRECTUS_TOKEN:-}
+      RELAY_DIRECTUS_COLECAO: ${RELAY_DIRECTUS_COLECAO:-homes}
+      RELAY_DIRECTUS_CAMPO: ${RELAY_DIRECTUS_CAMPO:-home_id}
+    ports:
+      - "127.0.0.1:8090:8090"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys;sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8090/saude',timeout=3).status==200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

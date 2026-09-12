@@ -1,0 +1,97 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Quero Automação Ltda
+
+import { useCallback, useEffect, useState } from "react";
+import { CartaoEquipamento, usarEquipamentos } from "./Equipamentos.tsx";
+import ListasDoPainel from "./ListasDoPainel.tsx";
+import NumeroNoApp from "./NumeroNoApp.tsx";
+import { lerLicencas } from "./api.ts";
+import { INTERVALO_MS } from "./equipamentos.ts";
+import { t, traduzirErro, type Idioma } from "./i18n";
+import { onde, type Licenca } from "./licencas.ts";
+import { caminhoDa, irPara } from "./rotas.ts";
+
+// A speaker that follows a master has its volume and transport routed to
+// it, and the controls say so; the role comes from the book of licences of the daemon and
+// is read here so every card of the screen reads the same fact.
+function usarLicencas(): Licenca[] {
+  const [licencas, setLicencas] = useState<Licenca[]>([]);
+  const recarregar = useCallback(async (): Promise<void> => {
+    try {
+      setLicencas((await lerLicencas()).licencas);
+    } catch {
+      // The role is a hint on the controls; a listing that failed leaves the hint out
+      // and the cycle tries again on the next tick.
+    }
+  }, []);
+  useEffect(() => {
+    void recarregar();
+    const temporizador = window.setInterval(() => void recarregar(), INTERVALO_MS);
+    return () => window.clearInterval(temporizador);
+  }, [recarregar]);
+  return licencas;
+}
+
+function Voltar() {
+  return (
+    <a className="voltar" href={caminhoDa({ tela: "inicio" })}>
+      <span aria-hidden="true">&larr;</span> {t("voltar_inicio")}
+    </a>
+  );
+}
+
+export default function DetalheEquipamento({
+  identidade,
+  idioma,
+}: {
+  identidade: string;
+  idioma: Idioma;
+}) {
+  const { catalogo, lista, erro, recarregar } = usarEquipamentos();
+  const licencas = usarLicencas();
+  const equipamento = lista?.find((candidato) => candidato.identidade === identidade);
+  const item = (catalogo ?? []).find((candidato) => candidato.tipo === equipamento?.tipo);
+  const papel = onde(licencas, identidade)?.numero.papel ?? "";
+  return (
+    <>
+      <Voltar />
+      {erro !== null && (
+        <p className="erro" role="alert">
+          {traduzirErro(erro)}
+        </p>
+      )}
+      {lista === null && erro === null && <p className="carregando">{t("carregando")}</p>}
+      {lista !== null && equipamento === undefined && (
+        // An identity the list no longer carries was removed in another session, or the
+        // address was typed by hand; either way the honest answer is a sentence and a way
+        // back, never a blank screen.
+        <section className="cartao">
+          <p>{t("detalhe_nao_encontrado")}</p>
+        </section>
+      )}
+      {equipamento !== undefined && (
+        <>
+          <CartaoEquipamento
+            equipamento={equipamento}
+            item={item}
+            idioma={idioma}
+            papel={papel}
+            apos={<NumeroNoApp equipamento={equipamento} item={item} somenteGrupo />}
+            configuracoes={
+              <>
+                <NumeroNoApp equipamento={equipamento} item={item} />
+                <ListasDoPainel
+                  equipamento={equipamento}
+                  item={item}
+                  aoMudar={() => void recarregar()}
+                />
+              </>
+            }
+            aoMudar={() => void recarregar()}
+            aoRemover={() => irPara({ tela: "inicio" })}
+          />
+        </>
+      )}
+    </>
+  );
+}

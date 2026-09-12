@@ -1,0 +1,64 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Quero Automação Ltda
+
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { ABAS, abaDa, caminhoDa, lerRota, type Rota } from "./rotas.ts";
+
+test("an empty or bare hash is the home screen (hash vazio ou só barra é o início)", () => {
+  for (const hash of ["", "#", "#/", "#//", "/"]) {
+    assert.deepEqual(lerRota(hash), { tela: "inicio" });
+  }
+});
+
+test("every tab has an address that reads back to it (toda aba tem endereço que volta a ela)", () => {
+  for (const { aba, rota } of ABAS) {
+    assert.deepEqual(lerRota(caminhoDa(rota)), rota);
+    assert.equal(abaDa(lerRota(caminhoDa(rota))), aba);
+  }
+});
+
+test("the identity of an equipment survives the round trip, whatever it carries (a identidade sobrevive à ida e volta, leve o que levar)", () => {
+  // An identity is a uuid, a MAC or a serial the device chose, so it may carry a slash,
+  // a space, a percent sign or a colon, and the address must bring it back byte for byte.
+  for (const identidade of ["uuid-1", "AA:BB:CC:DD:EE:FF", "com/barra", "100%", "com espaço", "novo "]) {
+    const rota: Rota = { tela: "equipamento", identidade };
+    assert.deepEqual(lerRota(caminhoDa(rota)), rota);
+    assert.equal(abaDa(rota), "inicio");
+  }
+});
+
+test("the registration screen is never mistaken for an identity (a tela de cadastro nunca é confundida com identidade)", () => {
+  assert.deepEqual(lerRota("#/equipamentos/novo"), { tela: "novo" });
+  assert.equal(abaDa({ tela: "novo" }), "inicio");
+  assert.equal(caminhoDa({ tela: "novo" }), "#/equipamentos/novo");
+});
+
+test("an address nobody knows lands on the home screen instead of a blank page (endereço desconhecido cai no início, não em página vazia)", () => {
+  for (const hash of [
+    "#/nada",
+    "#/blocos/1",
+    "#/equipamentos",
+    "#/equipamentos/",
+    "#/equipamentos/a/b",
+    "#/conta/senha",
+    "#/equipamentos/%",
+    "#/equipamentos/%E0%A4%A",
+  ]) {
+    assert.deepEqual(lerRota(hash), { tela: "inicio" }, hash);
+  }
+});
+
+test("the scene and simulator tabs are drawn dimmed until an equipment exists (as abas de cena e simulador ficam apagadas até existir equipamento)", async () => {
+  const { abasDoMenu } = await import("./rotas.ts");
+  const sem = abasDoMenu(false);
+  assert.deepEqual(
+    sem.map(({ aba }) => aba),
+    ABAS.map(({ aba }) => aba),
+  );
+  assert.deepEqual(
+    sem.filter(({ ativa }) => !ativa).map(({ aba }) => aba),
+    ["cenas", "simulador"],
+  );
+  assert.ok(abasDoMenu(true).every(({ ativa }) => ativa));
+});

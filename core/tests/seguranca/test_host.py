@@ -1,0 +1,93 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Quero Automação Ltda
+"""A Host outside the allowlist gets 421 (closes DNS rebinding from outside the LAN)."""
+
+import asyncio
+from dataclasses import replace
+
+import pytest
+
+from iphub.api.comum import config_de, trocar_config
+from iphub.app import criar_app
+from iphub.config import Config, salvar
+
+RECUSADO = {"ok": False, "code": "host_nao_permitido"}
+
+
+@pytest.mark.parametrize("host", ["hub.local", "evil.example.com", "evil.example.com:8080", ""])
+async def test_host_fora_da_lista_e_421(cliente, host):
+    resposta = await cliente.get("/health", headers={"Host": host})
+    assert resposta.status == 421
+    assert await resposta.json() == RECUSADO
+
+
+@pytest.mark.parametrize(
+    "host", ["192.0.2.10:8080", "192.0.2.10", "[::1]:8080", "localhost", "LOCALHOST:8080"]
+)
+async def test_ip_literal_e_localhost_passam(cliente, host):
+    resposta = await cliente.get("/health", headers={"Host": host})
+    assert resposta.status == 200
+
+
+async def test_nome_da_lista_passa(fabrica_cliente):
+    cliente = await fabrica_cliente(config=Config(hosts_permitidos=("hub.local",)))
+    assert (await cliente.get("/health", headers={"Host": "hub.local"})).status == 200
+    assert (await cliente.get("/health", headers={"Host": "hub.local:8080"})).status == 200
+    assert (await cliente.get("/health", headers={"Host": "evil.example.com"})).status == 421
+
+
+async def test_a_lista_vem_do_config_em_disco(fabrica_cliente, amb):
+    # The allowlist the integrator edits is the one in config.json; a list frozen in
+    # code at build time would leave that edit with no effect.
+    amb.dir_data.mkdir(parents=True, exist_ok=True)
+    salvar(Config(hosts_permitidos=("hub.local",)), amb.dir_data)
+    cliente = await fabrica_cliente()
+    assert (await cliente.get("/health", headers={"Host": "hub.local"})).status == 200
+    assert (await cliente.get("/health", headers={"Host": "evil.example.com"})).status == 421
+
+
+async def test_lista_mudada_em_execucao_vale_na_hora(aiohttp_client, amb):
+    app = criar_app(amb)
+    cliente = await aiohttp_client(app)
+    assert (await cliente.get("/health", headers={"Host": "hub.local"})).status == 421
+    trocar_config(app, replace(config_de(app), hosts_permitidos=("hub.local",)))
+    assert (await cliente.get("/health", headers={"Host": "hub.local"})).status == 200
+
+
+async def test_host_ausente_e_421(cliente):
+    # The client library always adds Host, so the bare request goes over a raw socket.
+    leitor, escritor = await asyncio.open_connection(cliente.host, cliente.port)
+    escritor.write(b"GET /health HTTP/1.0\r\n\r\n")
+    await escritor.drain()
+    bruto = await asyncio.wait_for(leitor.read(), timeout=5)
+    escritor.close()
+    await escritor.wait_closed()
+
+    linha_de_status, _, resto = bruto.partition(b"\r\n")
+    assert linha_de_status.split(b" ")[1] == b"421"
+    cabecalhos, _, corpo = resto.partition(b"\r\n\r\n")
+    assert b"X-Frame-Options: DENY" in cabecalhos
+    assert b'"host_nao_permitido"' in corpo
+
+
+async def test_421_vale_antes_de_qualquer_rota(cliente):
+    for caminho in ("/", "/assets/app.js", "/nao-existe", "/api/setup"):
+        resposta = await cliente.get(caminho, headers={"Host": "evil.example.com"})
+        assert resposta.status == 421, caminho
+        assert await resposta.json() == RECUSADO
+
+
+async def test_alvo_em_forma_absoluta_com_autoridade_hostil_e_421(cliente):
+    # An absolute-form target sets request.host to its own authority while the Host
+    # header stays innocent, so the gate has to look at both.
+    leitor, escritor = await asyncio.open_connection(cliente.host, cliente.port)
+    escritor.write(
+        b"GET http://evil.example.com/health HTTP/1.1\r\n"
+        b"Host: 127.0.0.1\r\nConnection: close\r\n\r\n"
+    )
+    await escritor.drain()
+    bruto = await asyncio.wait_for(leitor.read(), timeout=5)
+    escritor.close()
+    await escritor.wait_closed()
+    assert bruto.split(b" ")[1] == b"421"
+    assert b'"host_nao_permitido"' in bruto

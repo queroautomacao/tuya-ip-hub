@@ -1,0 +1,199 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (C) 2026 Quero Automação Ltda */
+
+/* The equipment screen: the cards, the control strip and the sweep list. */
+
+.equipamentos,
+.achados {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.equipamento,
+.achados li {
+  border: 1px solid var(--vidro-borda);
+  border-radius: var(--raio-interno);
+  padding: 0.9rem 1rem;
+  background: var(--cartao);
+  box-shadow: inset 0 1px 0 var(--vidro-brilho);
+}
+
+.equipamento h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.equipamento-cabeca,
+.achados li {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.equipamento-cabeca {
+  margin-bottom: 0.6rem;
+}
+
+.equipamento-cabeca p,
+.achados p {
+  margin: 0.15rem 0 0;
+}
+
+.estado-curto {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--texto-suave);
+}
+
+.equipamento dl {
+  font-size: 0.9rem;
+}
+
+.pareamento,
+.confirmacao {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.8rem;
+}
+
+.pareamento p,
+.confirmacao p {
+  margin: 0;
+}
+
+.equipamento > .botao {
+  margin-top: 0.8rem;
+}
+
+.controle .botao,
+.pareamento .botao,
+.confirmacao .botao,
+.acoes .botao,
+.achados .botao {
+  margin-top: 0;
+}
+
+.achados .botao[disabled] {
+  cursor: not-allowed;
+}
+
+.achado-titulo {
+  font-weight: 600;
+}
+
+/* Text a device answered is not ours, so a 200 character header with no space in it
+   wraps inside its box instead of stretching the card past the screen. */
+.cartao dd,
+.equipamento h3,
+.achados p,
+.discreto {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.equipamento-cabeca > div,
+.achados li > div {
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.8rem;
+}
+
+.caixa {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--texto-suave);
+}
+
+.formulario h4 {
+  margin: 0.8rem 0 0;
+  font-size: 0.95rem;
+}
+
+/* The range and the button are one gesture, so they sit on one line, and the field is
+   what grows when there is room. On a phone the line wraps and the button takes the width,
+   because a range typed with a thumb needs the field wide and the button reachable. */
+.linha-de-varredura {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.6rem 0 0.35rem;
+}
+
+.linha-de-varredura label {
+  flex: 0 0 auto;
+}
+
+.linha-de-varredura input {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.linha-de-varredura .botao {
+  flex: 0 0 auto;
+}
+
+/* The pairing notice is the answer to a device that reads offline, so it sits above the
+   button that resolves it and is the first thing the eye lands on in that block. */
+.aviso-pareamento {
+  flex: 1 0 100%;
+  margin: 0;
+  font-weight: 600;
+}
+
+/* A device of an account is picked by its NAME, and the id under it is what goes into the
+   registration; showing both is what lets an operator with five identical units tell them
+   apart before he commits to one. */
+.conta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0.8rem 0 0;
+}
+
+.conta-aparelhos {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conta-aparelhos .botao {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  width: 100%;
+  text-align: left;
+}
+
+.conta-aparelhos code {
+  font-size: 0.75rem;
+  color: var(--texto-suave);
+  overflow-wrap: anywhere;
+}
+
+.conta-aparelhos .botao[aria-pressed="true"] {
+  border-color: var(--destaque);
+}

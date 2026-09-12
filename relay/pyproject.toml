@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Quero Automação Ltda
+[project]
+name = "tuya-ip-hub-relay"
+version = "0.1.0"
+description = "Rendezvous for the temporary remote access of Tuya IP Hub"
+requires-python = ">=3.12"
+dependencies = ["aiohttp>=3.10"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+# Declared, so the sorting of the imports is the same wherever ruff is run from: without
+# it, a run outside this folder files "relay" with the third party packages and a run
+# inside files it with ours, and the two disagree about the order forever.
+[tool.ruff.lint.isort]
+known-first-party = ["relay"]
